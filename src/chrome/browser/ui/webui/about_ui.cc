@@ -588,8 +588,6 @@ std::string ChromeURLs() {
               "</a></li>\n";
     }
 
-    html += "<li><a href='chrome://theme/IDR_PRODUCT_removed'>chrome://removed</a></li>\n";
-
     html +=
         "</ul><a id=\"internals\"><h2>List of chrome://internals "
         "pages</h2></a>\n<ul>\n";
