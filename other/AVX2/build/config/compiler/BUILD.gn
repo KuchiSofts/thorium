@@ -2354,6 +2354,7 @@ if (is_win) {
   common_optimize_on_ldflags += [
     "-mllvm:-aggressive-ext-opt",
     "-mllvm:-enable-gvn-hoist",
+    "-mllvm:-march=haswell",
   ]
 
   if (use_polly == true) {
