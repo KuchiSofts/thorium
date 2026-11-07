@@ -147,6 +147,17 @@ Get-Content src\chrome\VERSION
 `--no-history` fetches only the pinned revision of each repository, without git history, which
 makes the download much smaller. `checkout_pgo_profiles` downloads Chromium's profile-guided
 optimisation data, which the release build uses. `chrome\VERSION` must read `156.0.8078.28`.
+On the reference machine the sync took 8 minutes, the hooks 2 minutes, and the tree is 27 GB.
+
+Check that the toolchain works on unmodified Chromium:
+
+```powershell
+cd src
+gn gen out\stock-check --args="is_debug=false is_component_build=false"
+Remove-Item -Recurse -Force out\stock-check
+```
+
+Expected: `Done. Made ... targets`.
 
 ## 6. Upstream Thorium overlay and patches
 
@@ -165,6 +176,7 @@ optimisation data, which the release build uses. `chrome\VERSION` must read `156
 | Windows SDK | 10.0.28000.2526 |
 | Debugging Tools for Windows (`cdb.exe`) | 10.0.28000.2526 |
 | depot_tools | `289a37bda` (2026-11-06) |
+| GN | 2578 (`510ec7992c30`) |
 | Python | 3.12.8 |
 | Git for Windows | 2.51.1 |
 

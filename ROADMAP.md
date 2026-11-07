@@ -74,7 +74,7 @@ and the Thoron icon.
 risks before changing anything.
 **Also in this phase:** L.1 (licence inventory), Q.1 and Q.2 (benchmark suite and baselines).
 
-- [ ] **P1.1** Windows toolchain: Visual Studio 2026 (Desktop C++, ATL/MFC), Windows SDK 10.0.28000 plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive that is not cloud-synced - *Role:* Release engineer · *Depends:* P0 · *Done when:* `gn gen` succeeds for stock Chromium 156; tool versions recorded in `docs/build/WINDOWS.md` · 🔄
+- [x] **P1.1** Windows toolchain: Visual Studio 2026 (Desktop C++, ATL/MFC), Windows SDK 10.0.28000 plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive that is not cloud-synced - *Role:* Release engineer · *Depends:* P0 · *Done when:* `gn gen` succeeds for stock Chromium 156; tool versions recorded in `docs/build/WINDOWS.md` · ✅ 2026-11-07
 - [ ] **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots - *Role:* Release engineer · *Depends:* P0 · *Done when:* `gn gen` succeeds for linux-x64 and linux-arm64 targets; recorded in `docs/build/LINUX.md`
 - [ ] **P1.3** Branch `ks/M156` from gz83 tag `M156.0.8078.28` (`de9a1bc6`); fetch Chromium 156.0.8078.28; apply the upstream patch series - *Role:* Chromium engineer · *Depends:* P1.1 · *Done when:* the series applies with 0 rejects; the apply log is kept
 - [ ] **P1.4** Reproduce the Windows x64 AVX2 build of M156 - *Role:* Release engineer · *Depends:* P1.3 · *Done when:* the build launches with a fresh `--user-data-dir`; build time and disk use recorded

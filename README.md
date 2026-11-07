@@ -6,7 +6,7 @@
 
 **A fast, secure, Thorium-based browser for Windows 11 and Ubuntu.**
 
-[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-16%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
+[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-17%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
 
 [Why Thoron](#why-thoron) · [Features](#features) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits)
 
@@ -54,12 +54,12 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `███░░░░░░░░░░░░░░░░░` 19 of 117 tasks done (16%) · roadmap updated 2026-11-07
+**Overall:** `███░░░░░░░░░░░░░░░░░` 20 of 117 tasks done (17%) · roadmap updated 2026-11-07
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
 | [P0 - Foundation](ROADMAP.md#p0---foundation) | `████████████████████` | 11/11 | ✅ Done |
-| [P1 - Build environment](ROADMAP.md#p1---build-environment) | `██░░░░░░░░░░░░░░░░░░` | 1/10 | 🔄 In progress |
+| [P1 - Build environment](ROADMAP.md#p1---build-environment) | `████░░░░░░░░░░░░░░░░` | 2/10 | 🔄 In progress |
 | [P2 - First release](ROADMAP.md#p2---first-release) | `░░░░░░░░░░░░░░░░░░░░` | 0/15 | ⬜ Not started |
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
@@ -73,12 +73,12 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 **What's next**
 
-- 🔄 **P1.1** Windows toolchain: Visual Studio 2026 (Desktop C++, ATL/MFC), Windows SDK 10.0.28000 plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive that is not cloud-synced
 - 🔄 **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
 - ⬜ **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
 - ⬜ **P1.3** Branch `ks/M156` from gz83 tag `M156.0.8078.28` (`de9a1bc6`); fetch Chromium 156.0.8078.28; apply the upstream patch series
 - ⬜ **P1.4** Reproduce the Windows x64 AVX2 build of M156
 - ⬜ **P1.5** Reproduce the Linux x64 build of M156 in WSL2
+- ⬜ **P1.8** Manifest V2 / uBlock Origin viability on Chromium 158: apply the MV2 patches to 158 and load uBO 1.75
 
 <details>
 <summary><b>Full task list</b> (generated from <a href="ROADMAP.md">ROADMAP.md</a>)</summary>
@@ -99,7 +99,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 **P1 - Build environment**
 
-- [ ] **P1.1** Windows toolchain: Visual Studio 2026 (Desktop C++, ATL/MFC), Windows SDK 10.0.28000 plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive that is not cloud-synced
+- [x] **P1.1** Windows toolchain: Visual Studio 2026 (Desktop C++, ATL/MFC), Windows SDK 10.0.28000 plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive that is not cloud-synced
 - [ ] **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
 - [ ] **P1.3** Branch `ks/M156` from gz83 tag `M156.0.8078.28` (`de9a1bc6`); fetch Chromium 156.0.8078.28; apply the upstream patch series
 - [ ] **P1.4** Reproduce the Windows x64 AVX2 build of M156
