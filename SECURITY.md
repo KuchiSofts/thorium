@@ -37,19 +37,29 @@ problems.
 | Upstream Thorium patches | Thoron (above). We will coordinate with the Thorium project. Thorium's own policy is in its repository: https://github.com/Alex313031/thorium/blob/main/SECURITY.md |
 | A bundled extension (uBlock Origin) | Its authors: https://github.com/gorhill/uBlock |
 
-## How releases are protected
+## How releases will be protected
+
+There is no Thoron release yet. **In place today:** the upstream audit and extension verification
+(below). **From the first release:** traceable builds and signed checksums. **From updater v1**
+(ROADMAP P3): signed updates and profile snapshots.
 
 - **Traceable builds:** every release is built from a tagged commit, with build details in
   `BUILDINFO.json`.
 - **Signed checksums and updates:** `SHA256SUMS` and the update manifest are signed (Ed25519). The
   updater verifies the signature **before** reading anything, refuses older (downgrade) or expired
   manifests, and verifies every file's SHA-256.
-- **Audited upstream code:** every upstream Thorium or Chromium change merged into Thoron is first
-  audited with [`tools/audit`](tools/audit/README.md). It checks added binaries, network endpoints,
-  remote-execution and persistence patterns, and changes to security features. A human reviews every
-  finding.
-- **Verified bundled extensions:** they are pinned by SHA-256 to the author's official release, and
-  their extension ID is checked against the author's signing key.
+- **Audited upstream code (in place now):** every upstream Thorium or Chromium change merged into
+  Thoron is first audited with [`tools/audit`](tools/audit/README.md). It checks:
+  - added binaries (including executables disguised as images);
+  - submodule changes;
+  - network endpoints;
+  - remote-execution and persistence patterns;
+  - changes to security features.
+
+  A human reviews every finding.
+- **Verified bundled extensions (in place now):** each is pinned by SHA-256 to the author's official
+  release. Its CRX3 RSA signature is verified, and its ID is checked against the expected author key
+  (`tools/audit/crx_id.py --expect <id>`). Chromium verifies the signature again at install time.
 - **No telemetry:** Thoron only contacts its update manifest and package URLs for itself (see
   ROADMAP **S.10**).
 - **Your data is never touched by updates:** the updater never writes inside your profile; major

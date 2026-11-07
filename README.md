@@ -17,7 +17,8 @@
 
 ## Why Thoron
 
-Thoron keeps everything that makes Thorium fast and adds a strict set of commitments:
+Thoron keeps everything that makes Thorium fast and adds a strict set of commitments. They apply
+from the first release; the tooling that delivers them is being built now (see the [roadmap](ROADMAP.md)).
 
 - **Builds you can trace.** Every release is built from a tagged commit in this repository, and the
   tag points to exactly what was built. Build details (Chromium version, toolchain, our commit) ship
@@ -41,9 +42,10 @@ Thoron keeps everything that makes Thorium fast and adds a strict set of commitm
 | Windows 11 | x64 (AMD, Intel), ARM64 | installer `.exe`, portable `.zip` |
 | Ubuntu 24.04 / 26.04 LTS | x64 (AMD, Intel), ARM64 | `.deb` via a signed APT repository, portable `.tar.xz` |
 
-You never have to choose a build variant. The installer and the updater detect your CPU and pick the
-fastest build it supports: **AVX2**, with an **SSE4** fallback for older PCs, or **ARM64**. ARM64
-builds stay labelled *beta* until they have been tested on real devices.
+**Planned:** you will never have to choose a build variant. The installer and the updater (roadmap P3
+and P4) will detect your CPU and pick the fastest build it supports: **AVX2**, with an **SSE4**
+fallback for older PCs, or **ARM64**. ARM64 builds will stay labelled *beta* until they have been
+tested on real devices.
 
 ## Planned features
 
@@ -60,15 +62,20 @@ builds stay labelled *beta* until they have been tested on real devices.
 Each release will include `SHA256SUMS` and its signature `SHA256SUMS.minisig`. The public key will be
 published in this README and in the release notes with the first release.
 
+**Always do both steps.** A checksum alone only proves the file matches `SHA256SUMS`. The signature
+proves `SHA256SUMS` itself came from Thoron. [minisign](https://jedisct1.github.io/minisign/) is
+available for Windows and Ubuntu.
+
 ```powershell
-# Windows (PowerShell): compare with the matching line in SHA256SUMS
-Get-FileHash .\Thoron_AVX2_installer.exe -Algorithm SHA256
+# Windows (PowerShell)
+minisign -Vm SHA256SUMS -P <thoron-public-key>            # 1. the checksum list is genuine
+Get-FileHash .\Thoron_AVX2_installer.exe -Algorithm SHA256  # 2. compare with its line in SHA256SUMS
 ```
 
 ```shell
 # Ubuntu
-minisign -Vm SHA256SUMS -P <thoron-public-key>
-sha256sum --check --ignore-missing SHA256SUMS
+minisign -Vm SHA256SUMS -P <thoron-public-key>            # 1. the checksum list is genuine
+sha256sum --check --ignore-missing SHA256SUMS              # 2. your download matches it
 ```
 
 Thoron's Windows binaries are **not Authenticode-signed yet**, so Windows SmartScreen will warn on

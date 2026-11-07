@@ -65,7 +65,8 @@ A change is complete only when **all** of these are true:
 Every upstream merge is audited first:
 
 ```shell
-py -3 -I tools/audit/audit_diff.py . <our-branch> <upstream-ref> --section all --strict
+# Audit only what upstream added since our last common commit (not our own divergence):
+py -3 -I tools/audit/audit_diff.py . "$(git merge-base HEAD <upstream-ref>)" <upstream-ref> --section all --strict
 ```
 
 A `--strict` failure is not automatically malicious, but **every finding must be reviewed by a person**,
