@@ -37,15 +37,23 @@ Component: Patches originating from Bromite / Cromite
              https://www.gnu.org/licenses/gpl-3.0.txt (shipped in each release's licence bundle)
 
 Component: Patches originating from ungoogled-chromium (BSD-3-Clause), Iridium (BSD-3-Clause),
-           Inox patchset (BSD-2-Clause), Brave (MPL-2.0)
+           Inox patchset (BSD-2-Clause), Brave (MPL-2.0),
+           enable-chromium-hevc-hardware-decoding by StaZhu (MIT),
+           chromium_os-raspberry_pi by FydeOS (BSD-2-Clause)
   Copyright: their respective authors (see each patch header)
   Licence:   as listed
 
 Component: Patches originating from Debian, chromium-ubuntu-build (saiarcot895),
-           Vanadium (GrapheneOS), Supermium
+           Vanadium (GrapheneOS), Supermium, Chromium_Clang (RobRich999),
+           chromium-win64 (Hibbiki), chromium-patches (qcasey),
+           electron-chromium-codecs (Muril-o), and every other source named in docs/PATCHES.md
   Licence:   LICENCE INVENTORY PENDING (ROADMAP L.1). Each patch will be confirmed before the
              first Thoron release; any patch with an unknown or incompatible licence is
              rewritten or dropped.
+
+Component: thorium-win-upgrade (upstream infra/upgrader submodule)
+  Copyright: hezhizheng
+  Licence:   MIT (https://github.com/hezhizheng/thorium-win-upgrade). Not part of Thoron releases.
 
 Component: uBlock Origin (bundled, unmodified, as a separate extension)
   Copyright: Raymond Hill and contributors
@@ -53,7 +61,7 @@ Component: uBlock Origin (bundled, unmodified, as a separate extension)
   Source:    https://github.com/gorhill/uBlock (exact release pinned by SHA-256 in the build)
 
 Component: pak tool (pak_src/)
-  Copyright: (c) 2018 myfreeer
+  Copyright: (c) 2018 myfreeer; (c) 2022 Alex313031
   Licence:   MIT (pak_src/LICENSE), with parts under LGPL-2.1 (pak_src/LICENSE.LGPL)
 
 Component: thorium-libjxl (JPEG XL support)
@@ -64,8 +72,8 @@ Component: Widevine Content Decryption Module (Google)
   Not distributed with Thoron. When a site needs it, the browser downloads it directly from
   Google at runtime under Google's terms, as Chromium does.
 
-Media codecs
-  Thoron enables proprietary media formats (H.264, HEVC, AAC) as is common practice among
+Media codecs (patent notice)
+  Thoron enables proprietary media formats (H.264, HEVC, AAC), as is common practice among
   Chromium-based browsers. These formats may be covered by patents in some countries.
-  Distribution and use are the responsibility of the user under local law. Hardware decoding
-  uses the codecs provided by the operating system where available.
+  No patent licence of any kind is granted by Thoron's copyright licences or by this notice.
+  Hardware decoding uses the codecs provided by the operating system where available.

@@ -27,8 +27,9 @@ patches, build tooling and documentation come from the Thorium project.
   Thorium development.
 - **[@midzer](https://github.com/midzer)** maintains Thorium's APT repository and website, and has
   helped with builds.
-- **[@robrich999](https://github.com/robrich999)** contributed information and fixes credited in
-  Thorium's README.
+- **[@RobRich999](https://github.com/RobRich999)** contributed information and fixes credited in
+  Thorium's README. His [Chromium_Clang](https://github.com/RobRich999/Chromium_Clang) optimisation
+  work is also the origin of several Thorium patches and build settings (see `docs/PATCHES.md`).
 
 ### Upstream Thorium contributors
 
@@ -69,6 +70,15 @@ Each patch keeps its original attribution.
 | Inox patchset | https://github.com/gcarq/inox-patchset | BSD-2-Clause |
 | Supermium | https://github.com/win32ss/supermium | see licence inventory (ROADMAP **L.1**) |
 | Brave | https://github.com/brave/brave-core | MPL-2.0 |
+| Chromium_Clang (RobRich999) | https://github.com/RobRich999/Chromium_Clang | see licence inventory (ROADMAP **L.1**) |
+| enable-chromium-hevc-hardware-decoding (StaZhu) | https://github.com/StaZhu/enable-chromium-hevc-hardware-decoding | MIT |
+| chromium-win64 (Hibbiki) | https://github.com/Hibbiki/chromium-win64 | see licence inventory (ROADMAP **L.1**) |
+| chromium-patches (qcasey) | https://github.com/qcasey/chromium-patches | see licence inventory (ROADMAP **L.1**) |
+| electron-chromium-codecs (Muril-o) | https://github.com/Muril-o/electron-chromium-codecs | see licence inventory (ROADMAP **L.1**) |
+| chromium_os-raspberry_pi (FydeOS) | https://github.com/FydeOS/chromium_os-raspberry_pi | BSD-2-Clause |
+
+Any other source named in `docs/PATCHES.md` is credited there and covered by the licence inventory
+(ROADMAP **L.1**).
 
 ## Bundled and related software
 
@@ -76,8 +86,11 @@ Each patch keeps its original attribution.
   GPL-3.0. Thoron bundles the **unmodified** official release as a separate extension
   (https://github.com/gorhill/uBlock).
 - **pak tool**: [@myfreeer](https://github.com/myfreeer)'s
-  [chrome-pak-customizer](https://github.com/myfreeer/chrome-pak-customizer), MIT, with LGPL-2.1
-  parts (`pak_src/`).
+  [chrome-pak-customizer](https://github.com/myfreeer/chrome-pak-customizer), with changes by
+  Alex313031. It is MIT, with LGPL-2.1 parts (`pak_src/`).
+- **thorium-win-upgrade**: [@hezhizheng](https://github.com/hezhizheng)'s Windows upgrader,
+  [thorium-win-upgrade](https://github.com/hezhizheng/thorium-win-upgrade) (MIT). It is referenced by
+  the upstream repository as the `infra/upgrader` submodule.
 - **JPEG XL support**: [thorium-libjxl](https://github.com/Alex313031/thorium-libjxl) (BSD-3-Clause),
   built on [libjxl](https://github.com/libjxl/libjxl) by the JPEG XL authors.
 - **Thorium-WinUpdater**: ltguillaume and Alex313031 (https://codeberg.org/ltguillaume/thorium-winupdater),
@@ -90,5 +103,5 @@ documentation. It is developed by [KuchiSofts](https://github.com/KuchiSofts) an
 same BSD-3-Clause terms as Thorium, unless a file says otherwise. The Thoron logo artwork is
 © 2026 KuchiSofts, licensed CC BY 4.0.
 
-If we have missed or mis-credited anyone, please
-[open an issue](https://github.com/KuchiSofts/thorium/issues). Correct credit matters to us.
+If we have missed or mis-credited anyone, please open an issue on
+[KuchiSofts/thorium](https://github.com/KuchiSofts/thorium). Correct credit matters to us.

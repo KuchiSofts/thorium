@@ -17,21 +17,31 @@ defaults; the owner may override them.
 
 ## 1. Intent and why
 
-Thorium is a performance-focused Chromium fork created by Alex313031. A security review
-of upstream (November 2026) found:
+Thorium is a performance-focused Chromium fork created by Alex313031 and maintained today by a
+small group of volunteers. Thoron builds on their work. A review of upstream in November 2026
+(source, releases and issues) shaped the goals below.
 
-- **Security lag.** Chrome stable is 158.0.8127.18. The newest Thorium is 156.0.8078.28,
-  and many users still run 150 (eight major versions of unpatched Chromium security fixes).
-- **Unverifiable releases.** Windows binaries are built by hand on one volunteer's machine,
-  unsigned, with no CI. Release tags point at unrelated commits (the M150 tags point to the
-  M138 `main` commit), the M150 source branch was deleted, and the M156 release commit is on
-  no branch. Nobody can reproduce a given release from public source. Full changelogs are
-  not published.
-- **No updater on Windows.** Upstream dropped its Windows updater patch; users rely on a
-  third-party updater (unsigned, run as admin) or re-download 190–310 MB installers by hand.
-- **The code itself looked clean.** No telemetry, crypto-mining, remote execution, persistence
-  or unknown network endpoints were found in the M156 changes, and an installed M150 build was
-  byte-identical to its official release. The problem is trust and maintenance, not malice.
+**Observations** (all verifiable from public data on 2026-11-07):
+
+- **Version gap.** Chrome stable was 158.0.8127.18, and the newest Thorium release was
+  156.0.8078.28. Older Thorium releases lack later Chromium security fixes.
+- **Release traceability.** The `M150.0.7871.47` and `M150.0.7871.101` release tags (in
+  Alex313031/thorium and gz83/thorium) point to commit `91b29e1`, which is the M138 `main`
+  branch. The M150 source branch linked from those release pages is no longer available. The M156
+  release commit is reachable only through its tag. This makes it hard for outsiders to match a
+  binary to its exact source.
+- **Release process.** Upstream's maintainer has described building, packaging and publishing
+  releases as a manual process. Automating it is a stated hope
+  ([upstream issue #1313](https://github.com/Alex313031/thorium/issues/1313)). Releases are not
+  code-signed.
+- **Windows updates.** Upstream does not currently ship a Windows updater. Users update by
+  downloading new installers (about 190–310 MB), or use the community Thorium-WinUpdater.
+- **Code review result.** No telemetry, crypto-mining, remote-execution, persistence or unknown
+  network endpoints were found in the M156 changes. A sample installed M150 build was byte-identical
+  to its official release.
+
+The goal is **traceable builds, faster security updates and a built-in updater**. Upstream's code
+and its maintainers are not in question.
 
 **[owner]** The goal is the fastest, smartest and most secure Thorium: no memory leaks, no CPU
 hogging. Releases are built from public, audited source, ship with a full changelog, always
@@ -254,10 +264,11 @@ Linux has three install types, each with one updater (never both):
   - Upstream's APT repository is unsigned (issues #1164, #1049). Ours never is.
 - `apt` owns these files. Our updater never modifies dpkg-managed files.
 - Downloads are full packages. Delta support via `debdelta` is a later optional improvement.
-- **Before a major version:** the package's `preinst` step takes the profile snapshot (§7.6) for each
-  user whose profile exists, without touching the profile itself.
+- **Before a major version:** the snapshot (§7.6) is taken **per user, by the browser itself**,
+  before the profile is first opened by the new major version. The root-run package scripts never
+  read or copy anyone's profile (least privilege).
 
-**2. Per-user self-updating install** (`~/.local/share/kuchisofts-thorium`)
+**2. Per-user self-updating install** (`~/.local/share/thoron`)
 - The same delta updater as Windows: Zucchini supports ELF on x64 and ARM64.
 - No root is needed.
 - It is the recommended choice for users who want small, fast updates.
