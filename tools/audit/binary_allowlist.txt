@@ -1,0 +1,6 @@
+# Binary allowlist for tools/audit/binary_policy.py (ROADMAP L.6).
+#
+# The repository carries no prebuilt executables, libraries, packages or archives. An exception
+# needs a reviewed reason and one line here, tab-separated:
+#   <sha256 of the file>	<path from the repository root>	<licence>	<source: where it came from and how to rebuild it>
+# Proprietary blobs (for example the Widevine CDM) are never allowed, even if listed here.

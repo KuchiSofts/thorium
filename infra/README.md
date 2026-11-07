@@ -9,7 +9,7 @@
  - The [cros_args.gn](https://github.com/Alex313031/thorium/blob/main/other/CrOS/cros_args.gn) is for ChromiumOS on Linux. > https://chromium.googlesource.com/chromium/src/+/main/docs/chromeos_build_instructions.md#Chromium-OS-on-Linux-linux_chromeos
  - The [mac_args.gn](https://github.com/Alex313031/thorium/blob/main/other/Mac/mac_args.gn) is for x64 MacOS. [mac_ARM_args.gn](https://github.com/Alex313031/thorium/blob/main/other/Mac/mac_ARM_args.gn) is for ARM64 M1/M2 MacOS.)
  - The [win_args.gn](https://github.com/Alex313031/thorium/blob/main/win_args.gn) is for Windows x64 \
- - The [cgpt](https://github.com/Alex313031/thorium/blob/main/infra/cgpt) file is a compiler optimized build of cgpt for Linux/ChromiumOS, you can put anywhere in your $PATH. See > https://chromium.googlesource.com/chromiumos/platform/vboot_reference/+/refs/heads/main/README
+ - `cgpt` for Linux/ChromiumOS is no longer kept here as a prebuilt binary (Thoron's binary policy); install your distribution's `cgpt` package or build it from vboot_reference. See > https://chromium.googlesource.com/chromiumos/platform/vboot_reference/+/refs/heads/main/README
  - The DEBUG dir is for DEBUGGING, see the [README.md](https://github.com/Alex313031/thorium/tree/main/infra/DEBUG#readme) inside it.
 
 &nbsp;&ndash; See the [Docs](https://github.com/Alex313031/thorium/tree/main/docs#readme) dir for more instructions on building for a particular platform. \
