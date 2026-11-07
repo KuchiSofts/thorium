@@ -17,7 +17,8 @@ Each release lists:
   and `tools/build/win_env.ps1`, which prepares one PowerShell window for building: build folder,
   temporary files off the system drive, pinned depot_tools, Visual Studio 2026, and a build-only git
   config that keeps the user's own config and hooks. `gn gen` succeeds on stock Chromium 156 with
-  this toolchain (ROADMAP **P1.1**).
+  this toolchain (ROADMAP **P1.1**). The upstream M156 overlay and patch series apply to Chromium
+  156.0.8078.28 with 0 rejects (ROADMAP **P1.3**); `pipeline.py apply --log` keeps the full log.
 - Patch licence inventory: `tools/legal/patch_licenses.py` and the generated `docs/legal/PATCH_LICENSES.md`
   for all 152 upstream M156 patches (29 confirmed, 123 still to research; ROADMAP **L.1**).
 - `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed

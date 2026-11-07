@@ -161,7 +161,25 @@ Expected: `Done. Made ... targets`.
 
 ## 6. Upstream Thorium overlay and patches
 
-*Pending (ROADMAP **P1.3**).*
+Phase P1 first reproduces upstream Thorium M156: tag `M156.0.8078.28` of
+[gz83/thorium](https://github.com/gz83/thorium), commit `de9a1bc6`. Check it out into its own folder
+as a local worktree of your Thoron clone; nothing from it is ever pushed. Run these in the `win_env`
+window, so the patches keep their LF line endings:
+
+```powershell
+git fetch --no-tags https://github.com/gz83/thorium.git refs/tags/M156.0.8078.28
+git worktree add --detach $env:THORON_BUILD_ROOT\upstream-M156 FETCH_HEAD
+git -C $env:THORON_BUILD_ROOT\upstream-M156 rev-parse HEAD
+py -3 -I tools\build\pipeline.py apply --tree $env:THORON_BUILD_ROOT\upstream-M156 `
+    --src $env:THORON_BUILD_ROOT\chromium\src --profile avx2 --log $env:THORON_BUILD_ROOT\logs\apply-M156-win.log
+```
+
+The commit must start with `de9a1bc6`. Expected: `upstream overlay and patch series applied: 0 rejects`,
+in about a minute. With the `avx2` profile, 149 of the 152 patches apply; the other 3 are only for
+the `sse2` and `raspi` profiles. The wrapper stops on any rejected hunk and keeps the full log.
+
+The upstream overlay includes Google's proprietary Widevine binaries, which upstream's setup copies
+into the local checkout. Thoron never bundles or redistributes them (ROADMAP **P2.6**).
 
 ## 7. Build
 
