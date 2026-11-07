@@ -105,9 +105,9 @@ Debian/Ubuntu derivatives are best-effort.
 ## 4. Constraints and known facts
 
 - **Build host.** Chromium cannot build on free GitHub-hosted runners (6-hour limit, about 14 GB
-  of disk). Builds run on the owner's Windows 11 PC (Ryzen 9 7950X with AVX2 and AVX-512,
-  63 GB RAM, about 1.5 TB free), which is enough for Chromium builds. That PC may later
-  become a self-hosted runner.
+  of disk). Builds run on a maintainer-owned high-end Windows 11 workstation (16+ cores, AVX2 and
+  AVX-512, 64 GB-class RAM, well over 1 TB free), which is enough for Chromium builds. That
+  machine may later become a self-hosted runner.
 - **Build hosts per platform [call]:**
   - **Windows x64 and Windows ARM64:** built on the Windows PC. Chromium supports cross-compiling
     ARM64 from x64.
