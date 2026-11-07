@@ -13,6 +13,9 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- `tools/build/smoke.py`: smoke-tests a build with a fresh throwaway profile and the sandbox always on;
+  fails on crashes, a bad exit code, or any missing capability (JS, WebGL, H.264, HEVC, AV1, JPEG XL)
+  (ROADMAP **P1.7**, in progress until it passes on our own builds).
 - `tools/build/wslconfig.py`: raises WSL memory and swap only for a Linux build (swap file on the build
   drive) and restores the original `.wslconfig` byte for byte. It never restarts WSL itself; the owner
   approves every `wsl --shutdown`.

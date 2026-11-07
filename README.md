@@ -73,12 +73,12 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 **What's next**
 
+- 🔄 **P1.7** Smoke-test harness (`tools/qa/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
 - ⬜ **P1.1** Windows toolchain: Visual Studio 2022 (Desktop C++, ATL/MFC), Windows 11 SDK 10.0.22621.x plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive
 - ⬜ **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
 - ⬜ **P1.3** Branch `ks/M156` from gz83 tag `M156.0.8078.28` (`de9a1bc6`); fetch Chromium 156.0.8078.28; apply the upstream patch series
 - ⬜ **P1.4** Reproduce the Windows x64 AVX2 build of M156
 - ⬜ **P1.5** Reproduce the Linux x64 build of M156 in WSL2
-- ⬜ **P1.7** Smoke-test harness (`tools/qa/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
 
 <details>
 <summary><b>Full task list</b> (generated from <a href="ROADMAP.md">ROADMAP.md</a>)</summary>
