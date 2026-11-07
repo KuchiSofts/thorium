@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Thoron concept A "Radiant Core" (c) 2026 KuchiSofts, CC BY 4.0 -->
+  <defs>
+    <linearGradient id="a-bg" x1="0.15" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0" stop-color="#7B2FF7"/>
+      <stop offset="1" stop-color="#F72F8E"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="236" fill="url(#a-bg)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round">
+    <path d="M331 126.1 A150 150 0 0 1 396.9 307.3"/>
+    <path d="M331 126.1 A150 150 0 0 1 396.9 307.3" transform="rotate(120 256 256)"/>
+    <path d="M331 126.1 A150 150 0 0 1 396.9 307.3" transform="rotate(240 256 256)"/>
+  </g>
+  <circle cx="256" cy="256" r="58" fill="#FFFFFF"/>
+</svg>
