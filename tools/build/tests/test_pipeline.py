@@ -65,9 +65,26 @@ class PipelineTests(unittest.TestCase):
             "src = pathlib.Path(a[a.index('--chromium-src') + 1])\n"
             "(src / 'a').mkdir(parents=True, exist_ok=True)\n"
             "(src / 'a' / 'b.rej').write_text('rejected hunk')\n", encoding="utf-8")
+        log = self.tmp / "logs" / "apply.log"
         with self.assertRaises(RuntimeError) as ctx:
-            pipeline.apply_upstream(tree, src, "avx2")
+            pipeline.apply_upstream(tree, src, "avx2", log=log)
         self.assertIn("a/b.rej", str(ctx.exception))
+        self.assertTrue(log.is_file(), "the log is kept when setup fails too")
+
+    def test_apply_upstream_writes_full_log(self):
+        tree, src = self.tmp / "upstream", self.tmp / "src"
+        tree.mkdir()
+        src.mkdir()
+        (tree / "setup.py").write_text(
+            "import sys\n"
+            "print('copied overlay')\n"
+            "print('patch series ok', file=sys.stderr)\n", encoding="utf-8")
+        log = self.tmp / "logs" / "apply.log"
+        pipeline.apply_upstream(tree, src, "avx2", log=log)
+        text = log.read_text(encoding="utf-8")
+        self.assertIn("copied overlay", text)
+        self.assertIn("patch series ok", text)
+        self.assertIn("--avx2", text)                    # the exact command is recorded
 
 
 if __name__ == "__main__":

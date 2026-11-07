@@ -3,7 +3,7 @@
 """Build pipeline helpers: preflight checks, upstream setup with reject detection, BUILDINFO.
 
     py -3 -I tools/build/pipeline.py preflight --root J:\\thoron-build --need-gb 250 [--require-wsl-memory-gb 44]
-    py -3 -I tools/build/pipeline.py apply --tree J:\\thoron-build\\upstream-M156 --src J:\\thoron-build\\chromium\\src --profile avx2
+    py -3 -I tools/build/pipeline.py apply --tree J:\\thoron-build\\upstream-M156 --src J:\\thoron-build\\chromium\\src --profile avx2 [--log FILE]
     py -3 -I tools/build/pipeline.py buildinfo <buildinfo.py arguments>
 """
 import argparse
@@ -90,14 +90,22 @@ def find_rejects(src: Path) -> list[str]:
     return sorted(found)
 
 
-def apply_upstream(thorium_tree: Path, src: Path, profile: str) -> None:
+def apply_upstream(thorium_tree: Path, src: Path, profile: str, log: Path | None = None) -> None:
+    """Run upstream setup.py; raise on a non-zero exit or any rejected hunk. `log` keeps the full output."""
     tree = Path(thorium_tree)
     cmd = [sys.executable, "-I", str(tree / "setup.py"), "--chromium-src", str(src), "--thorium-root", str(tree),
            f"--{profile}"]
-    proc = subprocess.run(cmd, cwd=tree, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    proc = subprocess.run(cmd, cwd=tree, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                          encoding="utf-8", errors="replace")
+    output = proc.stdout or ""
+    if log is not None:
+        log = Path(log)
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(f"$ {subprocess.list2cmdline(cmd)}\n{output}\nexit: {proc.returncode}\n",
+                       encoding="utf-8", newline="\n")
     rejects = find_rejects(Path(src))
     if proc.returncode != 0 or rejects:
-        tail = "\n".join((proc.stdout + proc.stderr).strip().splitlines()[-15:])
+        tail = "\n".join(output.strip().splitlines()[-15:])
         raise RuntimeError(f"upstream setup failed (exit {proc.returncode}); rejected: {rejects or 'none'}\n{tail}")
 
 
@@ -115,6 +123,7 @@ def main(argv: list[str]) -> int:
     app.add_argument("--tree", required=True)
     app.add_argument("--src", required=True)
     app.add_argument("--profile", required=True)
+    app.add_argument("--log", help="write the full setup output to this file")
     a = parser.parse_args(argv)
     if a.cmd == "preflight":
         limits = {"memory_gb": a.require_wsl_memory_gb} if a.require_wsl_memory_gb else None
@@ -125,7 +134,7 @@ def main(argv: list[str]) -> int:
         print("preflight: OK" if not blocking else f"preflight: {len(blocking)} blocking problem(s)")
         return 1 if blocking else 0
     try:
-        apply_upstream(Path(a.tree), Path(a.src), a.profile)
+        apply_upstream(Path(a.tree), Path(a.src), a.profile, Path(a.log) if a.log else None)
     except RuntimeError as exc:
         print(exc)
         return 1
