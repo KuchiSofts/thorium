@@ -73,8 +73,8 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 **What's next**
 
-- 🔄 **P1.7** Smoke-test harness (`tools/qa/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
-- ⬜ **P1.1** Windows toolchain: Visual Studio 2022 (Desktop C++, ATL/MFC), Windows 11 SDK 10.0.22621.x plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive
+- 🔄 **P1.1** Windows toolchain: Visual Studio 2026 (Desktop C++, ATL/MFC), Windows SDK 10.0.28000 plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive that is not cloud-synced
+- 🔄 **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
 - ⬜ **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
 - ⬜ **P1.3** Branch `ks/M156` from gz83 tag `M156.0.8078.28` (`de9a1bc6`); fetch Chromium 156.0.8078.28; apply the upstream patch series
 - ⬜ **P1.4** Reproduce the Windows x64 AVX2 build of M156
@@ -99,13 +99,13 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 **P1 - Build environment**
 
-- [ ] **P1.1** Windows toolchain: Visual Studio 2022 (Desktop C++, ATL/MFC), Windows 11 SDK 10.0.22621.x plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive
+- [ ] **P1.1** Windows toolchain: Visual Studio 2026 (Desktop C++, ATL/MFC), Windows SDK 10.0.28000 plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive that is not cloud-synced
 - [ ] **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
 - [ ] **P1.3** Branch `ks/M156` from gz83 tag `M156.0.8078.28` (`de9a1bc6`); fetch Chromium 156.0.8078.28; apply the upstream patch series
 - [ ] **P1.4** Reproduce the Windows x64 AVX2 build of M156
 - [ ] **P1.5** Reproduce the Linux x64 build of M156 in WSL2
 - [x] **P1.6** `BUILDINFO.json` generator: Chromium tag, Thoron commit, depot_tools revision, VS/SDK versions, GN args hash, build time
-- [ ] **P1.7** Smoke-test harness (`tools/qa/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
+- [ ] **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
 - [ ] **P1.8** Manifest V2 / uBlock Origin viability on Chromium 158: apply the MV2 patches to 158 and load uBO 1.75
 - [ ] **P1.9** Thoron build docs written from scratch and followed end-to-end
 - [ ] **P1.10** Release build-matrix time budget (Windows/Linux × AVX2/SSE4, plus ARM64) against the G2 targets
@@ -274,8 +274,9 @@ the checksum and signature as shown above.
 
 ## Building
 
-Thoron's own build guides arrive in phase **P1**. Until then, the Thorium guides apply:
-[Windows](docs/BUILDING_WIN.md) · [Linux](docs/BUILDING.md).
+Thoron's own build guides are being written in phase **P1**, as each step is verified:
+[Windows 11](docs/build/WINDOWS.md) (toolchain and source so far). Until they are complete, the
+Thorium guides cover the rest: [Windows](docs/BUILDING_WIN.md) · [Linux](docs/BUILDING.md).
 
 The repository tooling (audit, docs and credits checks) needs only Python 3.11+:
 
