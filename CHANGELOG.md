@@ -13,6 +13,9 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- `tools/build/wslconfig.py`: raises WSL memory and swap only for a Linux build (swap file on the build
+  drive) and restores the original `.wslconfig` byte for byte. It never restarts WSL itself; the owner
+  approves every `wsl --shutdown`.
 - `tools/build/buildinfo.py`: writes `BUILDINFO.json` for every build (Chromium version, Thoron and
   upstream commits, depot_tools revision, GN args and their digest, toolchain, timing) with every path
   relative to the build root and user directories redacted (ROADMAP **P1.6**).
