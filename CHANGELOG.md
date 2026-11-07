@@ -13,6 +13,8 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed
+  drives, WSL memory), an upstream setup wrapper that stops on any rejected patch, and a `buildinfo` entry point.
 - `tools/build/smoke.py`: smoke-tests a build with a fresh throwaway profile and the sandbox always on;
   fails on crashes, a bad exit code, or any missing capability (JS, WebGL, H.264, HEVC, AV1, JPEG XL)
   (ROADMAP **P1.7**, in progress until it passes on our own builds).
