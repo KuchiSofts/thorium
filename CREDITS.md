@@ -44,7 +44,6 @@ anonymous contributors are credited by name only.
 - [@szepeviktor](https://github.com/szepeviktor) (2 commits)
 - Alexander Frick (1 commit)
 - [@brian6932](https://github.com/brian6932) (1 commit)
-- CI (1 commit)
 - [@Delphox](https://github.com/Delphox) (1 commit)
 - [@dougluce](https://github.com/dougluce) (1 commit)
 - [@eifr](https://github.com/eifr) (1 commit)

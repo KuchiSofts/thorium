@@ -8,6 +8,8 @@ Anonymous contributors are credited by name only (their e-mail is never written)
 """
 import argparse
 import json
+import os
+import re
 import subprocess
 import sys
 
@@ -19,9 +21,17 @@ def _display_name(entry: dict) -> str:
     return entry.get("login") or entry.get("name") or "Unknown contributor"
 
 
+BOT_NAME_RE = re.compile(r"(?i)\[bot\]$|^ci$|^github-actions|[\s_-]bot$")
+
+
+def _is_bot(entry: dict) -> bool:
+    if entry.get("type") == "Bot" or str(entry.get("login", "")).endswith("[bot]"):
+        return True
+    return entry.get("type") == "Anonymous" and bool(BOT_NAME_RE.search(str(entry.get("name", ""))))
+
+
 def render_contributors(contribs: list[dict]) -> str:
-    people = [c for c in contribs
-              if c.get("type") != "Bot" and not str(c.get("login", "")).endswith("[bot]")]
+    people = [c for c in contribs if not _is_bot(c)]
     people.sort(key=lambda c: (-int(c.get("contributions", 0)), _display_name(c).lower()))
     lines = []
     for c in people:
@@ -68,9 +78,13 @@ def main(argv: list[str]) -> int:
         data = fetch(args.repo)
     with open(args.file, encoding="utf-8") as f:
         text = f.read()
-    with open(args.file, "w", encoding="utf-8", newline="\n") as f:
-        f.write(replace_section(text, render_contributors(data)))
-    print(f"{args.file}: {sum(1 for c in data if c.get('type') != 'Bot')} contributor entries written")
+    body = render_contributors(data)
+    updated = replace_section(text, body)  # raises before anything is written
+    temporary = f"{args.file}.tmp"
+    with open(temporary, "w", encoding="utf-8", newline="\n") as f:
+        f.write(updated)
+    os.replace(temporary, args.file)  # atomic: the file is either old or new, never partial
+    print(f"{args.file}: {len(body.strip().splitlines())} contributor entries written")
     return 0
 
 
