@@ -23,6 +23,8 @@ Each release lists:
   and `CONTRIBUTING.md`.
 - Thoron logo "Radiant Core", chosen by the owner from three original concepts, with a single-colour
   variant (`branding/thoron/`, CC BY 4.0).
+- Icon asset pipeline (`tools/branding`): PNG sizes 16–512 and a multi-size Windows `.ico` generated
+  from the SVG logo using only the standard library and a headless browser.
 
 ### Changed
 - The original Thorium README moved to `docs/upstream/THORIUM_README.md`, unchanged except for relative
