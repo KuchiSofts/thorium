@@ -46,17 +46,33 @@ def compare(zip_path: str, install_dir: str) -> dict[str, list[str]]:
     return result
 
 
+EXECUTABLE_EXT = (".exe", ".dll", ".sys", ".so", ".node", ".com", ".scr", ".ps1", ".bat", ".cmd", ".vbs", ".js")
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print("usage: compare_release.py RELEASE.zip INSTALL_DIR", file=sys.stderr)
+    args = [a for a in argv if a != "--strict"]
+    strict = len(args) != len(argv)
+    if len(args) != 2:
+        print("usage: compare_release.py RELEASE.zip INSTALL_DIR [--strict]", file=sys.stderr)
         return 2
-    result = compare(argv[0], argv[1])
+    result = compare(args[0], args[1])
     print(" | ".join(f"{k}: {len(v)}" for k, v in result.items()))
     for key in ("different", "missing", "extra"):
         for rel in result[key]:
             print(f"  {key.upper()}: {rel}")
-    print("RESULT: identical to release" if not result["different"] else "RESULT: MODIFIED FILES FOUND")
-    return 0 if not result["different"] else 1
+    extra_exec = [r for r in result["extra"] if r.lower().endswith(EXECUTABLE_EXT)]
+    for rel in extra_exec:
+        print(f"  WARNING: executable not in the release: {rel} (possible DLL side-loading / injection)")
+    if result["different"]:
+        print("RESULT: MODIFIED FILES FOUND")
+    elif result["extra"] or result["missing"]:
+        print(f"RESULT: release files unmodified, but {len(result['extra'])} extra and "
+              f"{len(result['missing'])} missing file(s) — review them before trusting this install")
+    else:
+        print("RESULT: identical to release")
+    if result["different"] or (strict and (extra_exec or result["missing"])):
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
