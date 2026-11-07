@@ -33,6 +33,7 @@ library only.
 | `persistence` | Run/RunOnce keys, scheduled tasks, cron, `systemctl [--user] enable`, shell rc files, autostart, sudoers | yes |
 | `security_disabled` | `--no-sandbox`, `disable-web-security`, certificate bypasses, remote debugging | yes |
 | `mining_telemetry` | crypto-miners and third-party analytics endpoints | yes |
+| `adult_content` | adult or NSFW terms and sites in added text **and in file names** (term list stored ROT13-encoded) | yes |
 | `encoded_payload` | base64 decoding and very long encoded strings | no (review) |
 | `credentials` | API keys, private keys, hard-coded passwords and tokens | no (review) |
 | `self_update` | update and download URLs, Omaha | no (review) |

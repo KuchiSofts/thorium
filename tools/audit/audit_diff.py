@@ -14,6 +14,7 @@ added lines of modified files come from a blob-to-blob diff parsed by hunk line 
 split on "\\n" only.
 """
 import argparse
+import codecs
 import functools
 import json
 import re
@@ -76,8 +77,16 @@ PATTERNS = {
                         r"api\.amplitude|sentry\.io|posthog|telemetry\.[a-z]",
     "self_update": r"(?i)(update|download)(er)?_?(url|server|endpoint)|\bomaha\b|kUpdateURL",
 }
+# Content standards: adult/NSFW terms and sites. Stored ROT13-encoded so the repository never
+# contains these words in plain text; decoded at import time.
+_ADULT_TERMS_ROT13 = ("lvss", "r621", "r926", "shenssvavgl", "vaxohaal", "fbshel", "ehyr ?34", "uragnv",
+                      "cbea", "afsj", "yrjq", "ahqr", "ahqvgl", "baylsnaf", "kivqrbf", "kunzfgre",
+                      "pngtvey", "sheel", "shefban")
+ADULT_RE = re.compile(r"(?i)(?<![a-z])(" + "|".join(codecs.decode(t, "rot13") for t in _ADULT_TERMS_ROT13) + r")(?![a-z])")
+PATTERNS["adult_content"] = ADULT_RE.pattern
 PATTERN_RES = {name: re.compile(rx) for name, rx in PATTERNS.items()}
-STRICT_CATEGORIES = ("remote_exec", "dynamic_code", "persistence", "security_disabled", "mining_telemetry")
+STRICT_CATEGORIES = ("remote_exec", "dynamic_code", "persistence", "security_disabled", "mining_telemetry",
+                     "adult_content")
 
 SECURITY_RE = re.compile(
     r"(?i)(SafeBrowsing|SitePerProcess|SiteIsolation|IsolateOrigins|StrictOrigin|HttpsUpgrade|HttpsFirst|"
@@ -225,6 +234,12 @@ def find_submodules(repo: str, base: str, target: str) -> list[tuple[str, str, s
     return list(_analyze(repo, base, target)[2])
 
 
+def find_adult_names(repo: str, base: str, target: str) -> list[str]:
+    """Added/modified paths whose name matches the content-standards terms (any file type)."""
+    resolved = [_git(repo, "rev-parse", "--verify", f"{r}^{{commit}}").decode("ascii").strip() for r in (base, target)]
+    return [c[0] for c in _changes(repo, *resolved) if c[1] in ("A", "M", "T") and ADULT_RE.search(c[0])]
+
+
 def _endpoint_key(host: str, url_path: str) -> str | None:
     first = url_path.strip("/").split("/", 1)[0]
     if host in GITHUB_CONTENT_HOSTS:
@@ -320,6 +335,8 @@ def main(argv: list[str]) -> int:
     endpoints = find_endpoints(added)
     patterns = find_patterns(added)
     security = find_security_changes(added)
+    adult_names = find_adult_names(args.repo, args.base, args.target)
+    patterns["adult_content"] += [(p, "(file name)") for p in adult_names]
 
     if args.json:
         print(json.dumps({

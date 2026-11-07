@@ -1,4 +1,5 @@
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
+import codecs
 import contextlib
 import io
 import os
@@ -127,6 +128,27 @@ class AuditDiffTests(unittest.TestCase):
         self.assertIn("storage.googleapis.com/somebucket", hosts)
         self.assertIn("docs.google.com", hosts)
         self.assertFalse(any(h.startswith("github.com/gorhill") for h in hosts))
+
+    # --- content standards: adult content in text or file names must fail --strict ------------
+    def test_adult_term_in_text_fails_strict(self):
+        term = codecs.decode("r621", "rot13")  # encoded so the repo holds no such terms in plain text
+        self.repo.write("links.md", f"see https://{term}.net/posts\n".encode())
+        target = self.repo.commit("adult link")
+        added = audit_diff.collect_added_lines(self.repo.path, self.base, target)
+        self.assertTrue(audit_diff.find_patterns(added)["adult_content"])
+        self.assertEqual(self.run_main("--strict"), 1)
+
+    def test_adult_term_in_file_name_fails_strict(self):
+        name = codecs.decode("lvss", "rot13") + ".png"
+        self.repo.write(f"res/{name}", b"\x89PNG\r\n\x1a\n" + b"\x00" * 56)  # a valid-looking image
+        target = self.repo.commit("innocent-looking image")
+        self.assertEqual(audit_diff.find_adult_names(self.repo.path, self.base, target), [f"res/{name}"])
+        self.assertEqual(self.run_main("--strict"), 1)
+
+    def test_clean_names_and_text_pass_content_check(self):
+        self.repo.write("res/thoron_logo.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 56)
+        target = self.repo.commit("logo")
+        self.assertEqual(audit_diff.find_adult_names(self.repo.path, self.base, target), [])
 
     # --- review I2: common Windows/Linux variants --------------------------------------------
     def test_windows_and_linux_variants_hit_strict_categories(self):

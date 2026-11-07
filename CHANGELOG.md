@@ -45,6 +45,11 @@ Each release lists:
   observations about upstream.
 
 ### Security
+- Inherited git history cleaned: three inappropriate image files that upstream added in 2023 and
+  later deleted were purged from every commit (current files unchanged; verified absent from the
+  M150 browser build). Commit IDs changed as a result.
+- Content standards added to `CONTRIBUTING.md`; `tools/audit` gains an `adult_content` check on added
+  text and file names (ROADMAP **S.12**).
 - Every upstream change is now audited before merging (`tools/audit`, ROADMAP **S.1**).
 - `audit_diff` hardened against crafted diffs. It now:
   - reads files by blob and parses hunks by their declared line counts;

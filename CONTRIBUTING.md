@@ -60,6 +60,18 @@ A change is complete only when **all** of these are true:
 - Only take code whose licence is known and compatible. If you are unsure, ask in the PR first.
 - **Credit people:** add new upstream sources to `CREDITS.md` and their licence to `NOTICE`.
 
+## Content standards
+
+Thoron is a professional product. Nothing in the code, assets, commit messages, pull requests or
+hidden "Easter egg" pages may contain sexual, NSFW, hateful or otherwise offensive material, or link
+to it.
+
+- **Images:** every new or changed image must be reviewed by a maintainer before merging. That covers
+  icons, illustrations, screenshots and anything embedded as data inside patches.
+- **Automatic check:** `tools/audit/audit_diff.py --strict` fails on adult terms and sites, both in
+  added text and in **file names**. It is a safety net, not a replacement for review.
+- **Hidden pages and Easter eggs:** Thoron does not ship them (see ROADMAP **S.11**).
+
 ## Merging upstream (Thorium or Chromium)
 
 Every upstream merge is audited first:
