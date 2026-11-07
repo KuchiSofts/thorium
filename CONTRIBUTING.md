@@ -36,7 +36,8 @@ A change is complete only when **all** of these are true:
 3. **Docs updated in the same change:**
    - `README.md` if anything user-facing changed;
    - `ROADMAP.md`: tick the task, set `· ✅ YYYY-MM-DD`, update `Last updated`, and add any new work
-     you discovered;
+     you discovered. Then run `py -3 -I tools/docs/roadmap_progress.py` to refresh the README's
+     roadmap section (the linter fails if you forget);
    - `CHANGELOG.md`: an entry under `## [Unreleased]`;
    - `CREDITS.md` / `NOTICE` if code came from someone else;
    - any affected file under `docs/`.

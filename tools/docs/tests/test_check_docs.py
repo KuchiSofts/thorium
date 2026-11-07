@@ -33,7 +33,7 @@ class CheckDocsTests(unittest.TestCase):
 
     def test_valid_links_and_anchors_pass(self):
         self.write("docs/b.md", "# sec\n")
-        a = self.write("a.md", "[x](docs/b.md#sec) [y](https://e.org) [z](#top)\n")
+        a = self.write("a.md", "[x](docs/b.md#sec) [y](https://e.org) [z](#top)\n\n## Top\n")
         self.assertEqual(check_docs.check_links(self.root, [a]), [])
 
     def test_changelog_requires_unreleased(self):
@@ -157,6 +157,15 @@ class CheckDocsTests(unittest.TestCase):
         finally:
             repo.cleanup()
 
+    # --- section anchors must exist (GitHub heading slugs) -----------------------------------
+    def test_broken_anchor_reported(self):
+        self.write("ROADMAP.md", "## P0 - Foundation\n")
+        self.assert_one_broken("[p0](ROADMAP.md#p0--foundation)\n")
+
+    def test_valid_anchors_pass(self):
+        self.write("ROADMAP.md", "## P0 - Foundation\n## Quality & performance (Q)\n")
+        a = self.write("a.md", "[p0](ROADMAP.md#p0---foundation) [q](ROADMAP.md#quality--performance-q) [t](#top)\n\n## Top\n")
+        self.assertEqual(check_docs.check_links(self.root, [a]), [])
 
 if __name__ == "__main__":
     unittest.main()

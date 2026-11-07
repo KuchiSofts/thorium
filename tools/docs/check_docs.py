@@ -18,6 +18,9 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote
 
+if __package__ in (None, ""):  # running as a script under `py -3 -I`: make `tools` importable
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 INLINE_LINK_RE = re.compile(r"\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 REFERENCE_DEF_RE = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?")
 HTML_ATTR_RE = re.compile(r"(?i)\b(?:href|src)\s*=\s*[\"']([^\"']+)[\"']")
@@ -97,18 +100,49 @@ def _link_targets(text: str):
             yield match.group(1)
 
 
+MD_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
+HTML_ANCHOR_RE = re.compile(r"(?i)\b(?:id|name)\s*=\s*[\"']([^\"']+)[\"']")
+
+
+def _anchors(path: Path, cache: dict) -> set[str]:
+    """Anchors GitHub generates for a Markdown file: heading slugs (with -1, -2 for repeats) + HTML ids."""
+    if path not in cache:
+        from tools.docs.roadmap_progress import github_slug
+        anchors, counts, fenced = set(), {}, False
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for line in text.splitlines():
+            if line.lstrip().startswith(("```", "~~~")):
+                fenced = not fenced
+                continue
+            heading = None if fenced else MD_HEADING_RE.match(line)
+            if heading:
+                slug = github_slug(heading.group(1))
+                n = counts.get(slug, 0)
+                anchors.add(slug if n == 0 else f"{slug}-{n}")
+                counts[slug] = n + 1
+        anchors.update(a.lower() for a in HTML_ANCHOR_RE.findall(text))
+        cache[path] = anchors
+    return cache[path]
+
+
 def check_links(root: Path, files: list[Path]) -> list[str]:
     root = root.resolve()
     visible = _visible_files(root)
+    anchor_cache: dict = {}
     problems = []
     for path in files:
         for number, text in _prose_lines(path):
             for target in _link_targets(text):
+                if target.startswith("#") and len(target) > 1:
+                    if unquote(target[1:]).lower() not in _anchors(path, anchor_cache):
+                        problems.append(f"{_rel(root, path)}:{number}: broken anchor -> {target}")
+                    continue
                 if EXTERNAL_RE.match(target):
                     continue
                 clean = unquote(target.split("#", 1)[0].split("?", 1)[0])
                 if not clean:
                     continue
+                fragment = unquote(target.split("#", 1)[1]) if "#" in target else ""
                 base = root if clean.startswith("/") else path.resolve().parent
                 resolved = os.path.normpath(os.path.join(base, clean.lstrip("/")))
                 rel = Path(os.path.relpath(resolved, root)).as_posix()
@@ -120,6 +154,9 @@ def check_links(root: Path, files: list[Path]) -> list[str]:
                     ok = _exists_exact(root, rel)
                 if not ok:
                     problems.append(f"{_rel(root, path)}:{number}: broken link -> {target}")
+                elif fragment and resolved.lower().endswith(".md") and \
+                        fragment.lower() not in _anchors(Path(resolved), anchor_cache):
+                    problems.append(f"{_rel(root, path)}:{number}: broken anchor -> {target}")
     return problems
 
 
@@ -222,6 +259,14 @@ def main(argv: list[str]) -> int:
     if (root / "ROADMAP.md").is_file():
         problems += check_roadmap(root / "ROADMAP.md")
     problems += check_dashes(root, _glob(root, OWNED_PRIVATE_GLOBS))
+    if (root / "ROADMAP.md").is_file():
+        from tools.docs import roadmap_progress
+        readme = (root / "README.md").read_text(encoding="utf-8")
+        try:
+            if roadmap_progress.is_stale(readme, roadmap_progress.build_block(root), roadmap_progress.build_badge(root)):
+                problems.append("README.md: roadmap section is out of date; run py -3 -I tools/docs/roadmap_progress.py")
+        except ValueError:
+            problems.append("README.md: missing <!-- roadmap:start/end --> markers for the generated roadmap section")
     if args.private:
         private_list = Path.home() / ".githooks" / "private-strings.txt"
         if not private_list.is_file():

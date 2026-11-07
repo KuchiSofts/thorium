@@ -27,6 +27,10 @@ Each release lists:
   from the SVG logo using only the standard library and a headless browser.
 
 ### Changed
+- New README with the Thoron logo, badges and quick navigation. Its roadmap section (overall
+  progress, per-phase progress bars, what's next and the full task list) is generated from
+  `ROADMAP.md` by `tools/docs/roadmap_progress.py`, and `check_docs` fails if it is out of date.
+- `check_docs` now validates heading anchors in links, which fixed 10 links broken by the dash cleanup.
 - House style: long dashes replaced by a plain "-" across all our docs, code and assets. `check_docs` now enforces this rule.
 - Repository renamed from `KuchiSofts/thorium` to `KuchiSofts/thoron` (old links redirect), with a Thoron description and topics. Detaching from the Thorium fork network has been requested (ROADMAP **D.6**). The design document is now `docs/design/2026-11-07-thoron-design.md`.
 - The original Thorium README moved to `docs/upstream/THORIUM_README.md`, unchanged except for relative
