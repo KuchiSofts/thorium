@@ -31,6 +31,20 @@ class GitRepo:
         self.git("commit", "-q", "-m", message)
         return self.git("rev-parse", "HEAD")
 
+    def add_entry(self, path, data: bytes, mode="100644"):
+        """Stage a blob directly in the index (allows names/modes the filesystem cannot hold)."""
+        sha = subprocess.run(["git", "-C", self.path, "hash-object", "-w", "--stdin"], input=data,
+                             check=True, capture_output=True).stdout.decode().strip()
+        self.git("update-index", "--add", "--cacheinfo", f"{mode},{sha},{path}")
+
+    def add_gitlink(self, path, commit_sha):
+        self.git("update-index", "--add", "--cacheinfo", f"160000,{commit_sha},{path}")
+
+    def commit_index(self, message):
+        """Commit exactly what is staged (no `add -A`, which would drop index-only entries)."""
+        self.git("commit", "-q", "-m", message)
+        return self.git("rev-parse", "HEAD")
+
     def cleanup(self):
         def make_writable(func, path, _exc):
             os.chmod(path, stat.S_IWRITE)
