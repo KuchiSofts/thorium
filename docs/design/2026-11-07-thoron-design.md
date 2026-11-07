@@ -6,9 +6,9 @@ Status: **approved by owner 2026-11-07** · Date: 2026-11-07 · Owner: KuchiSoft
 **Name [owner]: Thoron.** Thoron is the radioactive gas (radon-220) that thorium naturally decays
 into: "born from Thorium". Every surface (README, installer, About page) credits Thorium by
 Alex313031 as the origin, and states that Thoron is independent and not endorsed by the Thorium
-project. The source repository stays `KuchiSofts/thorium` until the owner decides on a rename.
+project. The source repository is `KuchiSofts/thoron` (renamed on 2026-11-07 and being detached from the Thorium fork network to stand alone; credit to Thorium stays in the docs and in the full git history).
 
-This document describes what we are building in the `KuchiSofts/thorium` fork and why,
+This document describes what we are building in the `KuchiSofts/thoron` fork and why,
 so that a builder can plan the work without further back-and-forth. Items marked
 **[owner]** were decided by the owner. Items marked **[call]** are the author's
 defaults; the owner may override them.
@@ -200,7 +200,7 @@ Debian/Ubuntu derivatives are best-effort.
 
 ### 7.2 Manifest and trust
 - A stable URL serves `update-manifest.json` plus a detached Ed25519 signature:
-  `https://github.com/KuchiSofts/thorium/releases/latest/download/update-manifest.json`.
+  `https://github.com/KuchiSofts/thoron/releases/latest/download/update-manifest.json`.
 - **Contents:** channel, version, Chromium version, release date, a `critical` flag (security release),
   `min_updater_version`, an `expires` timestamp, and, per variant, the full package and the deltas
   (`from_version`, URL, size, SHA-256).

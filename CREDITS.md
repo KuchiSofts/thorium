@@ -104,4 +104,4 @@ same BSD-3-Clause terms as Thorium, unless a file says otherwise. The Thoron log
 © 2026 KuchiSofts, licensed CC BY 4.0.
 
 If we have missed or mis-credited anyone, please open an issue on
-[KuchiSofts/thorium](https://github.com/KuchiSofts/thorium). Correct credit matters to us.
+[KuchiSofts/thoron](https://github.com/KuchiSofts/thoron). Correct credit matters to us.

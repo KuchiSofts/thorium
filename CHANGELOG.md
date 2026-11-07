@@ -27,6 +27,7 @@ Each release lists:
   from the SVG logo using only the standard library and a headless browser.
 
 ### Changed
+- Repository renamed from `KuchiSofts/thorium` to `KuchiSofts/thoron` (old links redirect), with a Thoron description and topics. Detaching from the Thorium fork network has been requested (ROADMAP **D.6**). The design document is now `docs/design/2026-11-07-thoron-design.md`.
 - The original Thorium README moved to `docs/upstream/THORIUM_README.md`, unchanged except for relative
   links (including a fix for a pre-existing broken link).
 

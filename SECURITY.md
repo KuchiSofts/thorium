@@ -17,7 +17,7 @@ vulnerability, and within **14 days** of each new Chrome major version (see [ROA
 **Please report privately.** Never use public issues, pull requests or discussions for security
 problems.
 
-1. Use GitHub's private reporting: **[Report a vulnerability](https://github.com/KuchiSofts/thorium/security/advisories/new)**.
+1. Use GitHub's private reporting: **[Report a vulnerability](https://github.com/KuchiSofts/thoron/security/advisories/new)**.
 2. Include:
    - the affected Thoron version and OS;
    - the steps to reproduce;
