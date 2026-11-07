@@ -19,7 +19,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-USER_DIR_RE = re.compile(r"(?i)^(?:[a-z]:/+users/|/home/|/users/|/mnt/[a-z]/users/)")
+USER_DIR_RE = re.compile(r"(?i)^(?:[a-z]:/+users/|/home/|/users/|/mnt/[a-z]/users/)")  # privacy-check: allow (detection pattern, not data)
 
 
 def chromium_version(src: Path) -> str:
