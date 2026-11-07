@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Thoron concept C "Decay Hexagon" (c) 2026 KuchiSofts, CC BY 4.0 -->
+  <defs>
+    <linearGradient id="c-hex" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#FF5A4E"/>
+      <stop offset="1" stop-color="#FFB547"/>
+    </linearGradient>
+  </defs>
+  <polygon points="236,76 405,174 405,370 236,468 67,370 67,174" fill="url(#c-hex)" stroke="url(#c-hex)" stroke-width="44" stroke-linejoin="round"/>
+  <circle cx="262" cy="258" r="78" fill="#FFFFFF"/>
+  <circle cx="404" cy="116" r="32" fill="#FF7A45"/>
+  <circle cx="458" cy="62" r="20" fill="#FFB547"/>
+</svg>
