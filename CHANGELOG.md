@@ -68,6 +68,18 @@ Each release lists:
   observations about upstream.
 
 ### Security
+- Proprietary and unverifiable binaries removed from the repository (ROADMAP **L.6**):
+  - Google's Widevine CDM for Windows, macOS, Linux and ChromeOS (13 files plus signatures and
+    import libraries, one of them a patched copy). Its licence forbids redistribution; Chromium's
+    component updater still downloads it from Google when a site needs it;
+  - Adobe Flash Player (`infra/libpepflashplayer.so`), proprietary and end-of-life since 2020;
+  - the Linux portable launchers `THORIUM-PORTABLE` and `THORIUM-SHELL`, compiled with `shc`, which
+    embeds the script encrypted so it cannot be checked against its source (the `.sh` scripts stay),
+    and the unexplained `infra/APPIMAGE/files/outc`;
+  - prebuilt tools and packages: `cgpt`, the `pak` tool binaries (its source stays in `pak_src/`),
+    a `vdpau-va-driver` package and an unused `hangout_services` CRX.
+- `tools/audit/binary_policy.py` now fails on any prebuilt executable, library, package or archive
+  without an allowlisted SHA-256, licence and source, and always on proprietary blobs.
 - Inherited git history cleaned: three inappropriate image files that upstream added in 2023 and
   later deleted were purged from every commit (current files unchanged; verified absent from the
   M150 browser build). Commit IDs changed as a result.

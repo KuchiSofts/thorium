@@ -41,7 +41,8 @@ A change is complete only when **all** of these are true:
    - `CHANGELOG.md`: an entry under `## [Unreleased]`;
    - `CREDITS.md` / `NOTICE` if code came from someone else;
    - any affected file under `docs/`.
-4. **Linter passes:** `py -3 -I tools/docs/check_docs.py --private`.
+4. **Linter and binary policy pass:** `py -3 -I tools/docs/check_docs.py --private` and
+   `py -3 -I tools/audit/binary_policy.py` (no prebuilt or proprietary binaries in the repository).
 
 ## Copyright and attribution
 

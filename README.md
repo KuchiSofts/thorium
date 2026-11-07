@@ -54,7 +54,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `████░░░░░░░░░░░░░░░░` 21 of 117 tasks done (18%) · roadmap updated 2026-11-07
+**Overall:** `████░░░░░░░░░░░░░░░░` 22 of 119 tasks done (18%) · roadmap updated 2026-11-07
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -68,7 +68,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [Security (S)](ROADMAP.md#security-s) | `██████░░░░░░░░░░░░░░` | 4/13 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | ⬜ Not started |
 | [Docs (D)](ROADMAP.md#docs-d) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
-| [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | 🔄 In progress |
+| [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Branding (B)](ROADMAP.md#branding-b) | `██████████░░░░░░░░░░` | 2/4 | 🔄 In progress |
 
 **What's next**
@@ -228,6 +228,8 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **L.3** Regenerate contributors and update `NOTICE` and `CREDITS` every release
 - [ ] **L.4** Courtesy note to Alex313031 and gz83 introducing Thoron and its credits
 - [ ] **L.5** Name and logo check: "Thoron" in trademark registries and existing software in target markets; logo similarity to other browser marks (for example Chrome's three-segment logo)
+- [x] **L.6** No prebuilt or proprietary binaries in the repository: removed the Widevine CDM (Google proprietary, no redistribution right), Flash Player (Adobe, end-of-life), `shc`-compiled launchers whose embedded script cannot be verified, and prebuilt tools and packages; `tools/audit/binary_policy.py` enforces it
+- [ ] **L.7** Remove those binaries from the repository's git history as well, and include them in the GitHub Support cache request (D.6)
 
 **Branding (B)**
 
@@ -283,6 +285,7 @@ The repository tooling (audit, docs and credits checks) needs only Python 3.11+:
 ```shell
 py -3 -I -m unittest discover -s tools -t . -p "test_*.py" -v   # tests
 py -3 -I tools/docs/check_docs.py                               # docs, links, house style
+py -3 -I tools/audit/binary_policy.py                            # no prebuilt or proprietary binaries
 ```
 
 ## Security

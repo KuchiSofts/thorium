@@ -8,6 +8,7 @@ library only.
 |---|---|---|
 | `audit_diff.py` | What does upstream **add**? It reports binaries (including executables disguised as images), submodule and `.gitmodules` changes, network endpoints, suspicious code patterns, and changes to security features. | `py -3 -I tools/audit/audit_diff.py . "$(git merge-base HEAD gz83/M158)" gz83/M158 --strict` |
 | `crx_id.py` | Is a bundled extension genuine? It verifies the CRX3 **RSA signature** and checks that the signing key matches the expected extension ID. | `py -3 -I tools/audit/crx_id.py uBlock0_1.75.0.chromium.crx --expect fkgkibajhfbepljeaefdnfnegdcjomkh` |
+| `binary_policy.py` | Does the repository carry only what it may? It fails on any prebuilt executable, library, package or archive (found by content, so renamed files are caught) that has no allowlist entry with its SHA-256, licence and source, and always on proprietary blobs such as the Widevine CDM. | `py -3 -I tools/audit/binary_policy.py` |
 | `compare_release.py` | Is an installed or extracted copy byte-identical to the published release ZIP? It warns about any extra executable, which could be DLL side-loading. | `py -3 -I tools/audit/compare_release.py Thorium_AVX2_x.zip "%LOCALAPPDATA%\Thorium\Application" --strict` |
 
 ## `audit_diff.py`
@@ -52,8 +53,8 @@ Endpoints on hosts where anyone can publish files are reported together with the
 
 Known upstream owners are not reported.
 
-A `--strict` failure is not automatically malicious. For example, upstream legitimately updates
-Google's Widevine binaries. It means **a human must review each finding** before the merge or release
+A `--strict` failure is not automatically malicious. For example, upstream updates Google's
+Widevine binaries, which `binary_policy.py` keeps out of this repository entirely. It means **a human must review each finding** before the merge or release
 proceeds. Record the outcome in the pull request or release notes.
 
 ## Tests
