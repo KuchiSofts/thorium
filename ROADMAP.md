@@ -221,6 +221,8 @@ long term.
 - [ ] **L.3** Regenerate contributors and update `NOTICE` and `CREDITS` every release - *Role:* Docs maintainer · *Depends:* P0.4 · *Done when:* this is a step in the release script
 - [ ] **L.4** Courtesy note to Alex313031 and gz83 introducing Thoron and its credits - *Role:* Owner · *Depends:* P0.11 · *Done when:* the owner has sent it (the owner decides wording and timing)
 - [ ] **L.5** Name and logo check: "Thoron" in trademark registries and existing software in target markets; logo similarity to other browser marks (for example Chrome's three-segment logo) - *Role:* Owner · *Depends:* B.1 · *Done when:* the search results are recorded and no conflict was found (or the name or logo is adjusted)
+- [x] **L.6** No prebuilt or proprietary binaries in the repository: removed the Widevine CDM (Google proprietary, no redistribution right), Flash Player (Adobe, end-of-life), `shc`-compiled launchers whose embedded script cannot be verified, and prebuilt tools and packages; `tools/audit/binary_policy.py` enforces it - *Role:* Security researcher · *Depends:* P0 · *Done when:* the policy passes on `main` with an empty allowlist · ✅ 2026-11-07
+- [ ] **L.7** Remove those binaries from the repository's git history as well, and include them in the GitHub Support cache request (D.6) - *Role:* Owner · *Depends:* L.6 · *Done when:* no commit reachable on GitHub contains them
 
 ### Branding (B)
 - [x] **B.1** Icon concepts (3 original concepts, previews at 16-256 px on light and dark backgrounds) and the owner's choice - *Role:* Docs maintainer / Owner · *Depends:* P0.1 · *Done when:* the owner has chosen · ✅ 2026-11-07
