@@ -13,6 +13,8 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Patch licence inventory: `tools/legal/patch_licenses.py` and the generated `docs/legal/PATCH_LICENSES.md`
+  for all 152 upstream M156 patches (29 confirmed, 123 still to research; ROADMAP **L.1**).
 - `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed
   drives, WSL memory), an upstream setup wrapper that stops on any rejected patch, and a `buildinfo` entry point.
 - `tools/build/smoke.py`: smoke-tests a build with a fresh throwaway profile and the sandbox always on;

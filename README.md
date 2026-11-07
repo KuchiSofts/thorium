@@ -68,7 +68,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [Security (S)](ROADMAP.md#security-s) | `██████░░░░░░░░░░░░░░` | 4/13 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | ⬜ Not started |
 | [Docs (D)](ROADMAP.md#docs-d) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
-| [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
+| [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | 🔄 In progress |
 | [Branding (B)](ROADMAP.md#branding-b) | `██████████░░░░░░░░░░` | 2/4 | 🔄 In progress |
 
 **What's next**
