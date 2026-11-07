@@ -21,6 +21,8 @@ Each release lists:
 - `CREDITS.md` and `NOTICE` with full upstream credits and per-component licences.
 - Thoron `README.md`, a detailed `ROADMAP.md`, `SECURITY.md` (private reporting, coordinated disclosure)
   and `CONTRIBUTING.md`.
+- Thoron logo "Radiant Core", chosen by the owner from three original concepts, with a single-colour
+  variant (`branding/thoron/`, CC BY 4.0).
 
 ### Changed
 - The original Thorium README moved to `docs/upstream/THORIUM_README.md`, unchanged except for relative
