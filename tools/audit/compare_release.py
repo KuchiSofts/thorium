@@ -67,7 +67,7 @@ def main(argv: list[str]) -> int:
         print("RESULT: MODIFIED FILES FOUND")
     elif result["extra"] or result["missing"]:
         print(f"RESULT: release files unmodified, but {len(result['extra'])} extra and "
-              f"{len(result['missing'])} missing file(s) — review them before trusting this install")
+              f"{len(result['missing'])} missing file(s) - review them before trusting this install")
     else:
         print("RESULT: identical to release")
     if result["different"] or (strict and (extra_exec or result["missing"])):

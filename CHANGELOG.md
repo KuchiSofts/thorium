@@ -23,10 +23,11 @@ Each release lists:
   and `CONTRIBUTING.md`.
 - Thoron logo "Radiant Core", chosen by the owner from three original concepts, with a single-colour
   variant (`branding/thoron/`, CC BY 4.0).
-- Icon asset pipeline (`tools/branding`): PNG sizes 16–512 and a multi-size Windows `.ico` generated
+- Icon asset pipeline (`tools/branding`): PNG sizes 16-512 and a multi-size Windows `.ico` generated
   from the SVG logo using only the standard library and a headless browser.
 
 ### Changed
+- House style: long dashes replaced by a plain "-" across all our docs, code and assets. `check_docs` now enforces this rule.
 - Repository renamed from `KuchiSofts/thorium` to `KuchiSofts/thoron` (old links redirect), with a Thoron description and topics. Detaching from the Thorium fork network has been requested (ROADMAP **D.6**). The design document is now `docs/design/2026-11-07-thoron-design.md`.
 - The original Thorium README moved to `docs/upstream/THORIUM_README.md`, unchanged except for relative
   links (including a fix for a pre-existing broken link).

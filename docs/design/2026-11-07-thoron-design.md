@@ -1,4 +1,4 @@
-# Thoron (a Thorium-based browser by KuchiSofts) — Design
+# Thoron (a Thorium-based browser by KuchiSofts) - Design
 ### Windows 11 + Ubuntu · x64 + ARM64
 
 Status: **approved by owner 2026-11-07** · Date: 2026-11-07 · Owner: KuchiSofts
@@ -35,7 +35,7 @@ small group of volunteers. Thoron builds on their work. A review of upstream in 
   ([upstream issue #1313](https://github.com/Alex313031/thorium/issues/1313)). Releases are not
   code-signed.
 - **Windows updates.** Upstream does not currently ship a Windows updater. Users update by
-  downloading new installers (about 190–310 MB), or use the community Thorium-WinUpdater.
+  downloading new installers (about 190-310 MB), or use the community Thorium-WinUpdater.
 - **Code review result.** No telemetry, crypto-mining, remote-execution, persistence or unknown
   network endpoints were found in the M156 changes. A sample installed M150 build was byte-identical
   to its official release.
@@ -330,7 +330,7 @@ Upstream and ours can coexist on the same machine. Version numbers are independe
 - **Afterwards:** the import never disables, modifies or uninstalls upstream Thorium or its updater.
   The user can remove upstream themselves once satisfied, and is told how.
 
-### 7.7a Import from the browser the user selects — including tabs and tab groups **[owner]**
+### 7.7a Import from the browser the user selects - including tabs and tab groups **[owner]**
 
 **The installer step**
 
@@ -461,8 +461,8 @@ The installer, and later Settings, shows **"Import from…"** with:
     - **Theme:** radiant gas or energy "born from" an element.
     - **Original artwork** authored as vector SVG source, so copyright is clearly ours.
     - **Every size and format Chromium needs:**
-      - Windows: a multi-size `.ico` (16–256 px), plus taskbar, Start tiles and installer images.
-      - Linux: `.desktop` PNG icons at 16–512 px, plus scalable SVG.
+      - Windows: a multi-size `.ico` (16-256 px), plus taskbar, Start tiles and installer images.
+      - Linux: `.desktop` PNG icons at 16-512 px, plus scalable SVG.
       - In the browser: product logo resources, the About page, and the new-tab logo.
     - **Readability:** works at 16 px; light and dark variants; meets contrast requirements.
     - Licensed in `NOTICE` under our terms.

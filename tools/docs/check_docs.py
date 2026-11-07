@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
-"""Docs and privacy linter — part of the definition of done for every change.
+"""Docs and privacy linter - part of the definition of done for every change.
 
 Checks: relative links (inline, reference-style, nested badges, HTML href/src) resolve to files that
 exist with exact case, inside the repository and not git-ignored; CHANGELOG has [Unreleased] and
@@ -186,6 +186,18 @@ def check_private(root: Path, files: list[Path], private_list: Path | None) -> l
     return problems
 
 
+LONG_DASH_RE = re.compile("[" + chr(0x2013) + chr(0x2014) + "]")  # en/em dash: house style uses "-" only
+
+
+def check_dashes(root: Path, files: list[Path]) -> list[str]:
+    problems = []
+    for path in files:
+        for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            if LONG_DASH_RE.search(line):
+                problems.append(f"{_rel(root, path)}:{number}: long dash, use '-' (house style)")
+    return problems
+
+
 def _glob(root: Path, patterns) -> list[Path]:
     found = set()
     for pattern in patterns:
@@ -209,6 +221,7 @@ def main(argv: list[str]) -> int:
         problems += check_changelog(root / "CHANGELOG.md")
     if (root / "ROADMAP.md").is_file():
         problems += check_roadmap(root / "ROADMAP.md")
+    problems += check_dashes(root, _glob(root, OWNED_PRIVATE_GLOBS))
     if args.private:
         private_list = Path.home() / ".githooks" / "private-strings.txt"
         if not private_list.is_file():

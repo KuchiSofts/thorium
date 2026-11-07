@@ -20,7 +20,7 @@ Thoron is a fork of [Thorium](https://github.com/Alex313031/thorium), and most o
 patches, build tooling and documentation come from the Thorium project.
 
 - **Alexander Frick ([@Alex313031](https://github.com/Alex313031))** created Thorium and has
-  maintained it since 2021. Thorium is © 2021–2026 Alexander Frick, BSD-3-Clause
+  maintained it since 2021. Thorium is © 2021-2026 Alexander Frick, BSD-3-Clause
   ([`LICENSE.md`](LICENSE.md)).
 - **Ho Cheung ([@gz83](https://github.com/gz83), [@hocheung-chromium](https://github.com/hocheung-chromium))**
   is the current day-to-day maintainer of Thorium (M144 onwards) and the author of most recent

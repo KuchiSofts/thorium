@@ -10,7 +10,7 @@ born from thorium. It was chosen by the project owner on 2026-11-07 from three o
 |---|---|
 | `thoron-logo.svg` | Primary colour logo (violet `#7B2FF7` → magenta `#F72F8E` gradient disc, white mark) |
 | `thoron-logo-mono.svg` | Single-colour mark on a transparent background, for monochrome or symbolic icons; recolour as needed |
-| `png/thoron_<size>.png`, `thoron.ico` | Generated raster sizes (16–512 px) and the Windows multi-size icon: regenerate, never edit by hand |
+| `png/thoron_<size>.png`, `thoron.ico` | Generated raster sizes (16-512 px) and the Windows multi-size icon: regenerate, never edit by hand |
 
 **Design rules:**
 - The mark has no text.

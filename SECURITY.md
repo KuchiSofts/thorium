@@ -6,7 +6,7 @@ Security is Thoron's first priority. Thank you for helping keep its users safe.
 
 | Version | Supported |
 |---|---|
-| No Thoron release yet | — |
+| No Thoron release yet | - |
 | After the first release: the latest release only | ✅ |
 
 Thoron aims to ship within **7 days** of a Chrome release that fixes an actively exploited

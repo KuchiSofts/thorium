@@ -95,6 +95,15 @@ class CheckDocsTests(unittest.TestCase):
         doc = self.write("README.md", "fixture C:\\Users\\Someone\\x  privacy-check: allow\n")  # privacy-check: allow
         self.assertEqual(check_docs.check_private(self.root, [doc], None), [])
 
+    def test_long_dashes_flagged(self):
+        em, en = chr(0x2014), chr(0x2013)  # built from code points so no sweep can alter them
+        bad = self.write("README.md", f"one {em} two\nsizes 16{en}512\nfine - here\n")
+        problems = check_docs.check_dashes(self.root, [bad])
+        self.assertEqual(len(problems), 2, problems)
+        self.assertTrue(problems[0].startswith("README.md:1:"))
+        good = self.write("docs/ok.md", "only - short - dashes\n")
+        self.assertEqual(check_docs.check_dashes(self.root, [good]), [])
+
     def test_main_requires_readme_at_root(self):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(check_docs.main(["--root", str(self.root)]), 2)

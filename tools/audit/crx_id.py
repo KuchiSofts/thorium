@@ -162,9 +162,9 @@ def main(argv: list[str]) -> int:
         print(f"key {key_id}: signature {'VALID' if ok else 'NOT VERIFIED'}{'  (declared key)' if key_id == declared else ''}")
     genuine = any(key_id == declared and ok for key_id, ok in proofs)
     if expect is not None and declared != expect:
-        print(f"RESULT: ID mismatch — expected {expect}")
+        print(f"RESULT: ID mismatch - expected {expect}")
         return 1
-    print("RESULT: signature by the declared key is valid" if genuine else "RESULT: NOT VERIFIED — do not trust")
+    print("RESULT: signature by the declared key is valid" if genuine else "RESULT: NOT VERIFIED - do not trust")
     return 0 if genuine else 1
 
 
