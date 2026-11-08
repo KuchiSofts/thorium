@@ -155,6 +155,122 @@ class BrandingTests(unittest.TestCase):
             ti.edit_branding(BRANDING.replace("PRODUCT_FULLNAME=Thorium\n", ""))
 
 
+# The Windows program-file references, as upstream Thorium M156 has them (P2.20).
+EXE_FIXTURES = {
+    "build/win/reorder-imports.py": (
+        '    """Swap chrome_elf.dll to be the first import of thorium.exe.\n'
+        "    input_image = os.path.join(input_dir, 'thorium.exe')\n"
+        "    output_image = os.path.join(output_dir, 'thorium.exe')\n"
+        "    for fname in glob.iglob(os.path.join(input_dir, 'thorium.exe.*')):\n"
+        "        '-i', '--input', help='reorder thorium.exe in DIR', metavar='DIR'\n"
+        "        '-o', '--output', help='write new thorium.exe to DIR', metavar='DIR'\n"),
+    "chrome/BUILD.gn": (
+        '      "$root_out_dir/initialexe/thorium.exe",\n      "$root_out_dir/initialexe/thorium.exe.pdb",\n'
+        '      "$root_out_dir/thorium.exe",\n      "$root_out_dir/thorium.exe.pdb",\n'
+        '  if (is_win) {\n    _chrome_output_name = "initialexe/thorium"\n  } else if (is_chromeos) {\n'
+        '    _chrome_output_name = "chrome"\n  } else {\n    _chrome_output_name = "thorium"\n  }\n'),
+    "chrome/app/chrome_exe.ver": "INTERNAL_NAME=thorium_exe\nORIGINAL_FILENAME=thorium.exe\n",
+    "chrome/app/chrome_exe.vsprops": '\t\tOutputFile="$(OutDir)\\thorium.exe"\n',
+    "chrome/chrome_proxy/chrome_proxy_main_win.cc": '    FILE_PATH_LITERAL("thorium.exe");\n',
+    "chrome/common/chrome_constants.cc": (
+        "#if BUILDFLAG(IS_WIN)\nconst base::FilePath::CharType kBrowserProcessExecutableName[] =\n"
+        '    FPL("thorium.exe");\nconst base::FilePath::CharType kHelperProcessExecutableName[] =\n'
+        '    FPL("thorium.exe");\n#elif BUILDFLAG(IS_POSIX)\n'
+        'const base::FilePath::CharType kBrowserProcessExecutableName[] = FPL("thorium");\n#endif\n'
+        "#if BUILDFLAG(IS_WIN)\nconst base::FilePath::CharType kBrowserProcessExecutablePath[] =\n"
+        '    FPL("thorium.exe");\nconst base::FilePath::CharType kHelperProcessExecutablePath[] =\n'
+        '    FPL("thorium.exe");\n#elif BUILDFLAG(IS_POSIX)\n'
+        'const base::FilePath::CharType kBrowserProcessExecutablePath[] = FPL("thorium");\n#endif\n'),
+    "chrome/installer/launcher_support/chrome_launcher_support.cc": 'const wchar_t kChromeExe[] = L"thorium.exe";\n',
+    "chrome/installer/mini_installer/BUILD.gn": (
+        '    "$root_out_dir/chrome_elf.dll",\n    "$root_out_dir/thorium.exe",\n'
+        '_thorium_mini_installer_target = "thorium_mini_installer"\nif (current_cpu == "arm64") {\n'
+        '  _thorium_mini_installer_target = "thorium_ARM64_installer"\n'
+        '} else if (thorium_windows_installer_label != "") {\n  _thorium_mini_installer_target =\n'
+        '      "thorium_${thorium_windows_installer_label}_mini_installer"\n}\n'),
+    "chrome/installer/mini_installer/chrome.release": (
+        "# Copyright 2026 The Chromium Authors, Alex313031, ltguillaume, and gz83\n[GENERAL]\n"
+        "thorium.exe: %(ChromeDir)s\\\nchrome_proxy.exe: %(ChromeDir)s\\\n# thor_ver for Thorium-WinUpdater\n"
+        "thor_ver: %(ChromeDir)s\\\nshell_resources.pak: %(VersionDir)s\\\nthorium_shell.exe: %(VersionDir)s\\\n"
+        "thorium_shell.ico: %(VersionDir)s\\\n# Add pak to Thorium.\npack.bat: %(VersionDir)s\\\n[HIDPI]\n"
+        "chrome_200_percent.pak: %(VersionDir)s\\\nthorium.ico: %(VersionDir)s\\\nthorium.svg: %(VersionDir)s\\\n"
+        "\n[FFMPEG]\nffmpeg.dll: %(VersionDir)s\\\n"),
+    "chrome/installer/mini_installer/mini_installer_constants.cc": 'const wchar_t kBrowserExe[] = L"thorium.exe";\n',
+    "chrome/installer/util/util_constants.h": (
+        'inline constexpr wchar_t kChromeExe[] = L"thorium.exe";\n'
+        'inline constexpr wchar_t kChromeNewExe[] = L"new_thorium.exe";\n'
+        'inline constexpr wchar_t kChromeOldExe[] = L"old_thorium.exe";\n'),
+    "chrome/installer/setup/install_worker.cc": (
+        "namespace {\n\n// Version marker consumed by Thorium-WinUpdater.\n"
+        'constexpr wchar_t kThorVer[] = L"thor_ver";\n\nvoid AddInstallerCopyTasks() {\n'
+        "  // Add Thorium-specific files.\n  install_list->AddCopyTreeWorkItem(src_path.Append(kThorVer),\n"
+        "                                    target_path.Append(kThorVer), temp_path);\n\n"
+        "  // Move chrome.exe to new_chrome.exe if the target is in use.\n}\n"),
+}
+
+
+def write_exe_fixtures(src: Path) -> None:
+    for rel, text in EXE_FIXTURES.items():
+        (src / rel).parent.mkdir(parents=True, exist_ok=True)
+        (src / rel).write_bytes(text.encode("utf-8"))
+
+
+class ExeNameTests(unittest.TestCase):
+    def test_every_windows_reference_is_renamed(self):
+        out = {rel: ti.edit_exe_names(rel, text) for rel, text in EXE_FIXTURES.items()}
+        joined = "".join(out.values())
+        self.assertNotIn("thorium.exe", joined)
+        self.assertNotIn("thor_ver", joined)
+        self.assertNotIn("kThorVer", joined)
+        self.assertIn("'thoron.exe.*'", out["build/win/reorder-imports.py"])
+        self.assertIn('_chrome_output_name = "initialexe/thoron"', out["chrome/BUILD.gn"])
+        self.assertIn('L"new_thoron.exe"', out["chrome/installer/util/util_constants.h"])
+        self.assertIn("ORIGINAL_FILENAME=thoron.exe", out["chrome/app/chrome_exe.ver"])
+        self.assertIn('"thoron_${thorium_windows_installer_label}_mini_installer"',
+                      out["chrome/installer/mini_installer/BUILD.gn"])
+        self.assertIn("// Move chrome.exe to new_chrome.exe", out["chrome/installer/setup/install_worker.cc"])
+
+    def test_the_installed_file_list_names_nothing_after_thorium(self):
+        release = ti.edit_exe_names("chrome/installer/mini_installer/chrome.release",
+                                    EXE_FIXTURES["chrome/installer/mini_installer/chrome.release"])
+        entries = [l.split(":")[0] for l in release.splitlines() if ":" in l and not l.startswith("#")]
+        self.assertIn("thoron.exe", entries)
+        self.assertFalse([e for e in entries if "thor" in e.lower() and e != "thoron.exe"], entries)
+        self.assertIn("pack.bat: %(VersionDir)s\\", release)           # other entries are kept
+        self.assertIn("Alex313031, ltguillaume, and gz83", release)    # credits are kept
+
+    def test_other_platforms_keep_their_names(self):
+        build = ti.edit_exe_names("chrome/BUILD.gn", EXE_FIXTURES["chrome/BUILD.gn"])
+        self.assertIn('    _chrome_output_name = "thorium"\n', build)   # Linux binary: a separate task
+        consts = ti.edit_exe_names("chrome/common/chrome_constants.cc", EXE_FIXTURES["chrome/common/chrome_constants.cc"])
+        self.assertEqual(consts.count('FPL("thorium")'), 2)
+        self.assertEqual(consts.count('FPL("thoron.exe")'), 4)
+
+    def test_idempotent(self):
+        for rel, text in EXE_FIXTURES.items():
+            once = ti.edit_exe_names(rel, text)
+            self.assertEqual(ti.edit_exe_names(rel, once), once, rel)
+
+    def test_missing_anchor_raises_and_names_the_file(self):
+        text = EXE_FIXTURES["chrome/common/chrome_constants.cc"].replace('FPL("thorium.exe")', 'FPL("x.exe")', 1)
+        with self.assertRaisesRegex(ti.IdentityError, "chrome_constants.cc"):
+            ti.edit_exe_names("chrome/common/chrome_constants.cc", text)
+
+    def test_unexpected_leftover_raises(self):
+        text = EXE_FIXTURES["chrome/installer/mini_installer/chrome.release"] + "thor_ver2: %(ChromeDir)s\\\n"
+        with self.assertRaisesRegex(ti.IdentityError, "chrome.release"):
+            ti.edit_exe_names("chrome/installer/mini_installer/chrome.release", text)
+
+    def test_crlf_files_keep_their_line_endings(self):
+        rel = "chrome/installer/setup/install_worker.cc"
+        out = ti.edit_exe_names(rel, EXE_FIXTURES[rel].replace("\n", "\r\n"))
+        self.assertNotIn("kThorVer", out)
+        self.assertNotIn("\n", out.replace("\r\n", ""))
+
+    def test_every_file_is_covered(self):
+        self.assertEqual(set(ti.EXE_EDITS), set(EXE_FIXTURES))
+
+
 class ApplyTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="thoron-test-"))
@@ -170,6 +286,7 @@ class ApplyTests(unittest.TestCase):
         for _, dest in ti.ICON_MAP:
             (self.src / dest).parent.mkdir(parents=True, exist_ok=True)
             (self.src / dest).write_bytes(b"old icon")
+        write_exe_fixtures(self.src)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -185,6 +302,8 @@ class ApplyTests(unittest.TestCase):
         self.assertIn('L"Thoron"', (self.src / ti.INSTALL_MODES_PATH).read_text(encoding="utf-8"))
         source, dest = ti.ICON_MAP[0]
         self.assertEqual((self.src / dest).read_bytes(), (REPO / source).read_bytes())
+        util = (self.src / "chrome/installer/util/util_constants.h").read_text(encoding="utf-8")
+        self.assertIn('L"thoron.exe"', util)
         again = ti.apply(self.src, REPO, string_files=["chrome/app/chromium_strings.grd"], translations=False)
         self.assertEqual(again["strings"]["replacements"], 0)
         self.assertEqual(again["files_changed"], 0)

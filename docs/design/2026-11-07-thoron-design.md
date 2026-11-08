@@ -195,7 +195,7 @@ Debian/Ubuntu derivatives are best-effort.
 - **Why not Chrome's own Omaha updater:** the Chromium updater (`//chrome/updater`) needs a dynamic
   Omaha server and does not support portable mode.
 - **Reuse Chromium's existing update experience.** The "relaunch to update" badge and the
-  in-use executable swap (`new_thorium.exe` plus rename on next start) are used wherever
+  in-use executable swap (`new_thoron.exe` plus rename on next start) are used wherever
   possible, rather than reinventing them.
 
 ### 7.2 Manifest and trust

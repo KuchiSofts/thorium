@@ -103,6 +103,7 @@ Each release lists:
   from the SVG logo using only the standard library and a headless browser.
 
 ### Changed
+- Windows program file renamed to `thoron.exe` and the installer to `thoron_<variant>_mini_installer.exe` (ROADMAP **P2.20**). The installer no longer ships Thorium-named files (`thor_ver`, Thorium icons, content shell entries), and Thoron no longer shares Thorium's `App Paths\thorium.exe` entry, so either browser can be uninstalled without affecting the other. `tools/migrate/exe_rename.py` moves an install made before the rename over: it gives `App Paths\thorium.exe` back to Thorium, fixes shortcuts and registry values the installer did not, and moves the leftovers into a backup it can restore.
 - Work order: Windows first. The Linux build tasks (ROADMAP **P1.2**, **P1.5**) are deferred by the
   owner's decision; Ubuntu remains a target platform (design §16).
 - New README with the Thoron logo, badges and quick navigation. Its roadmap section (overall
