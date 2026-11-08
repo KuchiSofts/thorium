@@ -261,6 +261,13 @@ EXE_EDITS = {
     "chrome/app/chrome_exe.ver": {"replace": [("INTERNAL_NAME=thorium_exe", "INTERNAL_NAME=thoron_exe", 1),
                                               ("ORIGINAL_FILENAME=thorium.exe", "ORIGINAL_FILENAME=thoron.exe", 1)]},
     "chrome/app/chrome_exe.vsprops": {"replace": [("\\thorium.exe", "\\thoron.exe", 1)]},
+    # Extra command-line flags from a file: Thoron reads only its own (%APPDATA%\Thoron\thoron-flags.conf, or
+    # next to thoron.exe), never Thorium's, which could turn on unsafe switches.
+    "chrome/app/chrome_main_delegate.cc": {"replace": [
+        ('kThoriumFlagsConfigDirName[] =\n    FILE_PATH_LITERAL("Thorium");',
+         'kThoriumFlagsConfigDirName[] =\n    FILE_PATH_LITERAL("Thoron");', 1),
+        ('"thorium-flags.conf', '"thoron-flags.conf', 2)],
+        "forbid": [r"thorium-flags\.conf", r'FILE_PATH_LITERAL\("Thorium"\)']},
     "chrome/chrome_proxy/chrome_proxy_main_win.cc": {"replace": [('FILE_PATH_LITERAL("thorium.exe")',
                                                                   'FILE_PATH_LITERAL("thoron.exe")', 1)]},
     "chrome/common/chrome_constants.cc": {"replace": [('FPL("thorium.exe")', 'FPL("thoron.exe")', 4)]},

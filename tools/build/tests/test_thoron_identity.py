@@ -189,6 +189,12 @@ EXE_FIXTURES = {
         '#elif BUILDFLAG(IS_POSIX)\n'
         'const base::FilePath::CharType kBrowserProcessExecutablePath[] = FPL("thorium");\n'
         'const base::FilePath::CharType kHelperProcessExecutablePath[] = FPL("thorium");\n#endif\n'),
+    "chrome/app/chrome_main_delegate.cc": (
+        'constexpr base::FilePath::CharType kThoriumFlagsConfigDirName[] =\n'
+        '    FILE_PATH_LITERAL("Thorium");\n'
+        'constexpr base::FilePath::CharType kThoriumFlagsFileName[] =\n'
+        '    FILE_PATH_LITERAL("thorium-flags.conf");\n'
+        '      L"thorium-flags.conf " + base::UTF8ToWide(flags));\n'),
     "chrome/installer/launcher_support/chrome_launcher_support.cc": 'const wchar_t kChromeExe[] = L"thorium.exe";\n',
     "chrome/installer/mini_installer/BUILD.gn": (
         '    "$root_out_dir/chrome_elf.dll",\n    "$root_out_dir/thorium.exe",\n'
@@ -253,6 +259,14 @@ class ExeNameTests(unittest.TestCase):
         consts = ti.edit_exe_names("chrome/common/chrome_constants.cc", EXE_FIXTURES["chrome/common/chrome_constants.cc"])
         self.assertEqual(consts.count('FPL("thorium")'), 6)
         self.assertEqual(consts.count('FPL("thoron.exe")'), 4)
+
+    def test_windows_flags_file_is_thorons_own(self):
+        # Thorium's flags file can turn on unsafe switches; Thoron must never read it.
+        out = ti.edit_exe_names("chrome/app/chrome_main_delegate.cc", EXE_FIXTURES["chrome/app/chrome_main_delegate.cc"])
+        self.assertIn('FILE_PATH_LITERAL("Thoron");', out)
+        self.assertEqual(out.count("thoron-flags.conf"), 2)
+        self.assertNotIn("thorium-flags.conf", out)
+        self.assertNotIn('FILE_PATH_LITERAL("Thorium")', out)
 
     def test_idempotent(self):
         for rel, text in EXE_FIXTURES.items():
