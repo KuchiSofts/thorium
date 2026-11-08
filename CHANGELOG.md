@@ -17,9 +17,15 @@ Each release lists:
   applies the name Thoron (UI strings and translations, without touching URLs, paths or
   identifiers), its own install and profile folder `%LOCALAPPDATA%\Thoron`, registry key, app ID,
   ProgIDs, `thoron` link scheme, Active Setup GUID, COM class IDs and sandbox SID prefix, the
-  Radiant Core icons, and `BRANDING` (copyright keeps The Chromium Authors and Alex313031). It is
-  anchored and idempotent, so it re-applies after every rebase. Thoron installs and runs next to
-  Thorium without changing it (verified: Thorium's files, registry keys and ProgIDs unchanged).
+  Radiant Core icons, and `BRANDING`. The About page and copyright credit The Chromium Authors,
+  Alex313031 and KuchiSofts, and lines that name Alex313031 are never renamed. Translations follow
+  the rename: the tool recomputes each renamed message's ID with GRIT and updates the translation
+  files, so no language loses a translation. It is anchored and idempotent, so it re-applies after
+  every rebase. Thoron installs and runs next to Thorium with its own folder, registry key and
+  ProgIDs (Thorium's files, registry key and ProgIDs verified unchanged). Until the program file
+  is renamed (ROADMAP **P2.20**), one Windows entry keyed by `thorium.exe` is shared: installing
+  Thoron points `App Paths\thorium.exe` at Thoron, and uninstalling Thoron would remove Thorium's
+  `App Paths` and Open-with entries.
 - `tools/migrate/import_profile.py`: brings a Thorium profile into Thoron by a verified copy (never a
   move; every file checked by SHA-256; refuses if either browser runs or Thoron already has a
   profile). A real Thorium profile came out 1:1 in Thoron (ROADMAP **P3.14**, command-line version).

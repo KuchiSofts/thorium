@@ -240,7 +240,11 @@ The prebuilt `pak_mingw*.exe` tools in `out\thorium` are deliberately not copied
 unverified binaries (ROADMAP **L.6**) and the browser does not need them.
 
 **Installing Thoron next to Thorium.** `thorium_AVX2_mini_installer.exe --silent` installs Thoron
-per user into `%LOCALAPPDATA%\Thoron` without asking; it does not change Thorium. To bring your
+per user into `%LOCALAPPDATA%\Thoron` without asking, with its own folder, registry key and
+ProgIDs. Until the program file is renamed (ROADMAP **P2.20**), the Windows `App Paths` entry for
+`thorium.exe` is shared: after installing Thoron, `Win+R thorium` opens Thoron, and uninstalling
+Thoron while Thorium is still installed would remove Thorium's `App Paths` and Open-with entries,
+so do not uninstall Thoron before then. To bring your
 Thorium profile over, close both browsers and copy it with a verified copy:
 
 ```powershell

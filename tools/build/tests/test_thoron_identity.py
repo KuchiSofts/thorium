@@ -165,7 +165,8 @@ class ApplyTests(unittest.TestCase):
         (self.src / ti.BRANDING_PATH).write_text(BRANDING, encoding="utf-8")
         (self.src / "chrome/app").mkdir(parents=True, exist_ok=True)
         self.strings = self.src / "chrome/app/chromium_strings.grd"
-        self.strings.write_text('<message name="IDS_PRODUCT_NAME">Thorium</message>\n', encoding="utf-8")
+        self.strings.write_text('<message name="IDS_PRODUCT_NAME">Thorium</message>\n' + CreditsTests.ABOUT,
+                                encoding="utf-8")
         for _, dest in ti.ICON_MAP:
             (self.src / dest).parent.mkdir(parents=True, exist_ok=True)
             (self.src / dest).write_bytes(b"old icon")
@@ -178,13 +179,13 @@ class ApplyTests(unittest.TestCase):
             self.assertTrue((REPO / source).is_file(), source)
 
     def test_apply_changes_everything_then_is_a_no_op(self):
-        summary = ti.apply(self.src, REPO, string_files=["chrome/app/chromium_strings.grd"])
-        self.assertEqual(summary["strings"]["replacements"], 1)
+        summary = ti.apply(self.src, REPO, string_files=["chrome/app/chromium_strings.grd"], translations=False)
+        self.assertEqual(summary["strings"]["replacements"], 3)
         self.assertIn("Thoron", self.strings.read_text(encoding="utf-8"))
         self.assertIn('L"Thoron"', (self.src / ti.INSTALL_MODES_PATH).read_text(encoding="utf-8"))
         source, dest = ti.ICON_MAP[0]
         self.assertEqual((self.src / dest).read_bytes(), (REPO / source).read_bytes())
-        again = ti.apply(self.src, REPO, string_files=["chrome/app/chromium_strings.grd"])
+        again = ti.apply(self.src, REPO, string_files=["chrome/app/chromium_strings.grd"], translations=False)
         self.assertEqual(again["strings"]["replacements"], 0)
         self.assertEqual(again["files_changed"], 0)
 
@@ -193,9 +194,75 @@ class ApplyTests(unittest.TestCase):
         (self.src / ti.INSTALL_MODES_PATH).write_text(broken, encoding="utf-8")
         before = {p: p.read_bytes() for p in self.src.rglob("*") if p.is_file()}
         with self.assertRaises(ti.IdentityError):
-            ti.apply(self.src, REPO, string_files=["chrome/app/chromium_strings.grd"])
+            ti.apply(self.src, REPO, string_files=["chrome/app/chromium_strings.grd"], translations=False)
         after = {p: p.read_bytes() for p in self.src.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
+
+
+class CreditsTests(unittest.TestCase):
+    ABOUT = ('<message name="IDS_ABOUT_VERSION_COMPANY_NAME" desc="Company name on the about pages">\n'
+             '            The Thorium Authors\n          </message>\n'
+             '<message name="IDS_ABOUT_VERSION_COPYRIGHT" desc="Copyright information on the about pages">\n'
+             '            Copyright <ph name="YEAR">{0,date,y}<ex>2016</ex></ph> The Thorium Authors. '
+             'All rights reserved.\n          </message>\n')
+
+    def test_about_page_keeps_every_credit(self):
+        out = ti.edit_chromium_strings(ti.rename_product(self.ABOUT)[0])
+        self.assertIn("The Chromium Authors, Alex313031 and KuchiSofts", out)
+        self.assertEqual(out.count("Alex313031"), 2)
+        self.assertNotIn("Thoron Authors", out)
+        self.assertEqual(ti.edit_chromium_strings(out), out)
+
+    def test_about_page_anchor_missing_raises(self):
+        with self.assertRaises(ti.IdentityError):
+            ti.edit_chromium_strings('<message name="OTHER">x</message>')
+
+    def test_lines_crediting_upstream_are_never_renamed(self):
+        text = "Alex313031 recommends Thorium\nAbout Thorium\n"
+        self.assertEqual(ti.rename_product(text), ("Alex313031 recommends Thorium\nAbout Thoron\n", 1))
+
+
+class TranslationIdTests(unittest.TestCase):
+    @staticmethod
+    def fake_id(text, meaning=""):
+        return str(abs(hash((text, meaning))) % 10**12)
+
+    def test_remap_old_to_new_ids(self):
+        msgs = [(self.fake_id("About Thorium"), "About Thorium", ""),
+                (self.fake_id("Hello PRODUCT_NAME"), "Hello PRODUCT_NAME", ""),      # name only in a placeholder
+                (self.fake_id("Alex313031 recommends Thorium"), "Alex313031 recommends Thorium", "")]
+        remap = ti.compute_remap(msgs, self.fake_id)
+        self.assertEqual(remap, {self.fake_id("About Thorium"): self.fake_id("About Thoron")})
+
+    def test_name_right_after_a_placeholder_is_renamed_like_in_the_file(self):
+        parts = [("ph", "BEGIN_LINK"), "Thorium warns you", ("ph", "END_LINK")]
+        old = self.fake_id("BEGIN_LINKThorium warns youEND_LINK")
+        remap = ti.compute_remap([(old, parts, "")], self.fake_id)
+        self.assertEqual(remap, {old: self.fake_id("BEGIN_LINKThoron warns youEND_LINK")})
+
+    def test_renamed_meaning_counts_in_the_new_id(self):
+        old = self.fake_id("Saved from Thorium", "Folder for files saved from Thorium")
+        remap = ti.compute_remap([(old, "Saved from Thorium", "Folder for files saved from Thorium")], self.fake_id)
+        self.assertEqual(remap, {old: self.fake_id("Saved from Thoron", "Folder for files saved from Thoron")})
+
+    def test_meaning_alone_changes_the_id(self):
+        old = self.fake_id("Open folder", "Folder made by Thorium")
+        remap = ti.compute_remap([(old, "Open folder", "Folder made by Thorium")], self.fake_id)
+        self.assertEqual(remap, {old: self.fake_id("Open folder", "Folder made by Thoron")})
+
+    def test_remap_rejects_an_id_function_that_does_not_match_grit(self):
+        with self.assertRaises(ti.IdentityError):
+            ti.compute_remap([("123", "About Thorium", "")], self.fake_id)
+
+    def test_xtb_ids_rewritten_without_clobbering_existing(self):
+        xtb = ('<translation id="111">A</translation>\n<translation id="222">B</translation>\n'
+               '<translation id="333">C</translation>\n')
+        out, n = ti.remap_xtb(xtb, {"111": "999", "222": "333"})          # 333 already exists: keep both
+        self.assertEqual(n, 1)
+        self.assertIn('id="999">A', out)
+        self.assertIn('id="222">B', out)
+        self.assertEqual(ti.remap_xtb(out, {"111": "999"})[1], 0)
+
 
 
 if __name__ == "__main__":

@@ -65,7 +65,11 @@ ICON_MAP = [
   + [(_PNG.format(s), f"{_THEME}/chromium/linux/product_logo_{s}.png") for s in (24, 48, 64, 128, 256)] \
   + [(_PNG.format(s), f"{_THEME}/default_100_percent/chromium/product_logo_{s}.png") for s in (16, 32)] \
   + [(_PNG.format(s), f"{_THEME}/default_100_percent/chromium/linux/product_logo_{s}.png") for s in (16, 32)] \
-  + [(_PNG.format(2 * s), f"{_THEME}/default_200_percent/chromium/product_logo_{s}.png") for s in (16, 32)]
+  + [(_PNG.format(2 * s), f"{_THEME}/default_200_percent/chromium/product_logo_{s}.png") for s in (16, 32)] \
+  + [("branding/thoron/thoron.ico", p) for p in (
+      "chrome/installer/mini_installer/mini_installer.ico", "chrome/installer/setup/setup.ico",
+      "chrome/browser/web_applications/chrome_pwa_launcher/chrome_pwa_launcher.ico",
+      f"{_THEME}/chromium/win/app_list.ico")]
 
 # The product name only: not inside URLs, paths or identifiers, not part of a longer word.
 NAME_RE = re.compile(r"(?<![\w/\\.\-@%])Thorium(?![\w\-/\\])(?!\.\w)")
@@ -84,8 +88,123 @@ def guid_struct(guid: str) -> str:
     return f"{{0x{h[0:8]}, 0x{h[8:12]}, 0x{h[12:16]}, {{{tail}}}}}"
 
 
+CREDIT_MARK = "Alex313031"   # a line that names the upstream author is credit text: never renamed
+
+
 def rename_product(text: str) -> tuple[str, int]:
-    return NAME_RE.subn("Thoron", text)
+    out, total = [], 0
+    for line in text.splitlines(keepends=True):
+        if CREDIT_MARK in line:
+            out.append(line)
+            continue
+        line, n = NAME_RE.subn("Thoron", line)
+        out.append(line)
+        total += n
+    return "".join(out), total
+
+
+CHROMIUM_STRINGS_PATH = "chrome/app/chromium_strings.grd"
+CREDIT_LINE = "The Chromium Authors, Alex313031 and KuchiSofts"
+_ABOUT_EDITS = [
+    ("About company name",
+     r'(<message name="IDS_ABOUT_VERSION_COMPANY_NAME"[^>]*>\s*)(?:The (?:Thorium|Thoron) Authors|' + re.escape(CREDIT_LINE) + r')(\s*</message>)'),
+    ("About copyright",
+     r'(<message name="IDS_ABOUT_VERSION_COPYRIGHT"[^>]*>\s*Copyright <ph name="YEAR">[^<]*<ex>[^<]*</ex></ph> )'
+     r'(?:The (?:Thorium|Thoron) Authors|' + re.escape(CREDIT_LINE) + r')(\. All rights reserved\.)'),
+]
+
+
+def edit_chromium_strings(text: str) -> str:
+    """The About page credits Chromium, Thorium's author and Thoron (instead of "The Thoron Authors")."""
+    missing = []
+    for name, pattern in _ABOUT_EDITS:
+        text, n = re.subn(pattern, lambda m: m.group(1) + CREDIT_LINE + m.group(2), text)
+        if n != 1:
+            missing.append(f"{name} ({n} matches)")
+    if missing:
+        raise IdentityError(f"{CHROMIUM_STRINGS_PATH}: anchors not found exactly once: {', '.join(missing)}")
+    return text
+
+
+def compute_remap(messages, id_fn) -> dict[str, str]:
+    """Translation IDs to rewrite: GRIT derives a message's ID from its text, so renaming the product
+    in a message changes its ID. `messages` holds (id, content, meaning) of the tree before renaming,
+    where content is the presentable text or a list of text segments and ("ph", presentation)
+    placeholders; each text segment is renamed on its own, exactly as in the file. id_fn is GRIT's
+    GenerateMessageId. Refuses if id_fn does not reproduce an ID."""
+    remap = {}
+    for old_id, parts, meaning in messages:
+        parts = [parts] if isinstance(parts, str) else parts
+        content = "".join(p if isinstance(p, str) else p[1] for p in parts)
+        if CREDIT_MARK in content:
+            continue
+        n = 0
+        pieces = []
+        for p in parts:
+            if isinstance(p, str):
+                p, k = rename_product(p)
+                n += k
+                pieces.append(p)
+            else:
+                pieces.append(p[1])
+        renamed = "".join(pieces)
+        new_meaning, m = rename_product(meaning)
+        if not n and not m:
+            continue
+        if id_fn(content, meaning) != old_id:
+            raise IdentityError(f"translation ID {old_id} cannot be reproduced; refusing to guess new IDs")
+        remap[old_id] = id_fn(renamed, new_meaning)   # the file rename changes the meaning too
+    return remap
+
+
+def remap_xtb(text: str, remap: dict[str, str]) -> tuple[str, int]:
+    """Point translations at the renamed messages' new IDs; never overwrite an ID that already exists."""
+    existing = set(re.findall(r'<translation id="(\d+)"', text))
+    n = 0
+    for old, new in remap.items():
+        if new in existing or old not in existing:
+            continue
+        text = text.replace(f'<translation id="{old}"', f'<translation id="{new}"', 1)
+        existing.add(new)
+        n += 1
+    return text, n
+
+
+def _grit(src: Path):
+    path = str(Path(src) / "tools" / "grit")
+    if path not in sys.path:
+        sys.path.insert(0, path)
+    from grit import grd_reader                     # the tree's own GRIT (it builds these files)
+    from grit.extern import tclib
+    from grit.node import message
+    return grd_reader, tclib, message
+
+
+def grd_messages(src: Path, grd: Path) -> list[tuple[str, str, str]]:
+    grd_reader, _, message = _grit(src)
+    names = set()
+    for f in [grd] + sorted(grd.parent.rglob("*.grdp")):
+        for expr in re.findall(r'expr="([^"]*)"', f.read_text(encoding="utf-8", errors="replace")):
+            names.update(re.findall(r"[A-Za-z_]\w*", expr))
+    defines = {n: False for n in names if n not in ("and", "or", "not", "True", "False", "lang", "pp_ifdef", "pp_if")}
+    defines.update({"_chromium": True, "is_win": True})
+    root = grd_reader.Parse(str(grd), defines=defines, target_platform="win32", debug=False)
+    out = []
+    for node in root.Preorder():
+        if isinstance(node, message.MessageNode):
+            try:
+                clique = node.GetCliques()[0]
+                msg = clique.GetMessage()
+                parts = [c if isinstance(c, str) else ("ph", c.GetPresentation()) for c in msg.GetContent()]
+                out.append((clique.GetId(), parts, msg.GetMeaning() or ""))
+            except Exception:
+                continue
+    return out
+
+
+def translation_files(grd: Path) -> list[Path]:
+    text = grd.read_text(encoding="utf-8", errors="replace")
+    return [grd.parent / p for p in re.findall(r'<file\s+path="([^"]+\.xtb)"', text)]
 
 
 def _install_mode_edits() -> list[tuple[str, str, str]]:
@@ -141,6 +260,12 @@ def edit_branding(text: str) -> str:
     return "\n".join(lines)
 
 
+def find_translated_grds(src: Path) -> list[str]:
+    out = subprocess.run(["git", "-C", str(src), "grep", "-l", "-I", "-e", ".xtb", "--", "*.grd"],
+                         capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return [l for l in out.stdout.splitlines() if l]
+
+
 def find_string_files(src: Path) -> list[str]:
     out = subprocess.run(["git", "-C", str(src), "grep", "-l", "-I", "-e", "Thorium", "--", "*.grd", "*.grdp", "*.xtb"],
                          capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -149,20 +274,46 @@ def find_string_files(src: Path) -> list[str]:
     return [l for l in out.stdout.splitlines() if l]
 
 
-def apply(src: Path, repo: Path, string_files: list[str] | None = None, dry_run: bool = False) -> dict:
+def apply(src: Path, repo: Path, string_files: list[str] | None = None, dry_run: bool = False,
+          translations: bool = True) -> dict:
     """Plan every change in memory, stop on any problem, then write. Returns a summary."""
     src, repo = Path(src), Path(repo)
     planned: dict[Path, bytes] = {}
     problems: list[str] = []
     replacements = string_changes = 0
-    for rel in (string_files if string_files is not None else find_string_files(src)):
+    files = string_files if string_files is not None else find_string_files(src)
+    for rel in files:
         path = src / rel
         text = path.read_bytes().decode("utf-8")
         new, n = rename_product(text)
-        if n:
+        if rel == CHROMIUM_STRINGS_PATH:
+            try:
+                new = edit_chromium_strings(new)
+            except IdentityError as exc:
+                problems.append(str(exc))
+        if new != text:
             planned[path] = new.encode("utf-8")
             replacements += n
             string_changes += 1
+    remapped = 0
+    if translations:
+        changed_xtb = {(src / r).resolve() for r in files if r.endswith(".xtb")}
+        try:
+            _, tclib, _ = _grit(src)
+            for rel in find_translated_grds(src):
+                grd = src / rel
+                xtbs = [x for x in translation_files(grd) if x.is_file()]
+                if not any(x.resolve() in changed_xtb for x in xtbs):
+                    continue
+                remap = compute_remap(grd_messages(src, grd), tclib.GenerateMessageId)
+                for xtb in xtbs:
+                    base = planned.get(xtb, xtb.read_bytes()).decode("utf-8")
+                    new, n = remap_xtb(base, remap)
+                    if n:
+                        planned[xtb] = new.encode("utf-8")
+                        remapped += n
+        except (ImportError, IdentityError) as exc:
+            problems.append(f"translation IDs: {exc}")
     for rel, editor in ((INSTALL_MODES_PATH, edit_install_modes), (BRANDING_PATH, edit_branding)):
         path = src / rel
         if not path.is_file():
@@ -191,7 +342,8 @@ def apply(src: Path, repo: Path, string_files: list[str] | None = None, dry_run:
     if not dry_run:
         for path, data in planned.items():
             path.write_bytes(data)
-    return {"strings": {"files": string_changes, "replacements": replacements}, "icons": icons,
+    return {"strings": {"files": string_changes, "replacements": replacements},
+            "translation_ids_remapped": remapped, "icons": icons,
             "files_changed": len(planned), "dry_run": dry_run}
 
 
