@@ -45,9 +45,12 @@ Each release lists:
   for all 152 upstream M156 patches (29 confirmed, 123 still to research; ROADMAP **L.1**).
 - `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed
   drives, WSL memory), an upstream setup wrapper that stops on any rejected patch, and a `buildinfo` entry point.
-- `tools/build/smoke.py`: smoke-tests a build with a fresh throwaway profile and the sandbox always on;
-  fails on crashes, a bad exit code, or any missing capability (JS, WebGL, H.264, HEVC, AV1, JPEG XL)
-  (ROADMAP **P1.7**, in progress until it passes on our own builds).
+- `tools/build/smoke.py`: smoke-tests a build with a fresh throwaway profile; fails on crashes, a bad
+  exit code, an empty result (the page script did not run), or any capability (JS, WebGL, H.264, HEVC,
+  AV1, JPEG XL) not reported true. On Windows it also proves the sandbox is in force by reading the
+  security token of every renderer of the running browser (it must be below Medium integrity) and
+  rejecting any child process started with `--no-sandbox` (ROADMAP **P1.7**, in progress until it
+  passes on our own Linux build too).
 - `tools/build/wslconfig.py`: raises WSL memory and swap only for a Linux build (swap file on the build
   drive) and restores the original `.wslconfig` byte for byte. It never restarts WSL itself; the owner
   approves every `wsl --shutdown`.

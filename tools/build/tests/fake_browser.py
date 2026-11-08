@@ -20,6 +20,12 @@ if mode == "exit1":
 results = {"js": True, "webgl": True, "h264": True, "hevc": True, "av1": True, "jxl": True, "ua": "Fake/1.0"}
 if mode == "missing":
     results.pop("jxl")
+if mode == "empty":                     # the page script never ran: the DOM keeps its initial {}
+    results = {}
+if mode == "null":
+    results = None
+if mode == "list":
+    results = []
 if mode == "crash" and profile:
     reports = os.path.join(profile, "Crashpad", "reports")
     os.makedirs(reports, exist_ok=True)

@@ -2,8 +2,11 @@
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 """Smoke-test a freshly built browser: fresh throwaway profile, sandbox always on, local page only.
 
-Fails on a non-zero exit, any crash dump, a missing smoke result, or any required capability
-(JS, WebGL, H.264, HEVC, AV1, JPEG XL) reported false.
+Fails on a non-zero exit, any crash dump, a missing or empty smoke result (the page script did not
+run), any required capability (JS, WebGL, H.264, HEVC, AV1, JPEG XL) not reported true, or (on
+Windows) a sandbox that is not in force: every renderer of the browser must run below Medium
+integrity and no child process may carry --no-sandbox. The sandbox is checked by reading each
+process's security token, not by trusting switches.
     py -3 -I tools/build/smoke.py --browser out\\thoron\\chrome.exe --work J:\\thoron-build\\smoke\\win
         --jxl-sample <chromium src>\\third_party\\libjxl\\src\\testdata\\...\\<small>.jxl
 """
@@ -30,6 +33,102 @@ def _render_page(work_dir: Path, jxl_sample: Path | None) -> Path:
     return page
 
 
+MEDIUM_INTEGRITY = 0x2000
+_LEVELS = {0x0000: "Untrusted", 0x1000: "Low", 0x2000: "Medium", 0x3000: "High", 0x4000: "System"}
+
+
+def _integrity_rid(pid: int) -> int | None:
+    """Mandatory integrity level of a Windows process (0x0000 Untrusted ... 0x4000 System), or None."""
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    a32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    k32.OpenProcess.restype = wintypes.HANDLE
+    a32.GetSidSubAuthorityCount.restype = ctypes.POINTER(ctypes.c_ubyte)
+    a32.GetSidSubAuthority.restype = ctypes.POINTER(wintypes.DWORD)
+    process = k32.OpenProcess(0x1000, False, pid)            # PROCESS_QUERY_LIMITED_INFORMATION
+    if not process:
+        return None
+    try:
+        token = wintypes.HANDLE()
+        if not a32.OpenProcessToken(process, 0x0008, ctypes.byref(token)):   # TOKEN_QUERY
+            return None
+        try:
+            size = wintypes.DWORD()
+            a32.GetTokenInformation(token, 25, None, 0, ctypes.byref(size))  # TokenIntegrityLevel
+            buf = ctypes.create_string_buffer(size.value)
+            if not a32.GetTokenInformation(token, 25, buf, size, ctypes.byref(size)):
+                return None
+            sid = ctypes.c_void_p(ctypes.cast(buf, ctypes.POINTER(ctypes.c_void_p))[0])
+            count = a32.GetSidSubAuthorityCount(sid)[0]
+            return int(a32.GetSidSubAuthority(sid, count - 1)[0])
+        finally:
+            k32.CloseHandle(token)
+    finally:
+        k32.CloseHandle(process)
+
+
+def _list_processes() -> list[dict]:
+    """All processes with pid, parent pid and command line (Windows, via CIM)."""
+    script = ("Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | "
+              "ConvertTo-Json -Compress")
+    out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60).stdout
+    return [{"pid": p["ProcessId"], "ppid": p["ParentProcessId"], "cmd": p.get("CommandLine") or ""}
+            for p in json.loads(out or "[]")]
+
+
+def sandbox_report(browser_pid: int, list_processes, integrity) -> list[str]:
+    """Problems with the sandbox of the browser's process tree (empty list: sandbox in force)."""
+    procs = list_processes()
+    children: dict[int, list[dict]] = {}
+    for p in procs:
+        children.setdefault(p["ppid"], []).append(p)
+    tree, todo = [], [browser_pid]
+    while todo:
+        for child in children.get(todo.pop(), []):
+            if child["pid"] != browser_pid and child not in tree:
+                tree.append(child)
+                todo.append(child["pid"])
+    problems = [f"process {p['pid']} runs with --no-sandbox" for p in tree if "--no-sandbox" in p["cmd"]]
+    renderers = [p for p in tree if "--type=renderer" in p["cmd"]]
+    if not renderers:
+        problems.append("no renderer process found, so the sandbox could not be checked")
+    for r in renderers:
+        level = integrity(r["pid"])
+        if level is None:
+            problems.append(f"renderer {r['pid']}: integrity level could not be read")
+        elif level >= MEDIUM_INTEGRITY:
+            problems.append(f"renderer {r['pid']} runs at {_LEVELS.get(level, hex(level))} integrity (not sandboxed)")
+    return problems
+
+
+def check_sandbox(browser: Path, work_dir: Path, settle_s: float = 5.0) -> list[str]:
+    """Start the browser (headless, fresh profile, about:blank) and inspect its live process tree."""
+    import os
+    import time
+    if os.name != "nt":
+        return []   # Linux: checked when the Linux build resumes (ROADMAP P1.5)
+    profile = Path(tempfile.mkdtemp(prefix="sandbox-", dir=work_dir))
+    proc = subprocess.Popen([str(browser), "--headless=new", f"--user-data-dir={profile}", "--no-first-run",
+                             "--no-default-browser-check", "about:blank"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        time.sleep(settle_s)
+        return sandbox_report(proc.pid, _list_processes, _integrity_rid)
+    finally:
+        for _ in range(3):        # closing must never hide the result; try a few times, then move on
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+            try:
+                proc.wait(timeout=20)
+                break
+            except subprocess.TimeoutExpired:
+                continue
+        time.sleep(2)
+        import shutil
+        shutil.rmtree(profile, ignore_errors=True)
+
+
 def _crash_dumps(profile: Path) -> list[str]:
     dumps = []
     for parts in CRASH_DIRS:
@@ -39,7 +138,8 @@ def _crash_dumps(profile: Path) -> list[str]:
     return dumps
 
 
-def run_smoke(browser: Path, work_dir: Path, timeout_s: int = 90, jxl_sample: Path | None = None) -> dict:
+def run_smoke(browser: Path, work_dir: Path, timeout_s: int = 90, jxl_sample: Path | None = None,
+              sandbox_check=None) -> dict:
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
     profile = Path(tempfile.mkdtemp(prefix="profile-", dir=work_dir))  # fresh and empty every run
@@ -64,12 +164,18 @@ def run_smoke(browser: Path, work_dir: Path, timeout_s: int = 90, jxl_sample: Pa
             failures.append("smoke result is not valid JSON")
     else:
         failures.append("no smoke result in browser output")
+    if match and not isinstance(results, dict):
+        failures.append(f"smoke result is not an object: {results!r}")
+        results = {}
+    if match and not results:
+        failures.append("smoke result is empty: the page script did not run")
     for key, wanted in REQUIRED.items():
-        if results and results.get(key) is not wanted:
+        if match and results and results.get(key) is not wanted:
             failures.append(f"capability {key} is {results.get(key)!r}, expected {wanted}")
     dumps = _crash_dumps(profile)
     if dumps:
         failures.append(f"crash dump(s) written: {', '.join(dumps)}")
+    failures += (sandbox_check or check_sandbox)(browser, work_dir)
     return {"exit_code": exit_code, "results": results, "crash_dumps": dumps,
             "passed": not failures, "failures": failures}
 
