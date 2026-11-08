@@ -37,7 +37,7 @@ WSL limits its memory (24 GB on the reference machine). For the build, raise it 
 building, with a byte-exact backup of `.wslconfig`, then restore it:
 
 ```powershell
-py -3 -I tools\build\wslconfig.py raise          # prints the backup file name
+py -3 -I tools\build\wslconfig.py raise          # prints the backup file name (see BUILD_BUDGET for values)
 wsl --shutdown                                   # stops every WSL distro briefly
 # ... build ...
 py -3 -I tools\build\wslconfig.py restore <backup file>
@@ -102,7 +102,11 @@ python3 -I tools/build/pipeline.py preflight --root ~/thoron-build --need-gb 200
 autoninja -j 16 -C out/thoron-m156-avx2 chrome
 ```
 
-*Build time and size: being measured (ROADMAP **P1.10**).*
+On the reference machine the build took about 2 hours 37 minutes (9.6 GB output). Raise WSL's
+memory only for the build: 36 GB with 32 GB of swap and `autoMemoryReclaim=dropCache` kept Windows
+responsive with 10 jobs (see [`BUILD_BUDGET.md`](BUILD_BUDGET.md)). If GitHub cannot be reached,
+the step that downloads the bundled uBlock Origin package fails; it accepts a copy placed in
+`out/<dir>/gen/chrome/browser/resources/ublock_origin/` only if its SHA-256 matches the pinned value.
 
 ## 5. Check the build
 
@@ -113,5 +117,8 @@ must run under a seccomp-BPF filter and in its own PID namespace.
 python3 -I tools/build/smoke.py --browser out/thoron-m156-avx2/thorium --work ~/thoron-build/smoke/linux \
     --jxl-sample third_party/blink/web_tests/external/wpt/jpegxl/resources/3x3_srgb_lossless.jxl
 ```
+
+Expected: `SMOKE: PASSED`. On the reference build the renderer ran with `Seccomp: 2` in its own PID
+namespace. The build also starts in a normal window under WSLg.
 
 Never start a test build with `--no-sandbox`.

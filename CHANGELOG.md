@@ -13,6 +13,11 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- First reproduced Linux build: Chromium 156.0.8078.28 with the upstream M156 AVX2 configuration
+  (no bundled Widevine) in a dedicated Ubuntu 24.04 WSL2 distro, built in about 2 hours 37 minutes.
+  It passes the smoke test with the sandbox proven (renderers under seccomp-BPF in their own PID
+  namespace) and launches under WSLg (ROADMAP **P1.2**, **P1.5**, **P1.7**). Guide: `docs/build/LINUX.md`;
+  measured times for both OSes in `docs/build/BUILD_BUDGET.md` (ROADMAP **P1.10**).
 - Thoron's own identity on Windows (ROADMAP **P2.3**, done first on M156): `tools/build/thoron_identity.py`
   applies the name Thoron (UI strings and translations, without touching URLs, paths or
   identifiers), its own install and profile folder `%LOCALAPPDATA%\Thoron`, registry key, app ID,
