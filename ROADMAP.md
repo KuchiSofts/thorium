@@ -207,6 +207,7 @@ long term.
 - [ ] **Q.4** Memory-leak soak test (8 h of tab churn; memory-growth threshold) - *Role:* QA engineer · *Depends:* Q.1 · *Done when:* it runs before every release with a pass/fail threshold
 - [ ] **Q.5** Crash triage process (local Crashpad dumps; symbol publication decision) - *Role:* QA engineer · *Depends:* P2.15 · *Done when:* the process document and symbol decision are recorded
 - [ ] **Q.6** Test VMs: Windows 11 x64, Ubuntu 24.04 and 26.04 x64, clean snapshots - *Role:* QA engineer · *Depends:* P1 · *Done when:* the VMs restore to a clean state in one step
+- [x] **Q.7** Profile compatibility gate: a new version is first started offline on a copy of real profiles, and `tools/qa/profile_check.py` must report 1:1 (windows, tabs, pinned tabs, tab groups with names and colours, saved passwords, bookmarks, enabled extensions, cookies within normal expiry, cookie encryption unchanged, no new app-bound key); it never decrypts or prints secrets - *Role:* QA engineer · *Depends:* P1.4 · *Done when:* the tool has tests and a real Thorium 150 profile passed it on the M156 build · ✅ 2026-11-08
 
 ### Docs (D)
 - [ ] **D.1** Keep README, ROADMAP, CHANGELOG, CREDITS, NOTICE and docs current on every change (definition of done) - *Role:* Docs maintainer · *Depends:* - · *Done when:* ongoing; `check_docs` passes on every commit · 🔄
@@ -287,6 +288,7 @@ Upstream Thorium issues that Thoron will address, and where.
     authors, patch changes, fixed and known issues, checksums, and credits.
 - **Release gates:**
   - smoke tests pass;
+  - the profile compatibility check passes on real profiles (Q.7);
   - no unexplained benchmark regression;
   - the audit of upstream changes has been reviewed;
   - the docs are current.

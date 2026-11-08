@@ -32,6 +32,11 @@ Each release lists:
   extension (fresh profiles, sandbox on) and measures network blocking and cosmetic filtering. It
   found that Thorium's default apps install uBlock Origin from the Web Store into every new profile;
   Thoron will not (ROADMAP **P2.16**).
+- `tools/qa/profile_check.py`: proves a new version keeps a profile 1:1. It snapshots windows, tabs,
+  pinned tabs and tab groups (from the session file), saved passwords, bookmarks, enabled
+  extensions, cookies and their encryption scheme, then compares before and after. It never decrypts
+  or prints a secret. A real Thorium 150 profile, opened offline by the M156 build, came out 1:1.
+  It is now a release gate (ROADMAP **Q.7**).
 - Patch licence inventory: `tools/legal/patch_licenses.py` and the generated `docs/legal/PATCH_LICENSES.md`
   for all 152 upstream M156 patches (29 confirmed, 123 still to research; ROADMAP **L.1**).
 - `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed
