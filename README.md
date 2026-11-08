@@ -54,13 +54,13 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `████░░░░░░░░░░░░░░░░` 24 of 122 tasks done (20%) · roadmap updated 2026-11-07
+**Overall:** `████░░░░░░░░░░░░░░░░` 25 of 123 tasks done (20%) · roadmap updated 2026-11-07
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
 | [P0 - Foundation](ROADMAP.md#p0---foundation) | `████████████████████` | 11/11 | ✅ Done |
-| [P1 - Build environment](ROADMAP.md#p1---build-environment) | `████████░░░░░░░░░░░░` | 4/10 | 🔄 In progress |
-| [P2 - First release](ROADMAP.md#p2---first-release) | `░░░░░░░░░░░░░░░░░░░░` | 0/17 | ⬜ Not started |
+| [P1 - Build environment](ROADMAP.md#p1---build-environment) | `██████████░░░░░░░░░░` | 5/10 | 🔄 In progress |
+| [P2 - First release](ROADMAP.md#p2---first-release) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
@@ -74,11 +74,11 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 **What's next**
 
 - 🔄 **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
-- 🔄 **P1.8** Manifest V2 / uBlock Origin viability on Chromium 158: apply the MV2 patches to 158 and load uBO 1.75
 - 🔄 **P1.10** Release build-matrix time budget (Windows/Linux × AVX2/SSE4, plus ARM64) against the G2 targets
 - ⬜ **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
 - ⬜ **P1.5** Reproduce the Linux x64 build of M156 in WSL2
 - ⬜ **P1.9** Thoron build docs written from scratch and followed end-to-end
+- ⬜ **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
 
 <details>
 <summary><b>Full task list</b> (generated from <a href="ROADMAP.md">ROADMAP.md</a>)</summary>
@@ -106,7 +106,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P1.5** Reproduce the Linux x64 build of M156 in WSL2
 - [x] **P1.6** `BUILDINFO.json` generator: Chromium tag, Thoron commit, depot_tools revision, VS/SDK versions, GN args hash, build time
 - [ ] **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
-- [ ] **P1.8** Manifest V2 / uBlock Origin viability on Chromium 158: apply the MV2 patches to 158 and load uBO 1.75
+- [x] **P1.8** Manifest V2 / uBlock Origin viability on Chromium 158: apply the MV2 patches to 158 and load uBO 1.75
 - [ ] **P1.9** Thoron build docs written from scratch and followed end-to-end
 - [ ] **P1.10** Release build-matrix time budget (Windows/Linux × AVX2/SSE4, plus ARM64) against the G2 targets
 
@@ -129,6 +129,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P2.15** First draft release, Thoron 158.x (Windows x64 and Linux x64)
 - [ ] **P2.16** No silent Web Store installs: Thorium's default apps install uBlock Origin from the Chrome Web Store into every new profile, contacting Google when the profile is created; Thoron ships its bundled, SHA-256-pinned uBlock Origin instead and installs nothing from the network without the user's consent
 - [ ] **P2.17** Privacy review of the inherited build configuration, for example `enable_rlz = true` (Google's promotional RLZ library) and any other upstream GN arg that adds network contact or tracking
+- [ ] **P2.18** uBlock Origin runs on 158: check whether `chrome.storage.managed.get` also hangs in the release configuration and for normally installed extensions; fix it (patch or configuration); verify cosmetic filtering with a normally installed extension in a visible window
 
 **P2b - ARM64**
 

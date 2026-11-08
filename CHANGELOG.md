@@ -37,6 +37,10 @@ Each release lists:
   extensions, cookies and their encryption scheme, then compares before and after. It never decrypts
   or prints a secret. A real Thorium 150 profile, opened offline by the M156 build, came out 1:1.
   It is now a release gate (ROADMAP **Q.7**).
+- Manifest V2 verdict for Chromium 158 (ROADMAP **P1.8**, design §10.1): Manifest V2 itself still
+  works with upstream's patch (a minimal blocking extension blocks every request), but uBlock Origin
+  1.75.4 hangs at start-up because `chrome.storage.managed.get` never answers on the 158 test build.
+  Follow-up: ROADMAP **P2.18**. The 158 test build took 3.3 hours with 10 jobs.
 - Patch licence inventory: `tools/legal/patch_licenses.py` and the generated `docs/legal/PATCH_LICENSES.md`
   for all 152 upstream M156 patches (29 confirmed, 123 still to research; ROADMAP **L.1**).
 - `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed
