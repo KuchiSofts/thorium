@@ -46,6 +46,7 @@ patches (`ks-native-gpc` and two small FFmpeg build fixes).
 | `thorium-2024-ui-core`, `classic-omnibox` | corner radii moved | Chromium 158 moved the extensions menu button, find bar and expanded omnibox radii out of the shared views code into Chrome's layout provider. Thorium's values for them (and the classic omnibox's 8) now sit there; the build stopped on the old names. |
 | (new) `ks-ffmpeg-158-hevc-x86-pred.patch` | added | Chromium 158's FFmpeg moved the x86 HEVC intra prediction into `x86/hevc/pred_init.c` and `pred.asm`, which the HEVC patch did not build; linking stopped on `ff_hevc_pred_init_x86`. |
 | `restore_download_shelf`, `open_in_same_tab`, `add-flag-for-open-bookmarks-in-new-tab`, `add-flag-for-open-omnibox-url-in-new-tab` | names updated | Chromium 158 turned `WindowOpenDisposition` into a mojom enum (`kNewForegroundTab` instead of `NEW_FOREGROUND_TAB`); ten added lines used the old names. |
+| `thorium-startup-logging` | include added | The startup log line uses `version_info::GetProductName()`; on 158 no other header brings in `base/version_info/version_info.h`. |
 | `thorium-build-config-and-simd` | Rust flag removed | The LLVM in 158's Rust toolchain no longer has `-fp-contract`, so rustc stopped. C and C++ keep Thorium's FMA contraction setting; Rust keeps its default (no contraction). |
 
 The licence inventory was regenerated for this series (`docs/legal/PATCH_LICENSES.md`): 0 unknown and

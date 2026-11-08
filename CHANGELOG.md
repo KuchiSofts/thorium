@@ -149,6 +149,10 @@ Each release lists:
   licence evidence, and the upstream Sponsor button is gone; Alex313031 stays credited (ROADMAP **D.8**).
 
 ### Security
+- Thoron reads extra command-line flags only from its own file on Windows (`%APPDATA%\Thoron\thoron-flags.conf`
+  or `thoron-flags.conf` next to `thoron.exe`). The upstream patch read Thorium's file, so switches meant for
+  Thorium, unsafe ones included, would have applied to Thoron. On Linux the file is
+  `~/.config/thoron/thoron-flags.conf`.
 - `.gitignore` now excludes every browser-profile file type (passwords, cookies, sessions, history,
   keys) whose names cannot be mistaken for source folders, on top of the privacy checks that block
   such data at commit and push time.
