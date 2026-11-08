@@ -27,3 +27,26 @@ Thorium_squashfs-root
 # Python bytecode caches (tools/)
 __pycache__/
 *.pyc
+
+# Never commit browser profiles or personal data: passwords, cookies, sessions, history, keys.
+# (Names that are also Chromium source folders, such as History, Cookies or Sessions, are not listed
+# here; the local privacy guard blocks those profile files at commit and push time.)
+User Data/
+ThoriumBackups/
+Local State
+Secure Preferences
+Login Data
+Login Data For Account
+Login Data*-journal
+Web Data
+Web Data-journal
+Network Persistent State
+*.sqlite
+*.sqlite3
+*.ldb
+*.kdbx
+*.pem
+*.key
+*.pfx
+*.p12
+.env

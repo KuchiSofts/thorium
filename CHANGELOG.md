@@ -116,6 +116,12 @@ Each release lists:
   observations about upstream.
 
 ### Security
+- `.gitignore` now excludes every browser-profile file type (passwords, cookies, sessions, history,
+  keys) whose names cannot be mistaken for source folders, on top of the privacy checks that block
+  such data at commit and push time.
+- Removed `infra/hangout_services/bin/hangout_services_1.4.1.pem`, an upstream private signing key for
+  the (already removed) hangout_services package. It was referenced nowhere; a published private key
+  lets anyone sign packages under that extension's identity.
 - Proprietary and unverifiable binaries removed from the repository (ROADMAP **L.6**):
   - Google's Widevine CDM for Windows, macOS, Linux and ChromeOS (13 files plus signatures and
     import libraries, one of them a patched copy). Its licence forbids redistribution; Chromium's
