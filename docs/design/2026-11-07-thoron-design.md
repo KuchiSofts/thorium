@@ -629,6 +629,7 @@ reproduced Thorium M156 build:
 | Docs | Every change updates README, ROADMAP, CHANGELOG and every affected `.md` |
 | Roadmap | `ROADMAP.md` must be highly detailed |
 | Work order (2026-11-08) | Windows first. Linux work (ROADMAP **P1.2**, **P1.5** and the Linux halves of **P1.7**, **P1.9**, **P1.10**) is deferred until the owner resumes it; Ubuntu stays a target platform |
+| Rename order (2026-11-08) | The Thoron identity is done first on M156, before the Chromium 158 rebase, by a re-appliable tool; the owner's Thorium profile moves to Thoron by verified copy (§7.7) and Thorium stays as an untouched backup |
 | Repository binaries (2026-11-07) | No prebuilt or proprietary binaries in the repository (ROADMAP **L.6**); purging them from history (**L.7**) waits for the owner's decision |
 
 No open questions remain. Anything further found during planning is either a builder decision (§14)

@@ -6,7 +6,7 @@
 
 **A fast, secure, Thorium-based browser for Windows 11 and Ubuntu.**
 
-[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-20%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
+[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-21%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
 
 [Why Thoron](#why-thoron) · [Features](#features) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits)
 
@@ -54,13 +54,13 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `████░░░░░░░░░░░░░░░░` 25 of 123 tasks done (20%) · roadmap updated 2026-11-08
+**Overall:** `████░░░░░░░░░░░░░░░░` 26 of 125 tasks done (21%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
 | [P0 - Foundation](ROADMAP.md#p0---foundation) | `████████████████████` | 11/11 | ✅ Done |
 | [P1 - Build environment](ROADMAP.md#p1---build-environment) | `██████████░░░░░░░░░░` | 5/10 | 🔄 In progress |
-| [P2 - First release](ROADMAP.md#p2---first-release) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
+| [P2 - First release](ROADMAP.md#p2---first-release) | `█░░░░░░░░░░░░░░░░░░░` | 1/20 | 🔄 In progress |
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
@@ -114,7 +114,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 - [ ] **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
 - [ ] **P2.2** Audit all upstream changes since `de9a1bc6` with `tools/audit` (S.1)
-- [ ] **P2.3** Identity patch, Windows: product name Thoron, `%LOCALAPPDATA%\Thoron`, `HKCU\Software\Thoron`, new app GUID in `chromium_install_modes.h`, ProgIDs, AppUserModelID
+- [x] **P2.3** Identity patch, Windows: product name Thoron, `%LOCALAPPDATA%\Thoron`, `HKCU\Software\Thoron`, new app GUID in `chromium_install_modes.h`, ProgIDs, AppUserModelID
 - [ ] **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`, keyring entry `Thoron Safe Storage`
 - [ ] **P2.5** About page: Thoron version, Chromium version, verbatim disclaimer, links to credits and changelog
 - [ ] **P2.6** Widevine not bundled; fetched by Chromium's component updater at runtime
@@ -130,6 +130,8 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P2.16** No silent Web Store installs: Thorium's default apps install uBlock Origin from the Chrome Web Store into every new profile, contacting Google when the profile is created; Thoron ships its bundled, SHA-256-pinned uBlock Origin instead and installs nothing from the network without the user's consent
 - [ ] **P2.17** Privacy review of the inherited build configuration, for example `enable_rlz = true` (Google's promotional RLZ library) and any other upstream GN arg that adds network contact or tracking
 - [ ] **P2.18** uBlock Origin runs on 158: check whether `chrome.storage.managed.get` also hangs in the release configuration and for normally installed extensions; fix it (patch or configuration); verify cosmetic filtering with a normally installed extension in a visible window
+- [ ] **P2.19** Thoron's own COM interface IDs (IElevator, tracing service): regenerate the checked-in MIDL output; needed before system-level installs, which register those interfaces
+- [ ] **P2.20** Program and installer file names: `thoron.exe` instead of `thorium.exe`, the installer name, and no Thorium updater remnants (`thor_ver`)
 
 **P2b - ARM64**
 
@@ -281,7 +283,7 @@ the checksum and signature as shown above.
 ## Building
 
 Thoron's own build guides are being written in phase **P1**, as each step is verified:
-[Windows 11](docs/build/WINDOWS.md) (toolchain, source, build and smoke test), with measured build
+[Windows 11](docs/build/WINDOWS.md) (toolchain, source, Thoron identity, build and smoke test), with measured build
 times in [`BUILD_BUDGET.md`](docs/build/BUILD_BUDGET.md). Until they are complete, the
 Thorium guides cover the rest: [Windows](docs/BUILDING_WIN.md) · [Linux](docs/BUILDING.md).
 

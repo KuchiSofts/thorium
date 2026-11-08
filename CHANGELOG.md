@@ -13,6 +13,17 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Thoron's own identity on Windows (ROADMAP **P2.3**, done first on M156): `tools/build/thoron_identity.py`
+  applies the name Thoron (UI strings and translations, without touching URLs, paths or
+  identifiers), its own install and profile folder `%LOCALAPPDATA%\Thoron`, registry key, app ID,
+  ProgIDs, `thoron` link scheme, Active Setup GUID, COM class IDs and sandbox SID prefix, the
+  Radiant Core icons, and `BRANDING` (copyright keeps The Chromium Authors and Alex313031). It is
+  anchored and idempotent, so it re-applies after every rebase. Thoron installs and runs next to
+  Thorium without changing it (verified: Thorium's files, registry keys and ProgIDs unchanged).
+- `tools/migrate/import_profile.py`: brings a Thorium profile into Thoron by a verified copy (never a
+  move; every file checked by SHA-256; refuses if either browser runs or Thoron already has a
+  profile). A real Thorium profile came out 1:1 in Thoron (ROADMAP **P3.14**, command-line version).
+- Windows Start-menu tile icons (70 and 150 px) and `export_icons.py --sizes`.
 - Windows 11 build guide `docs/build/WINDOWS.md` (toolchain, Defender, depot_tools, Chromium source)
   and `tools/build/win_env.ps1`, which prepares one PowerShell window for building: build folder,
   temporary files off the system drive, pinned depot_tools, Visual Studio 2026, and a build-only git
