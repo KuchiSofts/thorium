@@ -66,6 +66,26 @@ class BuildInfoTests(unittest.TestCase):
         self.assertNotIn("Someone", dumped)
         self.assertNotIn(str(self.tmp).replace("\\", "\\\\"), dumped)
 
+    def test_paths_anywhere_in_any_string_are_scrubbed(self):
+        args = ('pgo_data_path = "C:/Users/Someone/pgo/chrome.profdata"\n'          # privacy-check: allow
+                f'extra_dir = "{self.tmp.as_posix()}/chromium/extra"\n')
+        toolchain = {"vs": {"note": "InstalledDir: C:\\Users\\Someone\\VS"},        # privacy-check: allow
+                     "paths": ["/home/someone/sdk", "ok"]}                          # privacy-check: allow
+        info = buildinfo.collect(build_root=self.tmp, src=self.make_src(), thoron_repo=self.tmp,
+                                 upstream_ref="x", variant="v", args_text=args, toolchain=toolchain,
+                                 started=1.0, finished=2.0)
+        dumped = json.dumps(info)
+        self.assertNotIn("omeone", dumped)
+        self.assertNotIn(self.tmp.as_posix(), dumped)
+        self.assertIn("<build_root>/chromium/extra", dumped)
+        self.assertEqual(info["gn_args_sha256"], buildinfo.gn_args_digest(args))   # digest of the real args
+
+    def test_write_refuses_a_personal_path(self):
+        out = self.tmp / "BUILDINFO.json"
+        with self.assertRaises(ValueError):
+            buildinfo.write(out, {"note": "copied from C:\\Users\\Someone\\x"})       # privacy-check: allow
+        self.assertFalse(out.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

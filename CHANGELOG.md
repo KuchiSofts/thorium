@@ -57,8 +57,9 @@ Each release lists:
   drive) and restores the original `.wslconfig` byte for byte. It never restarts WSL itself; the owner
   approves every `wsl --shutdown`.
 - `tools/build/buildinfo.py`: writes `BUILDINFO.json` for every build (Chromium version, Thoron and
-  upstream commits, depot_tools revision, GN args and their digest, toolchain, timing) with every path
-  relative to the build root and user directories redacted (ROADMAP **P1.6**).
+  upstream commits, depot_tools revision, GN args and their digest, toolchain, timing). Every string,
+  at any depth and GN args included, has build-root paths made relative and user-folder paths
+  redacted, and the file is not written if a user-folder path survives anywhere (ROADMAP **P1.6**).
 - Approved Thoron design for Windows 11 and Ubuntu, x64 and ARM64 (`docs/design/`).
 - Audit toolkit for upstream merges and release verification (`tools/audit`): `audit_diff`,
   `crx_id`, `compare_release`.
