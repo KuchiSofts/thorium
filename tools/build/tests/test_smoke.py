@@ -64,6 +64,36 @@ class SandboxReportTests(unittest.TestCase):
         self.assertIn(smoke._integrity_rid(os.getpid()), (0x2000, 0x3000))
 
 
+class LinuxSandboxReportTests(unittest.TestCase):
+    BROWSER = {"pid": 1, "ppid": 0, "cmd": "thorium --headless=new"}
+
+    def report(self, children, info):
+        procs = [self.BROWSER] + children
+        return smoke.linux_sandbox_report(1, lambda: procs, lambda pid: info.get(pid))
+
+    def test_seccomp_and_own_pid_namespace_pass(self):
+        kids = [{"pid": 2, "ppid": 1, "cmd": "thorium --type=zygote"},
+                {"pid": 3, "ppid": 2, "cmd": "thorium --type=renderer"}]
+        info = {1: {"seccomp": 0, "pidns": "pid:[100]"}, 3: {"seccomp": 2, "pidns": "pid:[200]"}}
+        self.assertEqual(self.report(kids, info), [])
+
+    def test_renderer_without_seccomp_fails(self):
+        kids = [{"pid": 3, "ppid": 1, "cmd": "thorium --type=renderer"}]
+        info = {1: {"seccomp": 0, "pidns": "pid:[100]"}, 3: {"seccomp": 0, "pidns": "pid:[200]"}}
+        self.assertTrue(any("seccomp" in p for p in self.report(kids, info)))
+
+    def test_renderer_in_the_browser_pid_namespace_fails(self):
+        kids = [{"pid": 3, "ppid": 1, "cmd": "thorium --type=renderer"}]
+        info = {1: {"seccomp": 0, "pidns": "pid:[100]"}, 3: {"seccomp": 2, "pidns": "pid:[100]"}}
+        self.assertTrue(any("namespace" in p for p in self.report(kids, info)))
+
+    def test_no_sandbox_switch_or_no_renderer_fails(self):
+        self.assertTrue(self.report([], {1: {"seccomp": 0, "pidns": "pid:[100]"}}))
+        kids = [{"pid": 3, "ppid": 1, "cmd": "thorium --type=renderer --no-sandbox"}]
+        info = {1: {"seccomp": 0, "pidns": "pid:[1]"}, 3: {"seccomp": 2, "pidns": "pid:[2]"}}
+        self.assertTrue(any("--no-sandbox" in p for p in self.report(kids, info)))
+
+
 class SmokeTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="thoron-test-"))

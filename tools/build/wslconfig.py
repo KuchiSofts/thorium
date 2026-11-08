@@ -68,7 +68,7 @@ def _is_backup_of(path: Path, backup: Path) -> bool:
 
 
 def raise_limits(path: Path, memory: str = "48GB", swap: str = "32GB",
-                 swap_file: str | None = DEFAULT_SWAP_FILE) -> Path:
+                 swap_file: str | None = DEFAULT_SWAP_FILE, extra: dict[str, str] | None = None) -> Path:
     """Back up `path` (byte for byte, never overwriting a backup) and raise the WSL limits.
     Refused while an earlier Thoron backup exists: a second raise would back up raised values."""
     path = Path(path)
@@ -91,6 +91,7 @@ def raise_limits(path: Path, memory: str = "48GB", swap: str = "32GB",
     values = {"memory": memory, "swap": swap}
     if swap_file:
         values["swapFile"] = swap_file
+    values.update(extra or {})          # e.g. autoMemoryReclaim=dropCache (returns WSL file cache to Windows)
     path.write_bytes(_set_keys(original, values))
     return backup
 

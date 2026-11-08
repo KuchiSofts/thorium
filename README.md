@@ -6,7 +6,7 @@
 
 **A fast, secure, Thorium-based browser for Windows 11 and Ubuntu.**
 
-[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-21%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
+[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-24%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
 
 [Why Thoron](#why-thoron) · [Features](#features) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits)
 
@@ -54,12 +54,12 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `████░░░░░░░░░░░░░░░░` 26 of 125 tasks done (21%) · roadmap updated 2026-11-08
+**Overall:** `█████░░░░░░░░░░░░░░░` 30 of 125 tasks done (24%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
 | [P0 - Foundation](ROADMAP.md#p0---foundation) | `████████████████████` | 11/11 | ✅ Done |
-| [P1 - Build environment](ROADMAP.md#p1---build-environment) | `██████████░░░░░░░░░░` | 5/10 | 🔄 In progress |
+| [P1 - Build environment](ROADMAP.md#p1---build-environment) | `██████████████████░░` | 9/10 | 🔄 In progress |
 | [P2 - First release](ROADMAP.md#p2---first-release) | `█░░░░░░░░░░░░░░░░░░░` | 1/20 | 🔄 In progress |
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
@@ -73,12 +73,12 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 **What's next**
 
-- 🔄 **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
-- 🔄 **P1.10** Release build-matrix time budget (Windows/Linux × AVX2/SSE4, plus ARM64) against the G2 targets
-- ⬜ **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
-- ⬜ **P1.5** Reproduce the Linux x64 build of M156 in WSL2
-- ⬜ **P1.9** Thoron build docs written from scratch and followed end-to-end
+- 🔄 **P1.9** Thoron build docs written from scratch and followed end-to-end
 - ⬜ **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
+- ⬜ **P2.2** Audit all upstream changes since `de9a1bc6` with `tools/audit` (S.1)
+- ⬜ **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`, keyring entry `Thoron Safe Storage`
+- ⬜ **P2.5** About page: Thoron version, Chromium version, verbatim disclaimer, links to credits and changelog
+- ⬜ **P2.6** Widevine not bundled; fetched by Chromium's component updater at runtime
 
 <details>
 <summary><b>Full task list</b> (generated from <a href="ROADMAP.md">ROADMAP.md</a>)</summary>
@@ -100,15 +100,15 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 **P1 - Build environment**
 
 - [x] **P1.1** Windows toolchain: Visual Studio 2026 (Desktop C++, ATL/MFC), Windows SDK 10.0.28000 plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive that is not cloud-synced
-- [ ] **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
+- [x] **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
 - [x] **P1.3** Local-only worktree of gz83 tag `M156.0.8078.28` (`de9a1bc6`, never pushed); fetch Chromium 156.0.8078.28; apply the upstream patch series
 - [x] **P1.4** Reproduce the Windows x64 AVX2 build of M156
-- [ ] **P1.5** Reproduce the Linux x64 build of M156 in WSL2
+- [x] **P1.5** Reproduce the Linux x64 build of M156 in WSL2
 - [x] **P1.6** `BUILDINFO.json` generator: Chromium tag, Thoron commit, depot_tools revision, VS/SDK versions, GN args hash, build time
-- [ ] **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
+- [x] **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
 - [x] **P1.8** Manifest V2 / uBlock Origin viability on Chromium 158: apply the MV2 patches to 158 and load uBO 1.75
 - [ ] **P1.9** Thoron build docs written from scratch and followed end-to-end
-- [ ] **P1.10** Release build-matrix time budget (Windows/Linux × AVX2/SSE4, plus ARM64) against the G2 targets
+- [x] **P1.10** Release build-matrix time budget (Windows/Linux × AVX2/SSE4, plus ARM64) against the G2 targets
 
 **P2 - First release**
 
@@ -282,10 +282,11 @@ the checksum and signature as shown above.
 
 ## Building
 
-Thoron's own build guides are being written in phase **P1**, as each step is verified:
-[Windows 11](docs/build/WINDOWS.md) (toolchain, source, Thoron identity, build and smoke test), with measured build
-times in [`BUILD_BUDGET.md`](docs/build/BUILD_BUDGET.md). Until they are complete, the
-Thorium guides cover the rest: [Windows](docs/BUILDING_WIN.md) · [Linux](docs/BUILDING.md).
+Thoron's own build guides, each step verified on a real build:
+[Windows 11](docs/build/WINDOWS.md) (toolchain, source, Thoron identity, build and smoke test) and
+[Linux / Ubuntu 24.04](docs/build/LINUX.md) (WSL2 or native), with measured build times in
+[`BUILD_BUDGET.md`](docs/build/BUILD_BUDGET.md). The original Thorium guides are kept for reference:
+[Windows](docs/BUILDING_WIN.md) · [Linux](docs/BUILDING.md).
 
 The repository tooling (audit, docs and credits checks) needs only Python 3.11+:
 
