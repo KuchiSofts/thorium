@@ -149,6 +149,49 @@ class ProfileTests(unittest.TestCase):
         after["profiles"] = {}
         self.assertTrue(any("Default" in p for p in pc.compare(before, after)))
 
+    def test_snapshot_refuses_a_folder_that_is_not_user_data(self):
+        with self.assertRaises(pc.SnapshotError):
+            pc.snapshot(self.tmp)                                 # the parent folder, not "User Data"
+        (self.ud / "Local State").write_text("{}", encoding="utf-8")
+        with self.assertRaises(pc.SnapshotError):
+            pc.snapshot(self.ud)                                  # no profile listed
+
+    def test_snapshot_refuses_a_running_browser(self):
+        (self.ud / "lockfile").write_bytes(b"")
+        with self.assertRaises(pc.SnapshotError) as ctx:
+            pc.snapshot(self.ud)
+        self.assertIn("running", str(ctx.exception))
+
+    def test_unreadable_database_is_recorded_not_counted_as_zero(self):
+        before = pc.snapshot(self.ud)
+        (self.ud / "Default" / "Login Data").write_bytes(b"this is not a database")
+        after = pc.snapshot(self.ud)
+        self.assertIsNone(after["profiles"]["Default"]["passwords"])
+        self.assertTrue(any("passwords" in p and "unreadable" in p for p in pc.compare(before, after)))
+        self.assertTrue(pc.compare(after, before))                # unreadable before hides losses: a problem too
+
+    def test_unreadable_session_before_is_a_problem(self):
+        before = pc.snapshot(self.ud)
+        after = json.loads(json.dumps(before))
+        before["profiles"]["Default"]["session"] = {"unreadable": True}
+        self.assertTrue(any("session" in p for p in pc.compare(before, after)))
+
+    def test_duplicate_groups_are_counted(self):
+        before = pc.snapshot(self.ud)
+        after = json.loads(json.dumps(before))
+        g = before["profiles"]["Default"]["session"]["groups"][0]
+        before["profiles"]["Default"]["session"]["groups"].append(dict(g))   # two identical groups
+        self.assertTrue(any(g["title"] in p for p in pc.compare(before, after)))
+
+    def test_stale_session_of_an_active_profile_is_a_problem(self):
+        before = pc.snapshot(self.ud)
+        same = json.loads(json.dumps(before))
+        before["last_active_profiles"] = ["Default"]
+        problems = pc.compare(before, same)
+        self.assertTrue(any("did not write" in p for p in problems), problems)
+        before["last_active_profiles"] = []
+        self.assertEqual(pc.compare(before, same), [])
+
     def test_cli_snapshot_and_compare(self):
         out1, out2 = self.tmp / "before.json", self.tmp / "after.json"
         with contextlib.redirect_stdout(io.StringIO()):

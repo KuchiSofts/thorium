@@ -32,10 +32,12 @@ Each release lists:
   extension (fresh profiles, sandbox on) and measures network blocking and cosmetic filtering. It
   found that Thorium's default apps install uBlock Origin from the Web Store into every new profile;
   Thoron will not (ROADMAP **P2.16**).
-- `tools/qa/profile_check.py`: proves a new version keeps a profile 1:1. It snapshots windows, tabs,
-  pinned tabs and tab groups (from the session file), saved passwords, bookmarks, enabled
-  extensions, cookies and their encryption scheme, then compares before and after. It never decrypts
-  or prints a secret. A real Thorium 150 profile, opened offline by the M156 build, came out 1:1.
+- `tools/qa/profile_check.py`: checks that a new version keeps a profile 1:1 on what it measures:
+  windows, tabs, pinned tabs and tab groups (from the session file), the number of saved passwords,
+  bookmarks, enabled extensions, cookies and their encryption scheme. It never decrypts or prints a
+  secret, refuses a running browser or a wrong folder, records anything unreadable as unreadable
+  (never as zero), and reports a new version that wrote no session. History, autofill and site data
+  are not checked yet. A real Thorium 150 profile, opened offline by the M156 build, came out 1:1.
   It is now a release gate (ROADMAP **Q.7**).
 - Manifest V2 verdict for Chromium 158 (ROADMAP **P1.8**, design §10.1): Manifest V2 itself still
   works with upstream's patch (a minimal blocking extension blocks every request), but uBlock Origin
