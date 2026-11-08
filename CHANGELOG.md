@@ -66,7 +66,13 @@ Each release lists:
   1.75.4 hangs at start-up because `chrome.storage.managed.get` never answers on the 158 test build.
   Follow-up: ROADMAP **P2.18**. The 158 test build took 3.3 hours with 10 jobs.
 - Patch licence inventory: `tools/legal/patch_licenses.py` and the generated `docs/legal/PATCH_LICENSES.md`
-  for all 152 upstream M156 patches (29 confirmed, 123 still to research; ROADMAP **L.1**).
+  for all 152 upstream M156 patches (ROADMAP **L.1**). All 152 are now researched: every patch's
+  added code was compared with 13 credited projects, its copyright lines and Thorium's older patch
+  notes (method: `docs/legal/PATCH_ORIGINS.md`, findings: `tools/legal/patch_origins.tsv`). Result:
+  0 unknown; `GPC.patch` and `enable-android-devtools-frontend.patch` come from Cromite (GPL-3.0);
+  no GPL-2.0-only code; 8 patches use code from authors who publish no licence and need their
+  permission or a rewrite before a release. `CREDITS.md` and `NOTICE` list the confirmed licences
+  and the newly found contributors (icepie, not-lucky, qcasey, tomByrer, win32ss).
 - `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed
   drives, WSL memory), an upstream setup wrapper that stops on any rejected patch, and a `buildinfo` entry point.
 - `tools/build/smoke.py`: smoke-tests a build with a fresh throwaway profile; fails on crashes, a bad

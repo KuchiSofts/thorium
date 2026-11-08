@@ -64,21 +64,28 @@ Each patch keeps its original attribution.
 | Bromite | https://github.com/bromite/bromite | GPL-3.0 |
 | Cromite (successor of Bromite) | https://github.com/uazo/cromite | GPL-3.0 |
 | Debian Chromium packaging | https://salsa.debian.org/chromium-team/chromium | see licence inventory (ROADMAP **L.1**) |
-| chromium-ubuntu-build (saiarcot895) | https://github.com/saiarcot895/chromium-ubuntu-build | see licence inventory (ROADMAP **L.1**) |
+| chromium-ubuntu-build (saiarcot895) | https://github.com/saiarcot895/chromium-ubuntu-build | BSD-3-Clause (its `debian/copyright` licenses the patches as the patched Chromium sources) |
 | Iridium | https://github.com/iridium-browser/iridium-browser | BSD-3-Clause |
-| Vanadium (GrapheneOS) | https://github.com/GrapheneOS/Vanadium | see licence inventory (ROADMAP **L.1**) |
+| Vanadium (GrapheneOS) | https://github.com/GrapheneOS/Vanadium | GPL-2.0-only (no current patch uses its code) |
 | Inox patchset | https://github.com/gcarq/inox-patchset | BSD-2-Clause |
-| Supermium | https://github.com/win32ss/supermium | see licence inventory (ROADMAP **L.1**) |
+| Supermium (win32ss) | https://github.com/win32ss/supermium | not stated (no licence published) |
 | Brave | https://github.com/brave/brave-core | MPL-2.0 |
-| Chromium_Clang (RobRich999) | https://github.com/RobRich999/Chromium_Clang | see licence inventory (ROADMAP **L.1**) |
+| Chromium_Clang (RobRich999) | https://github.com/RobRich999/Chromium_Clang | not stated (no licence published) |
 | enable-chromium-hevc-hardware-decoding (StaZhu) | https://github.com/StaZhu/enable-chromium-hevc-hardware-decoding | MIT |
-| chromium-win64 (Hibbiki) | https://github.com/Hibbiki/chromium-win64 | see licence inventory (ROADMAP **L.1**) |
-| chromium-patches (qcasey) | https://github.com/qcasey/chromium-patches | see licence inventory (ROADMAP **L.1**) |
-| electron-chromium-codecs (Muril-o) | https://github.com/Muril-o/electron-chromium-codecs | see licence inventory (ROADMAP **L.1**) |
+| chromium-win64 (Hibbiki) | https://github.com/Hibbiki/chromium-win64 | not stated (no licence published) |
+| chromium-patches (qcasey) | https://github.com/qcasey/chromium-patches | not stated (no licence published) |
+| electron-chromium-codecs (Muril-o) | https://github.com/Muril-o/electron-chromium-codecs | not stated (no licence published) |
+| ungoogled-chromium-windows | https://github.com/ungoogled-software/ungoogled-chromium-windows | BSD-3-Clause |
+| ungoogled-software contrib | https://github.com/ungoogled-software/contrib | public domain (its README, for files without a licence) |
 | chromium_os-raspberry_pi (FydeOS) | https://github.com/FydeOS/chromium_os-raspberry_pi | BSD-2-Clause |
 
-Any other source named in `docs/PATCHES.md` is credited there and covered by the licence inventory
-(ROADMAP **L.1**).
+Patch contributors named in Thorium's patch copyright lines are credited too: icepie, not-lucky,
+qcasey, tomByrer and win32ss (Shane Fournier).
+
+The origin and licence of every patch is in the licence inventory
+[`docs/legal/PATCH_LICENSES.md`](docs/legal/PATCH_LICENSES.md), with the research method in
+[`docs/legal/PATCH_ORIGINS.md`](docs/legal/PATCH_ORIGINS.md) (ROADMAP **L.1**). "Not stated" means the
+author publishes no licence; those patches need the author's permission, or a rewrite, before a release.
 
 ## Bundled and related software
 

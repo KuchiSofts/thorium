@@ -36,20 +36,23 @@ Component: Patches originating from Bromite / Cromite
              recorded in that release's BUILDINFO.json. GPL-3.0 text:
              https://www.gnu.org/licenses/gpl-3.0.txt (shipped in each release's licence bundle)
 
-Component: Patches originating from ungoogled-chromium (BSD-3-Clause), Iridium (BSD-3-Clause),
-           Inox patchset (BSD-2-Clause), Brave (MPL-2.0),
-           enable-chromium-hevc-hardware-decoding by StaZhu (MIT),
-           chromium_os-raspberry_pi by FydeOS (BSD-2-Clause)
+Component: Patches originating from ungoogled-chromium and ungoogled-chromium-windows
+           (BSD-3-Clause), Iridium (BSD-3-Clause), chromium-ubuntu-build by saiarcot895
+           (BSD-3-Clause, as the patched Chromium sources), Inox patchset (BSD-2-Clause),
+           Brave (MPL-2.0), enable-chromium-hevc-hardware-decoding by StaZhu (MIT),
+           chromium_os-raspberry_pi by FydeOS (BSD-2-Clause), ungoogled-software contrib
+           (public domain)
   Copyright: their respective authors (see each patch header)
   Licence:   as listed
 
-Component: Patches originating from Debian, chromium-ubuntu-build (saiarcot895),
-           Vanadium (GrapheneOS), Supermium, Chromium_Clang (RobRich999),
-           chromium-win64 (Hibbiki), chromium-patches (qcasey),
-           electron-chromium-codecs (Muril-o), and every other source named in docs/PATCHES.md
-  Licence:   LICENCE INVENTORY PENDING (ROADMAP L.1). Each patch will be confirmed before the
-             first Thoron release; any patch with an unknown or incompatible licence is
-             rewritten or dropped.
+Component: Patches using code from Chromium_Clang (RobRich999), chromium-win64 (Hibbiki),
+           chromium-patches (qcasey), Supermium (win32ss) and electron-chromium-codecs (Muril-o)
+  Copyright: their respective authors
+  Licence:   NOT STATED: these authors publish no licence. The 8 affected patches are listed in
+             docs/legal/PATCH_ORIGINS.md; each needs the author's permission, or a rewrite, before
+             the first Thoron release (ROADMAP L.1).
+
+The origin and licence of every patch is listed in docs/legal/PATCH_LICENSES.md.
 
 Component: thorium-win-upgrade (upstream infra/upgrader submodule)
   Copyright: hezhizheng
