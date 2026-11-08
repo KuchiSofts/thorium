@@ -1,17 +1,18 @@
 ---
-name: Feature Request
-about: Suggest an idea for Thorium
+name: Feature request
+about: Suggest an idea for Thoron
 title: ''
-labels: ''
+labels: enhancement
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+**What problem would it solve?**
+Describe the situation where you miss this feature.
 
-**Describe the solution you'd like, including relevant patches or source**
-A clear and concise description of what you want to happen.
+**What would you like to happen?**
+A clear description of the solution. Links to an existing patch or project are welcome; please
+include its licence.
 
-**Did you read the FAQ?**
-https://thorium.rocks/faq
+**Did you check the roadmap?**
+https://github.com/KuchiSofts/thoron/blob/main/ROADMAP.md

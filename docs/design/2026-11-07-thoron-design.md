@@ -120,7 +120,7 @@ Debian/Ubuntu derivatives are best-effort.
 - **Linux sandbox:** Ubuntu 23.10+ restricts unprivileged user namespaces. The `.deb` must install
   an AppArmor profile so Chromium's sandbox works. Builds must never fall back to `--no-sandbox`.
 - **Toolchain.** Visual Studio 2022, Windows 11 SDK 10.0.22621.x, depot_tools, and 100+ GB per
-  checkout (see `docs/BUILDING_WIN.md`).
+  checkout (see `docs/build/WINDOWS.md`).
 - **Starting source.** Upstream's newest release source is gz83 tag `M156.0.8078.28`
   (commit `de9a1bc6`). Upstream `main` is still M138.
 - **Upstream patch series.** M156 applies an ordered patch series (`patch_scripts/series/series`)
@@ -137,7 +137,8 @@ Debian/Ubuntu derivatives are best-effort.
 
 - Keep upstream as read-only remotes (`Alex313031/thorium`, `gz83/thorium`). Never rewrite upstream
   history.
-- Default branch `main` holds the README, ROADMAP, CREDITS, SECURITY, CHANGELOG, docs and tools.
+- Default branch `main` holds the README, ROADMAP, CREDITS, SECURITY, CHANGELOG, docs, tools and
+  branding, and no upstream source: the builds use the pinned, audited upstream checkout.
   Build branches are named `ks/M<major>`, for example `ks/M156` from gz83 `de9a1bc6`, then
   `ks/M158`.
 - Our own changes live as separate, clearly named patches (`other/ks-*.patch`) with our header,
@@ -634,6 +635,7 @@ reproduced Thorium M156 build:
 | Work order (2026-11-08) | Windows first, then Linux: the owner deferred the Linux build tasks and resumed them the same day; both M156 builds are reproduced. Ubuntu stays a target platform |
 | Patch licences (2026-11-08) | All 152 M156 patches researched: 6 GPL-3.0 (Cromite, Bromite), the rest BSD, MIT or public domain; 8 use code from authors with no published licence and need permission or a rewrite before the first release (L.1) |
 | Rename order (2026-11-08) | The Thoron identity is done first on M156, before the Chromium 158 rebase, by a re-appliable tool; the owner's Thorium profile moves to Thoron by verified copy (§7.7) and Thorium stays as an untouched backup |
+| Repository layout (2026-11-09) | The old upstream Thorium M138 tree that `main` still carried (about 1,500 files the builds never used) is removed; `main` keeps only Thoron's own work, plus Thorium's M138 `PATCHES.md` and README under `docs/upstream/`. The upstream Sponsor button (`FUNDING.yml`) is removed; Alex313031 stays credited in README and CREDITS |
 | Repository binaries (2026-11-07) | No prebuilt or proprietary binaries in the repository (ROADMAP **L.6**); purging them from history (**L.7**) waits for the owner's decision |
 
 No open questions remain. Anything further found during planning is either a builder decision (§14)

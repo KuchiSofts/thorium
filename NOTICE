@@ -63,9 +63,9 @@ Component: uBlock Origin (bundled, unmodified, as a separate extension)
   Licence:   GPL-3.0
   Source:    https://github.com/gorhill/uBlock (exact release pinned by SHA-256 in the build)
 
-Component: pak tool (pak_src/)
+Component: pak tool (pak_src/ in upstream Thorium; not part of Thoron releases)
   Copyright: (c) 2018 myfreeer; (c) 2022 Alex313031
-  Licence:   MIT (pak_src/LICENSE), with parts under LGPL-2.1 (pak_src/LICENSE.LGPL)
+  Licence:   MIT, with parts under LGPL-2.1 (https://github.com/myfreeer/chrome-pak-customizer)
 
 Component: thorium-libjxl (JPEG XL support)
   Copyright: Alex313031 and the libjxl authors
