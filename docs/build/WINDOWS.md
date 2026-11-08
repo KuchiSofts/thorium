@@ -210,6 +210,26 @@ autoninja -j 12 -C $outDir chrome mini_installer
 The outputs keep upstream's names for now: `thorium.exe`, `chrome.dll` and the installer
 `thorium_AVX2_mini_installer.exe`.
 
+**Installer files.** Upstream's setup copies `thor_ver` (the variant name the Thorium updater reads)
+and the Thorium icons into a build folder named `out\thorium`. When you build in another folder,
+copy them before building `mini_installer`, or the installer fails with "unspecified error, code 7"
+and rolls back:
+
+```powershell
+foreach ($f in 'thor_ver', 'thorium.ico', 'thorium.svg', 'thorium_shell.ico') {
+    Copy-Item "out\thorium\$f" "$outDir\$f"
+}
+```
+
+The prebuilt `pak_mingw*.exe` tools in `out\thorium` are deliberately not copied: they are
+unverified binaries (ROADMAP **L.6**) and the browser does not need them.
+
+**Upgrading an existing Thorium.** Before installing over an existing Thorium, back up the whole
+`%LOCALAPPDATA%\Thorium` folder and check the new version on an offline copy of the profile with
+`tools/qa/profile_check.py` (ROADMAP **Q.7**). A profile used by a newer version cannot be opened by
+an older one; going back means restoring the backup. The installer first asks "Do you want to
+install Thorium?".
+
 ## 8. Check the build
 
 Write the build record. It holds no personal paths; check it before sharing it.
