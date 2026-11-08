@@ -6,7 +6,7 @@
 
 **A fast, secure, Thorium-based browser for Windows 11 and Ubuntu.**
 
-[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-27%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
+[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-26%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
 
 [Why Thoron](#why-thoron) · [Features](#features) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits)
 
@@ -54,13 +54,13 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `█████░░░░░░░░░░░░░░░` 34 of 127 tasks done (27%) · roadmap updated 2026-11-08
+**Overall:** `█████░░░░░░░░░░░░░░░` 34 of 129 tasks done (26%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
 | [P0 - Foundation](ROADMAP.md#p0---foundation) | `████████████████████` | 11/11 | ✅ Done |
 | [P1 - Build environment](ROADMAP.md#p1---build-environment) | `██████████████████░░` | 9/10 | 🔄 In progress |
-| [P2 - First release](ROADMAP.md#p2---first-release) | `██░░░░░░░░░░░░░░░░░░` | 2/21 | 🔄 In progress |
+| [P2 - First release](ROADMAP.md#p2---first-release) | `██░░░░░░░░░░░░░░░░░░` | 2/23 | 🔄 In progress |
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
@@ -74,7 +74,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 **What's next**
 
 - 🔄 **P1.9** Thoron build docs written from scratch and followed end-to-end
-- ⬜ **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
+- 🔄 **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
 - ⬜ **P2.2** Audit all upstream changes since `de9a1bc6` with `tools/audit` (S.1)
 - ⬜ **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`, keyring entry `Thoron Safe Storage`
 - ⬜ **P2.5** About page: Thoron version, Chromium version, verbatim disclaimer, links to credits and changelog
@@ -133,6 +133,8 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P2.19** Thoron's own COM interface IDs (IElevator, tracing service): regenerate the checked-in MIDL output; needed before system-level installs, which register those interfaces
 - [x] **P2.20** Program and installer file names: `thoron.exe` instead of `thorium.exe`, the installer name, and no Thorium updater remnants (`thor_ver`)
 - [ ] **P2.21** Linux program and package names: `thoron` instead of `thorium` for the binary, the `.deb`/`.rpm` packages, the `.desktop` file and the icons, without changing where existing profiles are read from
+- [ ] **P2.22** Linux dark mode on 158: check whether Chromium 158 follows a GTK theme switch on its own; if not, write Thoron's own fix (the Thorium patch was not carried over, see `docs/build/M158_REBASE.md`)
+- [ ] **P2.23** Check the hand-ported UI patches in a running 158 build: tab search button on the right (default) and on the left (flag), Thorium 2024 UI, classic omnibox, rectangular tabs, custom tab width, open link in this tab
 
 **P2b - ARM64**
 

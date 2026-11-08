@@ -13,6 +13,7 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Patch series rebased to Chromium 158.0.8127.30 (ROADMAP **P2.1**), starting from upstream's newer 156.0.8078.80 patches after an audit of the upstream changes. All 146 patches apply exactly; 25 were ported by hand to 158's code. Global Privacy Control now uses Chromium's own implementation instead of the Cromite patch, Android-only patches are not carried over, and two small Thoron patches fix the 158 build (FFmpeg duplicate sources, a Rust compiler flag). Every decision is recorded in `docs/build/M158_REBASE.md`.
 - First reproduced Linux build: Chromium 156.0.8078.28 with the upstream M156 AVX2 configuration
   (no bundled Widevine) in a dedicated Ubuntu 24.04 WSL2 distro, built in about 2 hours 37 minutes.
   It passes the smoke test with the sandbox proven (renderers under seccomp-BPF in their own PID
