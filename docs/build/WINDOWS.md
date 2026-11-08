@@ -184,17 +184,18 @@ into the local checkout. Thoron never bundles or redistributes them (ROADMAP **P
 ## 7. Thoron identity
 
 Turn the upstream Thorium tree into Thoron. The tool changes only what makes the browser its own
-product (name, icons, install and profile folder, registry, app ID, ProgIDs, COM class IDs) and
-stops without changing anything if an expected spot is missing. Running it again changes nothing.
+product (name, icons, program and installer file names, install and profile folder, registry, app
+ID, ProgIDs, COM class IDs) and stops without changing anything if an expected spot is missing.
+Running it again changes nothing.
 
 ```powershell
 py -3 -I tools\build\thoron_identity.py --src $env:THORON_BUILD_ROOT\chromium\src --dry-run
 py -3 -I tools\build\thoron_identity.py --src $env:THORON_BUILD_ROOT\chromium\src
 ```
 
-Expected on M156: about 600 files (575 string and translation files, 24 icons, the install modes
-and `BRANDING`). The program file is still named `thorium.exe` for now (ROADMAP **P2.20**), and the
-COM interface IDs are still upstream's (ROADMAP **P2.19**), so install Thoron per user only.
+Expected on M156: about 610 files (575 string and translation files, 24 icons, the install modes,
+`BRANDING` and the 12 build and installer files that name the program file). The COM interface IDs
+are still upstream's (ROADMAP **P2.19**), so install Thoron per user only.
 
 ## 8. Build
 
@@ -222,30 +223,18 @@ autoninja -j 12 -C $outDir chrome mini_installer
 - **Time:** about 2 hours 35 minutes on the reference machine, with a 12 GB output folder
   ([`BUILD_BUDGET.md`](BUILD_BUDGET.md)).
 
-The outputs keep upstream's names for now: `thorium.exe`, `chrome.dll` and the installer
-`thorium_AVX2_mini_installer.exe`.
+The outputs are `thoron.exe`, `chrome.dll` and the installer `thoron_AVX2_mini_installer.exe`.
+The installer installs no Thorium-named file: the Thorium updater's `thor_ver` marker, the Thorium
+icons and the content shell entries are left out, so nothing needs to be copied into the build
+folder first. The prebuilt `pak_mingw*.exe` tools that upstream's setup copies into `out\thorium`
+are not used either: they are unverified binaries (ROADMAP **L.6**) and the browser does not need
+them.
 
-**Installer files.** Upstream's setup copies `thor_ver` (the variant name the Thorium updater reads)
-and the Thorium icons into a build folder named `out\thorium`. When you build in another folder,
-copy them before building `mini_installer`, or the installer fails with "unspecified error, code 7"
-and rolls back:
-
-```powershell
-foreach ($f in 'thor_ver', 'thorium.ico', 'thorium.svg', 'thorium_shell.ico') {
-    Copy-Item "out\thorium\$f" "$outDir\$f"
-}
-```
-
-The prebuilt `pak_mingw*.exe` tools in `out\thorium` are deliberately not copied: they are
-unverified binaries (ROADMAP **L.6**) and the browser does not need them.
-
-**Installing Thoron next to Thorium.** `thorium_AVX2_mini_installer.exe --silent` installs Thoron
-per user into `%LOCALAPPDATA%\Thoron` without asking, with its own folder, registry key and
-ProgIDs. Until the program file is renamed (ROADMAP **P2.20**), the Windows `App Paths` entry for
-`thorium.exe` is shared: after installing Thoron, `Win+R thorium` opens Thoron, and uninstalling
-Thoron while Thorium is still installed would remove Thorium's `App Paths` and Open-with entries,
-so do not uninstall Thoron before then. To bring your
-Thorium profile over, close both browsers and copy it with a verified copy:
+**Installing Thoron next to Thorium.** `thoron_AVX2_mini_installer.exe --silent` installs Thoron
+per user into `%LOCALAPPDATA%\Thoron` without asking, with its own folder, program file, registry
+key, `App Paths` entry and ProgIDs, so Thorium is left exactly as it was and either one can be
+uninstalled without affecting the other. To bring your Thorium profile over, close both browsers
+and copy it with a verified copy:
 
 ```powershell
 py -3 -I tools\migrate\import_profile.py --from "$env:LOCALAPPDATA\Thorium\User Data" --to "$env:LOCALAPPDATA\Thoron\User Data"
@@ -254,10 +243,26 @@ py -3 -I tools\migrate\import_profile.py --from "$env:LOCALAPPDATA\Thorium\User 
 Then use Thoron and keep Thorium closed as a backup: two copies of a profile used online at the
 same time can make sites sign one of them out, and both sync as the same device.
 
+**Moving over an install made before the rename.** Thoron builds from before ROADMAP **P2.20**
+installed `thorium.exe` and took over Thorium's `App Paths` entry. After installing a newer build
+over such an install (with Thoron closed and backed up), run this once:
+
+```powershell
+py -3 -I tools\migrate\exe_rename.py plan
+py -3 -I tools\migrate\exe_rename.py apply --backup-dir "$env:USERPROFILE\ThoriumBackups\<date>_exe-rename"
+```
+
+The installer itself already updates Thoron's own shortcuts and registry entries. `plan` only shows
+what is left to change. `apply` retargets any other shortcuts (desktop, Start menu, taskbar
+pins, keeping their arguments), updates Thoron's own registry values, gives `App Paths\thorium.exe`
+back to Thorium, and moves the old `thorium.exe` and the other Thorium-named leftovers into the
+backup folder. It never touches `User Data` or Thorium. `exe_rename.py restore --backup-dir <same
+folder>` undoes it.
+
 **Upgrading an existing Thorium.** A profile used by a newer version cannot be opened by an older
 one, so going back means restoring a backup. Never skip these steps (ROADMAP **Q.7**):
 
-1. Close the browser completely (no `thorium.exe` left in Task Manager).
+1. Close the browser completely (no `thorium.exe` or `thoron.exe` left in Task Manager).
 2. Back up the whole `%LOCALAPPDATA%\Thorium` folder (program and `User Data`) and verify the copy.
 3. Copy `User Data` to a work folder and snapshot it:
    `py -3 -I tools\qa\profile_check.py snapshot "<copy>\User Data" --out before.json`.
@@ -265,7 +270,7 @@ one, so going back means restoring a backup. Never skip these steps (ROADMAP **Q
    rotate your login cookies (which could sign out the real browser):
 
    ```powershell
-   & <out dir>\thorium.exe --user-data-dir="<copy>\User Data" --no-first-run --no-default-browser-check `
+   & <out dir>\thoron.exe --user-data-dir="<copy>\User Data" --no-first-run --no-default-browser-check `
        --disable-sync --disable-background-networking --disable-component-update `
        --proxy-server=http://127.0.0.1:9 --proxy-bypass-list="<-loopback>" `
        --host-resolver-rules="MAP * ~NOTFOUND" --force-webrtc-ip-handling-policy=disable_non_proxied_udp
@@ -298,7 +303,7 @@ Then run the smoke test. It starts the browser with a fresh, throwaway profile, 
 sandbox on, and checks JavaScript, WebGL, H.264, HEVC, AV1 and JPEG XL, and that nothing crashed:
 
 ```powershell
-py -3 -I tools\build\smoke.py --browser <out dir>\thorium.exe --work $env:THORON_BUILD_ROOT\smoke\win `
+py -3 -I tools\build\smoke.py --browser <out dir>\thoron.exe --work $env:THORON_BUILD_ROOT\smoke\win `
     --jxl-sample $env:THORON_BUILD_ROOT\chromium\src\third_party\blink\web_tests\external\wpt\jpegxl\resources\3x3_srgb_lossless.jxl
 ```
 
