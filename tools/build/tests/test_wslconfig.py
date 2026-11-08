@@ -38,6 +38,26 @@ class WslConfigTests(unittest.TestCase):
         self.assertEqual(self.cfg.read_bytes(), ORIGINAL)
         self.assertFalse(backup.exists())
 
+    def test_restore_refuses_anything_but_a_thoron_backup_of_this_file(self):
+        self.cfg.write_bytes(ORIGINAL)
+        other = self.tmp / "sub"
+        other.mkdir()
+        (other / ".wslconfig.thoron-backup-20261108T010203").write_bytes(b"x")
+        (self.tmp / "notes.txt").write_bytes(b"x")
+        for bad in (self.cfg, self.tmp / "notes.txt", other / ".wslconfig.thoron-backup-20261108T010203"):
+            with self.assertRaises(ValueError, msg=str(bad)):
+                wslconfig.restore(self.cfg, bad)
+        self.assertEqual(self.cfg.read_bytes(), ORIGINAL)            # nothing changed, nothing deleted
+
+    def test_second_raise_is_refused_and_the_first_backup_kept(self):
+        self.cfg.write_bytes(ORIGINAL)
+        backup = wslconfig.raise_limits(self.cfg)
+        with self.assertRaises(FileExistsError):
+            wslconfig.raise_limits(self.cfg)
+        self.assertEqual(backup.read_bytes(), ORIGINAL)
+        wslconfig.restore(self.cfg, backup)
+        self.assertEqual(self.cfg.read_bytes(), ORIGINAL)
+
     def test_raise_adds_missing_keys_and_section(self):
         self.cfg.write_bytes(b"[experimental]\nautoMemoryReclaim=dropCache\n")
         wslconfig.raise_limits(self.cfg)

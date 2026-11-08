@@ -54,8 +54,9 @@ Each release lists:
   rejecting any child process started with `--no-sandbox` (ROADMAP **P1.7**, in progress until it
   passes on our own Linux build too).
 - `tools/build/wslconfig.py`: raises WSL memory and swap only for a Linux build (swap file on the build
-  drive) and restores the original `.wslconfig` byte for byte. It never restarts WSL itself; the owner
-  approves every `wsl --shutdown`.
+  drive) and restores the original `.wslconfig` byte for byte. It never overwrites a backup, refuses a
+  second raise before a restore, and restores only from its own backup of that file. It never restarts
+  WSL itself; the owner approves every `wsl --shutdown`.
 - `tools/build/buildinfo.py`: writes `BUILDINFO.json` for every build (Chromium version, Thoron and
   upstream commits, depot_tools revision, GN args and their digest, toolchain, timing). Every string,
   at any depth and GN args included, has build-root paths made relative and user-folder paths
