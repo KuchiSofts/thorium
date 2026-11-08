@@ -24,6 +24,14 @@ Each release lists:
   personal paths, and passes the smoke test (JS, WebGL, H.264, HEVC, AV1, JPEG XL, no crashes)
   (ROADMAP **P1.4**). Measured times and a draft release-build plan are in
   `docs/build/BUILD_BUDGET.md` (ROADMAP **P1.10**, in progress).
+- `tools/build/rebase_report.py`: applies a patch series to a temporary git index of a newer Chromium,
+  never touching the checkout, and reports each patch as applied, fuzz, already applied, rejected or
+  missing. First report: `docs/build/M158_REBASE_REPORT.md` (upstream M156 series on Chromium
+  158.0.8127.30: 95 apply, 21 need a refresh, 33 need a rebase) (ROADMAP **P1.8**, **P2.1**).
+- `tools/build/mv2_check.py`: offline ad-blocking check that runs the browser with and without an
+  extension (fresh profiles, sandbox on) and measures network blocking and cosmetic filtering. It
+  found that Thorium's default apps install uBlock Origin from the Web Store into every new profile;
+  Thoron will not (ROADMAP **P2.16**).
 - Patch licence inventory: `tools/legal/patch_licenses.py` and the generated `docs/legal/PATCH_LICENSES.md`
   for all 152 upstream M156 patches (29 confirmed, 123 still to research; ROADMAP **L.1**).
 - `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed
