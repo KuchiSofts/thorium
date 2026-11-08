@@ -51,14 +51,17 @@ def render_svg(svg: Path, size: int, out_png: Path, browser: Path) -> None:
         raise RuntimeError(f"rendered {out_png.name} is {actual}, expected {(size, size)}")
 
 
-def export_all(svg: Path, out_dir: Path, browser: Path) -> list[Path]:
+def export_all(svg: Path, out_dir: Path, browser: Path, sizes: tuple[int, ...] | None = None) -> list[Path]:
+    """Render the standard PNG set and the .ico, or only `sizes` (the .ico is then left as it is)."""
     png_dir = out_dir / "png"
     png_dir.mkdir(parents=True, exist_ok=True)
     written = []
-    for size in PNG_SIZES:
+    for size in sizes or PNG_SIZES:
         target = png_dir / f"thoron_{size}.png"
         render_svg(svg, size, target, browser)
         written.append(target)
+    if sizes:
+        return written
     ico_path = out_dir / "thoron.ico"
     ico_path.write_bytes(pack_ico({s: (png_dir / f"thoron_{s}.png").read_bytes() for s in ICO_SIZES}))
     written.append(ico_path)
@@ -70,9 +73,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--svg", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--browser", type=Path)
+    parser.add_argument("--sizes", type=int, nargs="+", help="render only these PNG sizes (e.g. Windows tiles: 70 150)")
     args = parser.parse_args(argv)
     browser = args.browser or find_browser()
-    for path in export_all(args.svg, args.out, browser):
+    for path in export_all(args.svg, args.out, browser, sizes=tuple(args.sizes) if args.sizes else None):
         print(f"wrote {path.as_posix()}")
     return 0
 
