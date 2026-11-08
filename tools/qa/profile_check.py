@@ -8,7 +8,11 @@ passwords and cookies (and how cookies are encrypted); and the enabled extension
 whether `Local State` holds a DPAPI key and an app-bound key.
 
 It never decrypts anything and never writes a secret, a URL or a cookie value: only counts,
-extension IDs, tab-group names and key *presence*. Run it on copies, with the browser closed.
+extension IDs, tab-group names and key *presence*. It opens databases read-only and refuses to run
+while the browser is running (`lockfile` present) or on a folder that is not a `User Data` folder.
+Anything it cannot read is recorded as unreadable, never as zero, and `compare` reports it, so an
+unreadable "before" can never hide a loss. If a profile that was open at exit kept the same session
+file, `compare` reports that the new version did not write one.
 
 `compare` lists everything the second snapshot lost: fewer passwords, bookmarks or tabs, missing or
 changed tab groups, extensions no longer enabled, a cookie loss beyond normal expiry, or a new
@@ -19,6 +23,7 @@ Exit status 1 when compare finds a problem.
 """
 import argparse
 import json
+from collections import Counter
 import re
 import sqlite3
 import struct
@@ -93,15 +98,18 @@ def session_summary(data: bytes) -> dict:
 
 
 def _sqlite_rows(path: Path, query: str) -> list | None:
+    """Rows of a read-only query: [] when the database does not exist, None when it exists but cannot be read."""
     if not path.is_file():
-        return None
-    con = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
+        return []
+    con = None
     try:
+        con = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
         return con.execute(query).fetchall()
     except sqlite3.Error:
         return None
     finally:
-        con.close()
+        if con is not None:
+            con.close()
 
 
 def _count_bookmarks(node) -> int:
@@ -110,25 +118,37 @@ def _count_bookmarks(node) -> int:
     return 0
 
 
-def _json(path: Path) -> dict:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+def _json(path: Path) -> dict | None:
+    """Parsed JSON: {} when the file does not exist, None when it exists but cannot be read."""
+    if not path.is_file():
         return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+class SnapshotError(RuntimeError):
+    pass
 
 
 def profile_summary(profile: Path) -> dict:
+    """Counts for one profile. A value that could not be read is None (or {"unreadable": True}), never 0."""
     out: dict = {}
-    roots = _json(profile / "Bookmarks").get("roots", {})
-    out["bookmarks"] = sum(_count_bookmarks(r) for r in roots.values())
+    bookmarks = _json(profile / "Bookmarks")
+    out["bookmarks"] = None if bookmarks is None else sum(_count_bookmarks(r) for r in bookmarks.get("roots", {}).values())
     passwords = 0
     for name in ("Login Data", "Login Data For Account"):
         rows = _sqlite_rows(profile / name, "SELECT COUNT(*) FROM logins")
+        if rows is None:
+            passwords = None
+            break
         passwords += rows[0][0] if rows else 0
     out["passwords"] = passwords
     cookies_db = next((p for p in (profile / "Network" / "Cookies", profile / "Cookies") if p.is_file()), None)
-    rows = _sqlite_rows(cookies_db, "SELECT substr(encrypted_value, 1, 3) FROM cookies") if cookies_db else None
-    cookies = {"total": 0}
+    rows = _sqlite_rows(cookies_db, "SELECT substr(encrypted_value, 1, 3) FROM cookies") if cookies_db else []
+    cookies = {"total": 0} if rows is not None else {"unreadable": True}
     for (prefix,) in rows or []:
         if isinstance(prefix, str):              # some rows store the value as TEXT, not BLOB
             prefix = prefix.encode("utf-8", "replace")
@@ -136,25 +156,38 @@ def profile_summary(profile: Path) -> dict:
         cookies[key] = cookies.get(key, 0) + 1
         cookies["total"] += 1
     out["cookies"] = cookies
-    settings = {}
+    settings, readable = {}, True
     for name in ("Preferences", "Secure Preferences"):
-        settings.update(_json(profile / name).get("extensions", {}).get("settings", {}))
-    out["extensions_enabled"] = sorted(k for k, v in settings.items()
-                                       if isinstance(v, dict) and not v.get("disable_reasons") and v.get("state", 1) != 0)
+        prefs = _json(profile / name)
+        if prefs is None:
+            readable = False
+            break
+        settings.update(prefs.get("extensions", {}).get("settings", {}))
+    out["extensions_enabled"] = sorted(k for k, v in settings.items() if isinstance(v, dict)
+                                       and not v.get("disable_reasons") and v.get("state", 1) != 0) if readable else None
     sessions = sorted((profile / "Sessions").glob("Session_*"),
                       key=lambda p: int(p.name.split("_")[-1]) if p.name.split("_")[-1].isdigit() else 0)
     out["session"] = session_summary(sessions[-1].read_bytes()) if sessions else {"missing": True}
+    out["session_file"] = {"name": sessions[-1].name, "mtime": sessions[-1].stat().st_mtime} if sessions else None
     return out
 
 
 def snapshot(user_data: Path) -> dict:
+    """Summarise a closed browser's `User Data` folder. Refuses a running browser or a wrong folder."""
     user_data = Path(user_data)
+    if (user_data / "lockfile").exists():
+        raise SnapshotError(f"{user_data}: the browser is running (lockfile present); close it completely first")
     state = _json(user_data / "Local State")
+    if not (user_data / "Local State").is_file() or state is None:
+        raise SnapshotError(f"{user_data}: no readable 'Local State'; pass the browser's 'User Data' folder")
     os_crypt = state.get("os_crypt", {})
-    names = list(state.get("profile", {}).get("info_cache", {}).keys())
+    names = [n for n in state.get("profile", {}).get("info_cache", {}) if (user_data / n).is_dir()]
+    if not names:
+        raise SnapshotError(f"{user_data}: no profile folders listed in 'Local State'")
     return {"os_crypt": {"dpapi_key": bool(os_crypt.get("encrypted_key")),
                          "app_bound_key": bool(os_crypt.get("app_bound_encrypted_key"))},
-            "profiles": {n: profile_summary(user_data / n) for n in names if (user_data / n).is_dir()}}
+            "last_active_profiles": list(state.get("profile", {}).get("last_active_profiles", [])),
+            "profiles": {n: profile_summary(user_data / n) for n in names}}
 
 
 def compare(before: dict, after: dict) -> list[str]:
@@ -169,30 +202,51 @@ def compare(before: dict, after: dict) -> list[str]:
         if a is None:
             problems.append(f"{name}: profile missing")
             continue
+        for key in ("passwords", "bookmarks", "extensions_enabled"):
+            for side, snap in (("before", b), ("after", a)):
+                if snap.get(key) is None:
+                    problems.append(f"{name}: {key} unreadable {side}, so nothing can be verified")
         for key in ("passwords", "bookmarks"):
-            if a[key] < b[key]:
+            if b.get(key) is not None and a.get(key) is not None and a[key] < b[key]:
                 problems.append(f"{name}: {key} {b[key]} -> {a[key]}")
-        lost = sorted(set(b["extensions_enabled"]) - set(a["extensions_enabled"]))
-        if lost:
-            problems.append(f"{name}: extensions no longer enabled: {', '.join(lost)}")
+        if b.get("extensions_enabled") is not None and a.get("extensions_enabled") is not None:
+            lost = sorted(set(b["extensions_enabled"]) - set(a["extensions_enabled"]))
+            if lost:
+                problems.append(f"{name}: extensions no longer enabled: {', '.join(lost)}")
         bc, ac = b["cookies"], a["cookies"]
-        if ac["total"] < bc["total"] * (1 - COOKIE_LOSS_TOLERANCE):
-            problems.append(f"{name}: cookies {bc['total']} -> {ac['total']} (more than normal expiry)")
-        if ac.get("v20", 0) > bc.get("v20", 0):
-            problems.append(f"{name}: cookies re-encrypted with the app-bound scheme (v20)")
-        bs, as_ = b["session"], a["session"]
-        if any(k in bs for k in ("encrypted", "unreadable", "missing")):
-            continue
-        if any(k in as_ for k in ("encrypted", "unreadable", "missing")):
-            problems.append(f"{name}: session not readable after the change")
-            continue
-        for key in ("windows", "tabs", "pinned"):
-            if as_[key] < bs[key]:
-                problems.append(f"{name}: open {key} {bs[key]} -> {as_[key]}")
-        for g in bs["groups"]:
-            if g not in as_["groups"]:
-                problems.append(f"{name}: tab group '{g['title']}' (colour {g['color']}, {g['tabs']} tabs) "
-                                f"missing or changed")
+        if "unreadable" in bc or "unreadable" in ac:
+            problems.append(f"{name}: cookies unreadable {'before' if 'unreadable' in bc else 'after'}")
+        else:
+            if ac["total"] < bc["total"] * (1 - COOKIE_LOSS_TOLERANCE):
+                problems.append(f"{name}: cookies {bc['total']} -> {ac['total']} (more than normal expiry)")
+            if ac.get("v20", 0) > bc.get("v20", 0):
+                problems.append(f"{name}: cookies re-encrypted with the app-bound scheme (v20)")
+        problems += _compare_sessions(name, b, a, name in before.get("last_active_profiles", []))
+    return problems
+
+
+def _compare_sessions(name: str, b: dict, a: dict, was_open: bool) -> list[str]:
+    bs, as_ = b["session"], a["session"]
+    if "missing" in bs:
+        return []                                  # no session before: no tabs that could be lost
+    if "encrypted" in bs or "unreadable" in bs:
+        return [f"{name}: session unreadable before, so tabs and tab groups cannot be verified"]
+    if any(k in as_ for k in ("encrypted", "unreadable", "missing")):
+        return [f"{name}: session not readable after the change"]
+    problems = []
+    bf, af = b.get("session_file"), a.get("session_file")
+    if was_open and bf and af and af["name"] == bf["name"] and af["mtime"] <= bf["mtime"]:
+        problems.append(f"{name}: the new version did not write a session (same file {af['name']}), "
+                        f"so this compares the old session with itself")
+    for key in ("windows", "tabs", "pinned"):
+        if as_[key] < bs[key]:
+            problems.append(f"{name}: open {key} {bs[key]} -> {as_[key]}")
+    key = lambda g: (g["title"], g["color"], g["tabs"])
+    after_groups = Counter(key(g) for g in as_["groups"])
+    for (title, color, tabs), count in Counter(key(g) for g in bs["groups"]).items():
+        if after_groups[(title, color, tabs)] < count:
+            problems.append(f"{name}: tab group '{title}' (colour {color}, {tabs} tabs) missing or changed "
+                            f"({count} before, {after_groups[(title, color, tabs)]} after)")
     return problems
 
 
@@ -207,19 +261,25 @@ def main(argv: list[str]) -> int:
     c.add_argument("after", type=Path)
     a = parser.parse_args(argv)
     if a.cmd == "snapshot":
-        snap = snapshot(a.user_data)
+        try:
+            snap = snapshot(a.user_data)
+        except SnapshotError as exc:
+            print(f"profile check: {exc}")
+            return 1
         a.out.write_text(json.dumps(snap, indent=2, ensure_ascii=False), encoding="utf-8")
         for name, p in snap["profiles"].items():
             sess = p["session"]
             tabs = f"{sess.get('windows')} windows, {sess.get('tabs')} tabs, {len(sess.get('groups', []))} groups" \
                 if "tabs" in sess else ", ".join(sess)
+            ext = p["extensions_enabled"]
             print(f"{name}: {tabs}; {p['bookmarks']} bookmarks, {p['passwords']} passwords, "
-                  f"{p['cookies']['total']} cookies, {len(p['extensions_enabled'])} extensions enabled")
+                  f"{p['cookies'].get('total', 'unreadable')} cookies, "
+                  f"{'unreadable' if ext is None else len(ext)} extensions enabled")
         return 0
     problems = compare(json.loads(a.before.read_text(encoding="utf-8")), json.loads(a.after.read_text(encoding="utf-8")))
     for p in problems:
         print(p)
-    print("profile check: 1:1, nothing lost" if not problems else f"profile check: {len(problems)} problem(s)")
+    print("profile check: 1:1 on every checked item" if not problems else f"profile check: {len(problems)} problem(s)")
     return 1 if problems else 0
 
 

@@ -38,7 +38,12 @@ class ArgsAndParsingTests(unittest.TestCase):
         # which would turn the control run into a blocked run (found on the real M156 build)
         self.assertIn("--disable-default-apps", args)
         self.assertIn("--user-data-dir=prof", args)
-        self.assertIn(f"--host-resolver-rules=MAP {mc.AD_HOST} 127.0.0.1:4321", args)
+        rules = next(a for a in args if a.startswith("--host-resolver-rules="))
+        self.assertIn(f"MAP {mc.AD_HOST} 127.0.0.1:4321", rules)
+        self.assertIn("MAP * ~NOTFOUND", rules)                 # offline: no other host resolves
+        self.assertIn("EXCLUDE 127.0.0.1", rules)
+        self.assertIn("--disable-background-networking", args)
+        self.assertIn("--disable-component-update", args)
         self.assertIn("--load-extension=ext", args)
         self.assertEqual(args[-1], "http://127.0.0.1:4321/test.html")
         self.assertFalse(any(a.startswith("--load-extension") for a in
@@ -56,26 +61,51 @@ class ArgsAndParsingTests(unittest.TestCase):
             self.assertEqual(server.ad_requests, 1)
 
 
-class VerdictTests(unittest.TestCase):
-    CONTROL = {"ok": True, "ad_requests": 6, "page": {"attempts": 6, "loaded": 6, "ad_element_hidden": False}}
+def run(hits, late, loaded=0, stand_ins=0, errors=0, attempts=None, hidden=False, frame=True):
+    attempts = mc.ATTEMPTS if attempts is None else attempts
+    return {"ok": True, "ad_requests": hits, "late_ad_requests": late,
+            "page": {"attempts": attempts, "loaded": loaded, "stand_ins": stand_ins, "errors": errors,
+                     "frame": frame, "ad_element_hidden": hidden}}
 
+
+CONTROL = run(hits=mc.ATTEMPTS, late=mc.LATE_ATTEMPTS, loaded=mc.ATTEMPTS)
+
+
+class VerdictTests(unittest.TestCase):
     def test_works_when_both_kinds_of_blocking_happen(self):
-        blocked = {"ok": True, "ad_requests": 0, "page": {"attempts": 6, "loaded": 0, "ad_element_hidden": True}}
-        self.assertEqual(mc.verdict(self.CONTROL, blocked)[0], "works")
+        blocked = run(hits=3, late=0, loaded=3, stand_ins=mc.ATTEMPTS - 3, hidden=True)
+        self.assertEqual(mc.verdict(CONTROL, blocked)[0], "works")
 
     def test_fails_when_extension_changes_nothing(self):
-        self.assertEqual(mc.verdict(self.CONTROL, dict(self.CONTROL))[0], "fails")
+        self.assertEqual(mc.verdict(CONTROL, dict(CONTROL))[0], "fails")
 
     def test_partial_when_only_one_kind_of_blocking_happens(self):
-        cosmetic_only = {"ok": True, "ad_requests": 6, "page": {"attempts": 6, "loaded": 6, "ad_element_hidden": True}}
-        self.assertEqual(mc.verdict(self.CONTROL, cosmetic_only)[0], "partial")
+        cosmetic_only = run(hits=mc.ATTEMPTS, late=mc.LATE_ATTEMPTS, loaded=mc.ATTEMPTS, hidden=True)
+        self.assertEqual(mc.verdict(CONTROL, cosmetic_only)[0], "partial")
 
     def test_invalid_when_control_shows_no_ads(self):
-        bad_control = {"ok": True, "ad_requests": 0, "page": {"attempts": 6, "loaded": 0, "ad_element_hidden": True}}
+        bad_control = run(hits=0, late=0, errors=mc.ATTEMPTS)
         self.assertEqual(mc.verdict(bad_control, bad_control)[0], "invalid")
 
     def test_invalid_when_a_run_failed(self):
-        self.assertEqual(mc.verdict({"ok": False, "error": "timeout"}, self.CONTROL)[0], "invalid")
+        self.assertEqual(mc.verdict({"ok": False, "error": "timeout"}, CONTROL)[0], "invalid")
+
+    def test_invalid_when_the_page_stopped_early(self):
+        # same traffic as the control but the page made only 4 attempts: no late hits, yet nothing was blocked
+        stopped = run(hits=4, late=0, loaded=4, attempts=4)
+        self.assertEqual(mc.verdict(CONTROL, stopped)[0], "invalid")
+
+    def test_invalid_when_attempts_did_not_finish(self):
+        unfinished = run(hits=0, late=0)                    # 10 attempts, none loaded, none failed
+        self.assertEqual(mc.verdict(CONTROL, unfinished)[0], "invalid")
+
+    def test_invalid_when_the_control_was_blocked_late(self):
+        contaminated = run(hits=7, late=0, loaded=7, stand_ins=3)   # e.g. a blocker installed by default apps
+        self.assertEqual(mc.verdict(contaminated, run(hits=0, late=0, errors=mc.ATTEMPTS, hidden=True))[0], "invalid")
+
+    def test_invalid_when_the_ad_frame_was_never_checked(self):
+        no_frame = run(hits=mc.ATTEMPTS, late=mc.LATE_ATTEMPTS, loaded=mc.ATTEMPTS, frame=False)
+        self.assertEqual(mc.verdict(no_frame, run(hits=0, late=0, errors=mc.ATTEMPTS, hidden=True))[0], "invalid")
 
 
 class EndToEndTests(FakeBrowserMixin, unittest.TestCase):

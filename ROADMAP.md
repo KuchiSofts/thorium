@@ -7,7 +7,7 @@ Thoron aims to be the fastest, smartest and most secure Thorium-based browser fo
 - never touching user data;
 - with full credit to everyone it builds on.
 
-**Last updated:** 2026-11-07
+**Last updated:** 2026-11-08
 **Status legend:** ⬜ todo · 🔄 in progress · ✅ done · ⛔ blocked
 
 Design (the "why" behind every item): [`docs/design/2026-11-07-thoron-design.md`](docs/design/2026-11-07-thoron-design.md) ·

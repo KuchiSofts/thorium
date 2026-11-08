@@ -32,10 +32,12 @@ Each release lists:
   extension (fresh profiles, sandbox on) and measures network blocking and cosmetic filtering. It
   found that Thorium's default apps install uBlock Origin from the Web Store into every new profile;
   Thoron will not (ROADMAP **P2.16**).
-- `tools/qa/profile_check.py`: proves a new version keeps a profile 1:1. It snapshots windows, tabs,
-  pinned tabs and tab groups (from the session file), saved passwords, bookmarks, enabled
-  extensions, cookies and their encryption scheme, then compares before and after. It never decrypts
-  or prints a secret. A real Thorium 150 profile, opened offline by the M156 build, came out 1:1.
+- `tools/qa/profile_check.py`: checks that a new version keeps a profile 1:1 on what it measures:
+  windows, tabs, pinned tabs and tab groups (from the session file), the number of saved passwords,
+  bookmarks, enabled extensions, cookies and their encryption scheme. It never decrypts or prints a
+  secret, refuses a running browser or a wrong folder, records anything unreadable as unreadable
+  (never as zero), and reports a new version that wrote no session. History, autofill and site data
+  are not checked yet. A real Thorium 150 profile, opened offline by the M156 build, came out 1:1.
   It is now a release gate (ROADMAP **Q.7**).
 - Manifest V2 verdict for Chromium 158 (ROADMAP **P1.8**, design §10.1): Manifest V2 itself still
   works with upstream's patch (a minimal blocking extension blocks every request), but uBlock Origin
@@ -45,15 +47,20 @@ Each release lists:
   for all 152 upstream M156 patches (29 confirmed, 123 still to research; ROADMAP **L.1**).
 - `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed
   drives, WSL memory), an upstream setup wrapper that stops on any rejected patch, and a `buildinfo` entry point.
-- `tools/build/smoke.py`: smoke-tests a build with a fresh throwaway profile and the sandbox always on;
-  fails on crashes, a bad exit code, or any missing capability (JS, WebGL, H.264, HEVC, AV1, JPEG XL)
-  (ROADMAP **P1.7**, in progress until it passes on our own builds).
+- `tools/build/smoke.py`: smoke-tests a build with a fresh throwaway profile; fails on crashes, a bad
+  exit code, an empty result (the page script did not run), or any capability (JS, WebGL, H.264, HEVC,
+  AV1, JPEG XL) not reported true. On Windows it also proves the sandbox is in force by reading the
+  security token of every renderer of the running browser (it must be below Medium integrity) and
+  rejecting any child process started with `--no-sandbox` (ROADMAP **P1.7**, in progress until it
+  passes on our own Linux build too).
 - `tools/build/wslconfig.py`: raises WSL memory and swap only for a Linux build (swap file on the build
-  drive) and restores the original `.wslconfig` byte for byte. It never restarts WSL itself; the owner
-  approves every `wsl --shutdown`.
+  drive) and restores the original `.wslconfig` byte for byte. It never overwrites a backup, refuses a
+  second raise before a restore, and restores only from its own backup of that file. It never restarts
+  WSL itself; the owner approves every `wsl --shutdown`.
 - `tools/build/buildinfo.py`: writes `BUILDINFO.json` for every build (Chromium version, Thoron and
-  upstream commits, depot_tools revision, GN args and their digest, toolchain, timing) with every path
-  relative to the build root and user directories redacted (ROADMAP **P1.6**).
+  upstream commits, depot_tools revision, GN args and their digest, toolchain, timing). Every string,
+  at any depth and GN args included, has build-root paths made relative and user-folder paths
+  redacted, and the file is not written if a user-folder path survives anywhere (ROADMAP **P1.6**).
 - Approved Thoron design for Windows 11 and Ubuntu, x64 and ARM64 (`docs/design/`).
 - Audit toolkit for upstream merges and release verification (`tools/audit`): `audit_diff`,
   `crx_id`, `compare_release`.

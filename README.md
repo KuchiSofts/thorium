@@ -54,7 +54,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `████░░░░░░░░░░░░░░░░` 25 of 123 tasks done (20%) · roadmap updated 2026-11-07
+**Overall:** `████░░░░░░░░░░░░░░░░` 25 of 123 tasks done (20%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|

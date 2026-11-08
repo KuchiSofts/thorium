@@ -24,17 +24,24 @@ if (Test-Path $vswhere) {
 }
 
 $gitConfig = Join-Path $BuildRoot 'gitconfig'
-$userConfig = (Join-Path $HOME '.gitconfig') -replace '\\', '/'
-@"
+# The user's own global config, found the way git finds it (so their hooks always apply).
+$xdg = if ($env:XDG_CONFIG_HOME) { $env:XDG_CONFIG_HOME } else { Join-Path $HOME '.config' }
+$userConfig = if ($env:GIT_CONFIG_GLOBAL -and ($env:GIT_CONFIG_GLOBAL -ne $gitConfig)) { $env:GIT_CONFIG_GLOBAL }
+              elseif (Test-Path (Join-Path $HOME '.gitconfig')) { Join-Path $HOME '.gitconfig' }
+              elseif (Test-Path (Join-Path $xdg 'git\config')) { Join-Path $xdg 'git\config' }
+              else { Join-Path $HOME '.gitconfig' }
+$content = @"
 [include]
-	path = $userConfig
+	path = "$($userConfig -replace '\\', '/')"
 [core]
 	autocrlf = false
 	filemode = false
 	longpaths = true
 	preloadindex = true
 	fscache = true
-"@ | Set-Content -LiteralPath $gitConfig -Encoding Ascii
+"@
+# UTF-8 without a BOM: a non-ASCII home path must not turn into '?', or git would skip the include.
+[IO.File]::WriteAllText($gitConfig, ($content -replace "`r`n", "`n"), (New-Object Text.UTF8Encoding($false)))
 $env:GIT_CONFIG_GLOBAL = $gitConfig
 
 Write-Host ("Thoron build environment: root={0}  vs2026={1}  depot_tools first on PATH" -f $BuildRoot, $(if ($env:vs2026_install) { $env:vs2026_install } else { '(not found yet)' }))

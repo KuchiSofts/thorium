@@ -224,11 +224,32 @@ foreach ($f in 'thor_ver', 'thorium.ico', 'thorium.svg', 'thorium_shell.ico') {
 The prebuilt `pak_mingw*.exe` tools in `out\thorium` are deliberately not copied: they are
 unverified binaries (ROADMAP **L.6**) and the browser does not need them.
 
-**Upgrading an existing Thorium.** Before installing over an existing Thorium, back up the whole
-`%LOCALAPPDATA%\Thorium` folder and check the new version on an offline copy of the profile with
-`tools/qa/profile_check.py` (ROADMAP **Q.7**). A profile used by a newer version cannot be opened by
-an older one; going back means restoring the backup. The installer first asks "Do you want to
-install Thorium?".
+**Upgrading an existing Thorium.** A profile used by a newer version cannot be opened by an older
+one, so going back means restoring a backup. Never skip these steps (ROADMAP **Q.7**):
+
+1. Close the browser completely (no `thorium.exe` left in Task Manager).
+2. Back up the whole `%LOCALAPPDATA%\Thorium` folder (program and `User Data`) and verify the copy.
+3. Copy `User Data` to a work folder and snapshot it:
+   `py -3 -I tools\qa\profile_check.py snapshot "<copy>\User Data" --out before.json`.
+4. Open the copy with the new build **fully offline**, so it can neither sync nor make websites
+   rotate your login cookies (which could sign out the real browser):
+
+   ```powershell
+   & <out dir>\thorium.exe --user-data-dir="<copy>\User Data" --no-first-run --no-default-browser-check `
+       --disable-sync --disable-background-networking --disable-component-update `
+       --proxy-server=http://127.0.0.1:9 --proxy-bypass-list="<-loopback>" `
+       --host-resolver-rules="MAP * ~NOTFOUND" --force-webrtc-ip-handling-policy=disable_non_proxied_udp
+   ```
+
+   Check the tabs and tab groups, then close the window normally (not a forced kill).
+5. `py -3 -I tools\qa\profile_check.py snapshot "<copy>\User Data" --out after.json`, then
+   `py -3 -I tools\qa\profile_check.py compare before.json after.json` must report 1:1.
+6. Only then install over the real Thorium. The installer first asks "Do you want to install
+   Thorium?".
+
+Keep backups, profile copies and snapshots only on a local drive that is not cloud-synced, never in
+a cloud folder or in this repository, and delete the profile copy when you are done: it contains
+your cookies and saved passwords.
 
 ## 8. Check the build
 

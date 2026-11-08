@@ -12,6 +12,7 @@ command for the owner to approve.
 """
 import argparse
 import datetime
+import glob
 import re
 import sys
 from pathlib import Path
@@ -56,20 +57,37 @@ def _set_keys(data: bytes, values: dict[str, str]) -> bytes:
     return b"".join(lines[:start + 1] + insert + lines[start + 1:])
 
 
+def _backups(path: Path) -> list[Path]:
+    return sorted(p for p in path.parent.glob(f"{glob.escape(path.name)}.thoron-backup-*")
+                  if _is_backup_of(path, p))
+
+
+def _is_backup_of(path: Path, backup: Path) -> bool:
+    return (backup.parent.resolve() == path.parent.resolve()
+            and re.fullmatch(re.escape(path.name) + r"\.thoron-backup-\d{8}T\d{6}(\.absent)?", backup.name) is not None)
+
+
 def raise_limits(path: Path, memory: str = "48GB", swap: str = "32GB",
                  swap_file: str | None = DEFAULT_SWAP_FILE) -> Path:
+    """Back up `path` (byte for byte, never overwriting a backup) and raise the WSL limits.
+    Refused while an earlier Thoron backup exists: a second raise would back up raised values."""
     path = Path(path)
+    existing = _backups(path)
+    if existing:
+        raise FileExistsError(f"a Thoron backup already exists ({existing[0].name}); restore it first")
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")
     if path.exists():
         original = path.read_bytes()
         backup = path.with_name(f"{path.name}.thoron-backup-{stamp}")
-        backup.write_bytes(original)
+        with open(backup, "xb") as f:               # exclusive: never overwrite an existing backup
+            f.write(original)
         if backup.read_bytes() != original:
             raise OSError(f"backup verification failed: {backup}")
     else:
         original = b""
         backup = path.with_name(f"{path.name}.thoron-backup-{stamp}.absent")
-        backup.write_bytes(b"")
+        with open(backup, "xb"):
+            pass
     values = {"memory": memory, "swap": swap}
     if swap_file:
         values["swapFile"] = swap_file
@@ -78,7 +96,11 @@ def raise_limits(path: Path, memory: str = "48GB", swap: str = "32GB",
 
 
 def restore(path: Path, backup: Path) -> None:
+    """Put back the bytes saved by raise_limits. Only a Thoron backup of this very file is accepted."""
     path, backup = Path(path), Path(backup)
+    if not _is_backup_of(path, backup) or not backup.is_file():
+        raise ValueError(f"{backup} is not a Thoron backup of {path} "
+                         f"(expected {path.name}.thoron-backup-<stamp> in the same folder)")
     if backup.name.endswith(".absent"):
         path.unlink(missing_ok=True)
     else:

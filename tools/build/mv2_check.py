@@ -4,12 +4,15 @@
 
 Runs the browser twice, each time with a fresh throwaway profile and the sandbox on: once without
 the extension (control) and once with it (`--load-extension`). Both runs open a local test page,
-fully offline. Chrome's host-resolver rules send the real ad host to a local server, so a request
-the extension blocks never reaches the server. The page also holds an `.ad_banner` element for
-the generic cosmetic filter in EasyList.
+fully offline: Chrome's host-resolver rules send the real ad host to a local server and make every
+other host fail, and background networking and component updates are off. A request the extension
+blocks never reaches the server. The page also holds an `.ad_banner` element for the generic
+cosmetic filter in EasyList.
 
 Verdict: works (network and cosmetic blocking), partial (one of them), fails (neither), or invalid
-(a run failed, or the control run saw no ads, so the page tested nothing).
+when a run cannot be trusted: it failed, the page did not make and finish all its attempts or never
+checked the ad frame, the control saw no ads, or the control's last requests were blocked without
+the extension (for example by an extension installed by default apps).
     py -3 -I tools/build/mv2_check.py --browser out\\m158\\chrome.exe --extension <unpacked uBO> --work <dir>
 Exit status 0 only for "works".
 """
@@ -143,9 +146,11 @@ class TestServer:
 def browser_args(browser: Path, profile: Path, port: int, extension: Path | None, url: str) -> list[str]:
     # --disable-default-apps: Thorium's default apps install uBlock Origin from the Web Store into
     # every new profile, which would put a blocker into the control run.
+    # Fully offline: only the ad host (mapped to the local server) and 127.0.0.1 resolve.
     args = [str(browser), "--headless=new", f"--user-data-dir={profile}", "--no-first-run",
-            "--no-default-browser-check", "--disable-default-apps",
-            f"--host-resolver-rules=MAP {AD_HOST} 127.0.0.1:{port}"]
+            "--no-default-browser-check", "--disable-default-apps", "--disable-background-networking",
+            "--disable-component-update",
+            f"--host-resolver-rules=MAP {AD_HOST} 127.0.0.1:{port}, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]
     if extension is not None:
         args += [f"--load-extension={extension}", "--disable-features=DisableLoadExtensionCommandLineSwitch"]
     return args + ["--dump-dom", url]
@@ -185,12 +190,31 @@ def run_once(browser: Path, work_dir: Path, extension: Path | None, timeout_s: i
         shutil.rmtree(profile, ignore_errors=True)
 
 
+def _run_problems(name: str, run: dict) -> list[str]:
+    """Why a run cannot be trusted (empty list: it measured what it should)."""
+    if not run.get("ok"):
+        return [f"{name} run failed: {run.get('error', 'unknown error')}"]
+    page = run["page"]
+    problems = []
+    if page.get("attempts") != ATTEMPTS:
+        problems.append(f"{name} run made {page.get('attempts')} of {ATTEMPTS} attempts")
+    finished = sum(page.get(k, 0) for k in ("loaded", "stand_ins", "errors"))
+    if finished != page.get("attempts"):
+        problems.append(f"{name} run: only {finished} of {page.get('attempts')} attempts finished")
+    if not page.get("frame"):
+        problems.append(f"{name} run never checked the ad frame")
+    return problems
+
+
 def verdict(control: dict, with_extension: dict) -> tuple[str, list[str]]:
-    for name, run in (("control", control), ("extension", with_extension)):
-        if not run.get("ok"):
-            return "invalid", [f"{name} run failed: {run.get('error', 'unknown error')}"]
+    problems = _run_problems("control", control) + _run_problems("extension", with_extension)
+    if problems:
+        return "invalid", problems
     if control["ad_requests"] == 0 or control["page"].get("ad_element_hidden"):
         return "invalid", ["the control run saw no ads, so the page tested nothing"]
+    if control.get("late_ad_requests") != LATE_ATTEMPTS:
+        return "invalid", [f"the control run's last {LATE_ATTEMPTS} ad requests did not all reach the server "
+                           f"({control.get('late_ad_requests')}): something blocked them without the extension"]
     network = with_extension.get("late_ad_requests", with_extension["ad_requests"]) == 0
     cosmetic = bool(with_extension["page"].get("ad_element_hidden"))
     reasons = [f"network blocking: {'yes' if network else 'no'} (ad requests reaching the server: "

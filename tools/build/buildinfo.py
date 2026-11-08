@@ -20,6 +20,27 @@ import sys
 from pathlib import Path
 
 USER_DIR_RE = re.compile(r"(?i)^(?:[a-z]:/+users/|/home/|/users/|/mnt/[a-z]/users/)")  # privacy-check: allow (detection pattern, not data)
+# A user-folder path anywhere in a string, with either slash style (also JSON-escaped backslashes).
+USER_PATH_RE = re.compile(r"(?i)(?:[a-z]:[\\/]+users[\\/]+|/home/|(?<![\w.])/users/|/mnt/[a-z]/users/)[^\s\"'<>|,;]*")  # privacy-check: allow (detection pattern, not data)
+
+
+def scrub(text: str, build_root: str) -> str:
+    """Make every build-root path relative (`<build_root>`) and hide every user-folder path, anywhere."""
+    parts = [p for p in re.split(r"[\\/]+", str(build_root)) if p]
+    if parts:
+        root_re = re.compile(r"(?i)" + r"[\\/]+".join(re.escape(p) for p in parts) + r"(?![^\\/\s\"'])")
+        text = root_re.sub("<build_root>", text)
+    return USER_PATH_RE.sub("<redacted>", text)
+
+
+def _scrub_all(value, build_root: str):
+    if isinstance(value, str):
+        return scrub(value, build_root)
+    if isinstance(value, list):
+        return [_scrub_all(v, build_root) for v in value]
+    if isinstance(value, dict):
+        return {k: _scrub_all(v, build_root) for k, v in value.items()}
+    return value
 
 
 def chromium_version(src: Path) -> str:
@@ -69,7 +90,7 @@ def _utc(epoch: float) -> str:
 def collect(build_root: Path, src: Path, thoron_repo: Path, upstream_ref: str, variant: str, args_text: str,
             toolchain: dict, started: float, finished: float) -> dict:
     depot = Path(build_root) / "depot_tools"
-    return {
+    info = {
         "schema": 1,
         "product": "Thoron",
         "variant": variant,
@@ -86,10 +107,16 @@ def collect(build_root: Path, src: Path, thoron_repo: Path, upstream_ref: str, v
         "finished_utc": _utc(finished),
         "duration_s": int(finished - started),
     }
+    return _scrub_all(info, str(build_root))      # every string, at any depth, GN args included
 
 
 def write(path: Path, info: dict) -> None:
-    Path(path).write_text(json.dumps(info, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+    """Write BUILDINFO.json; refuse if a user-folder path survived anywhere."""
+    text = json.dumps(info, sort_keys=True, indent=2) + "\n"
+    leak = USER_PATH_RE.search(text)
+    if leak:
+        raise ValueError(f"refusing to write {path}: it contains a user-folder path ({leak.group(0)[:12]}...)")
+    Path(path).write_text(text, encoding="utf-8", newline="\n")
 
 
 def main(argv: list[str]) -> int:

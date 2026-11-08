@@ -28,5 +28,6 @@ for n in range(attempts):
     if not blocking or (slow and n < attempts // 2):
         urllib.request.urlopen(f"http://127.0.0.1:{port}/pagead/js/adsbygoogle.js?n={n}").read()
         loaded += 1
-result = {"attempts": attempts, "loaded": loaded, "ad_element_hidden": blocking}
+result = {"attempts": attempts, "loaded": loaded, "stand_ins": 0, "errors": attempts - loaded,
+          "frame": True, "ad_element_hidden": blocking}
 print(f'<html><body><pre id="thoron-mv2-result">{json.dumps(result)}</pre></body></html>')
