@@ -181,7 +181,22 @@ the `sse2` and `raspi` profiles. The wrapper stops on any rejected hunk and keep
 The upstream overlay includes Google's proprietary Widevine binaries, which upstream's setup copies
 into the local checkout. Thoron never bundles or redistributes them (ROADMAP **P2.6**).
 
-## 7. Build
+## 7. Thoron identity
+
+Turn the upstream Thorium tree into Thoron. The tool changes only what makes the browser its own
+product (name, icons, install and profile folder, registry, app ID, ProgIDs, COM class IDs) and
+stops without changing anything if an expected spot is missing. Running it again changes nothing.
+
+```powershell
+py -3 -I tools\build\thoron_identity.py --src $env:THORON_BUILD_ROOT\chromium\src --dry-run
+py -3 -I tools\build\thoron_identity.py --src $env:THORON_BUILD_ROOT\chromium\src
+```
+
+Expected on M156: about 600 files (575 string and translation files, 24 icons, the install modes
+and `BRANDING`). The program file is still named `thorium.exe` for now (ROADMAP **P2.20**), and the
+COM interface IDs are still upstream's (ROADMAP **P2.19**), so install Thoron per user only.
+
+## 8. Build
 
 The release configuration is upstream's `other\AVX2\win_AVX2_args.gn` with one change:
 `bundle_widevine_cdm = false`, so Google's proprietary Widevine module is never bundled. Widevine
@@ -224,6 +239,21 @@ foreach ($f in 'thor_ver', 'thorium.ico', 'thorium.svg', 'thorium_shell.ico') {
 The prebuilt `pak_mingw*.exe` tools in `out\thorium` are deliberately not copied: they are
 unverified binaries (ROADMAP **L.6**) and the browser does not need them.
 
+**Installing Thoron next to Thorium.** `thorium_AVX2_mini_installer.exe --silent` installs Thoron
+per user into `%LOCALAPPDATA%\Thoron` without asking, with its own folder, registry key and
+ProgIDs. Until the program file is renamed (ROADMAP **P2.20**), the Windows `App Paths` entry for
+`thorium.exe` is shared: after installing Thoron, `Win+R thorium` opens Thoron, and uninstalling
+Thoron while Thorium is still installed would remove Thorium's `App Paths` and Open-with entries,
+so do not uninstall Thoron before then. To bring your
+Thorium profile over, close both browsers and copy it with a verified copy:
+
+```powershell
+py -3 -I tools\migrate\import_profile.py --from "$env:LOCALAPPDATA\Thorium\User Data" --to "$env:LOCALAPPDATA\Thoron\User Data"
+```
+
+Then use Thoron and keep Thorium closed as a backup: two copies of a profile used online at the
+same time can make sites sign one of them out, and both sync as the same device.
+
 **Upgrading an existing Thorium.** A profile used by a newer version cannot be opened by an older
 one, so going back means restoring a backup. Never skip these steps (ROADMAP **Q.7**):
 
@@ -251,7 +281,7 @@ Keep backups, profile copies and snapshots only on a local drive that is not clo
 a cloud folder or in this repository, and delete the profile copy when you are done: it contains
 your cookies and saved passwords.
 
-## 8. Check the build
+## 9. Check the build
 
 Write the build record. It holds no personal paths; check it before sharing it.
 
