@@ -23,8 +23,9 @@ keeping Chromium 158's code and re-applying Thorium's change on top of it. The r
 then exported, and the new series was checked on an untouched 158 checkout with both
 `tools/build/rebase_report.py` and upstream's `apply_series.py`.
 
-Result: **145 patches, all apply exactly** (97 cleanly, 23 with an automatic 3-way merge, 25 ported by
-hand), plus two small Thoron patches.
+Result: the series lists **149 patches**. The **146** that the Windows AVX2 build uses all apply exactly
+(the other 3 are for SSE2 and Raspberry Pi builds only). 25 were ported by hand, and 2 are new Thoron
+patches (`ks-native-gpc`, `ks-ffmpeg-158-no-duplicate-bswapdsp`).
 
 ## Decisions
 
@@ -44,6 +45,9 @@ hand), plus two small Thoron patches.
 | (new) `ks-ffmpeg-158-no-duplicate-bswapdsp.patch` | added | Chromium 158's FFmpeg already builds bswapdsp for the targets the HEVC patch adds it to; GN stopped with a duplicate object file. |
 | `thorium-build-config-and-simd` | Rust flag removed | The LLVM in 158's Rust toolchain no longer has `-fp-contract`, so rustc stopped. C and C++ keep Thorium's FMA contraction setting; Rust keeps its default (no contraction). |
 
+The licence inventory was regenerated for this series (`docs/legal/PATCH_LICENSES.md`): 0 unknown and
+6 not stated, down from 8 (details in `docs/legal/PATCH_ORIGINS.md`).
+
 The build also needs the PGO profiles (`checkout_pgo_profiles` in `.gclient`, then `gclient runhooks`),
 which a checkout made only for testing does not have.
 
@@ -53,4 +57,3 @@ which a checkout made only for testing does not have.
 - Look at the ported UI patches in a running build (tab search position, Thorium 2024 UI, classic
   omnibox): ROADMAP **P2.23**.
 - uBlock Origin on 158 (ROADMAP **P2.18**).
-- Regenerate the licence inventory for the 158 series (ROADMAP **L.1**).

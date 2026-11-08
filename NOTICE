@@ -45,12 +45,13 @@ Component: Patches originating from ungoogled-chromium and ungoogled-chromium-wi
   Copyright: their respective authors (see each patch header)
   Licence:   as listed
 
-Component: Patches using code from Chromium_Clang (RobRich999), chromium-win64 (Hibbiki),
-           chromium-patches (qcasey), Supermium (win32ss) and electron-chromium-codecs (Muril-o)
+Component: Patches using code from Chromium_Clang (RobRich999), Supermium (win32ss) and
+           electron-chromium-codecs (Muril-o)
   Copyright: their respective authors
-  Licence:   NOT STATED: these authors publish no licence. The 8 affected patches are listed in
-             docs/legal/PATCH_ORIGINS.md; each needs the author's permission, or a rewrite, before
-             the first Thoron release (ROADMAP L.1).
+  Licence:   NOT STATED: these authors publish no licence. The 6 affected patches of the
+             Chromium 158 series are listed in docs/legal/PATCH_ORIGINS.md; each needs the author's
+             permission, or a rewrite, before the first Thoron release (ROADMAP L.1). The code from
+             chromium-win64 (Hibbiki) and chromium-patches (qcasey) is no longer used.
 
 The origin and licence of every patch is listed in docs/legal/PATCH_LICENSES.md.
 
