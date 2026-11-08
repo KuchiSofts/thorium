@@ -51,6 +51,8 @@ Each release lists:
   from the SVG logo using only the standard library and a headless browser.
 
 ### Changed
+- Work order: Windows first. The Linux build tasks (ROADMAP **P1.2**, **P1.5**) are deferred by the
+  owner's decision; Ubuntu remains a target platform (design §16).
 - New README with the Thoron logo, badges and quick navigation. Its roadmap section (overall
   progress, per-phase progress bars, what's next and the full task list) is generated from
   `ROADMAP.md` by `tools/docs/roadmap_progress.py`, and `check_docs` fails if it is out of date.
