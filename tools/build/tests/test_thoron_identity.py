@@ -168,19 +168,27 @@ EXE_FIXTURES = {
         '      "$root_out_dir/initialexe/thorium.exe",\n      "$root_out_dir/initialexe/thorium.exe.pdb",\n'
         '      "$root_out_dir/thorium.exe",\n      "$root_out_dir/thorium.exe.pdb",\n'
         '  if (is_win) {\n    _chrome_output_name = "initialexe/thorium"\n  } else if (is_chromeos) {\n'
-        '    _chrome_output_name = "chrome"\n  } else {\n    _chrome_output_name = "thorium"\n  }\n'),
+        '    _chrome_output_name = "chrome"\n  } else {\n    _chrome_output_name = "thorium"\n  }\n'
+        '      if (is_chromeos) {\n        binary = "$root_out_dir/chrome"\n      } else {\n'
+        '        binary = "$root_out_dir/thorium"\n      }\n'),
     "chrome/app/chrome_exe.ver": "INTERNAL_NAME=thorium_exe\nORIGINAL_FILENAME=thorium.exe\n",
     "chrome/app/chrome_exe.vsprops": '\t\tOutputFile="$(OutDir)\\thorium.exe"\n',
     "chrome/chrome_proxy/chrome_proxy_main_win.cc": '    FILE_PATH_LITERAL("thorium.exe");\n',
     "chrome/common/chrome_constants.cc": (
         "#if BUILDFLAG(IS_WIN)\nconst base::FilePath::CharType kBrowserProcessExecutableName[] =\n"
         '    FPL("thorium.exe");\nconst base::FilePath::CharType kHelperProcessExecutableName[] =\n'
-        '    FPL("thorium.exe");\n#elif BUILDFLAG(IS_POSIX)\n'
+        '    FPL("thorium.exe");\n#elif BUILDFLAG(IS_ANDROID)\n'
+        'const base::FilePath::CharType kBrowserProcessExecutableName[] = FPL("thorium");\n'
+        '#elif BUILDFLAG(IS_POSIX)\n'
         'const base::FilePath::CharType kBrowserProcessExecutableName[] = FPL("thorium");\n#endif\n'
         "#if BUILDFLAG(IS_WIN)\nconst base::FilePath::CharType kBrowserProcessExecutablePath[] =\n"
         '    FPL("thorium.exe");\nconst base::FilePath::CharType kHelperProcessExecutablePath[] =\n'
-        '    FPL("thorium.exe");\n#elif BUILDFLAG(IS_POSIX)\n'
-        'const base::FilePath::CharType kBrowserProcessExecutablePath[] = FPL("thorium");\n#endif\n'),
+        '    FPL("thorium.exe");\n#elif BUILDFLAG(IS_ANDROID)\n'
+        'const base::FilePath::CharType kBrowserProcessExecutablePath[] = FPL("thorium");\n'
+        'const base::FilePath::CharType kHelperProcessExecutablePath[] = FPL("thorium");\n'
+        '#elif BUILDFLAG(IS_POSIX)\n'
+        'const base::FilePath::CharType kBrowserProcessExecutablePath[] = FPL("thorium");\n'
+        'const base::FilePath::CharType kHelperProcessExecutablePath[] = FPL("thorium");\n#endif\n'),
     "chrome/installer/launcher_support/chrome_launcher_support.cc": 'const wchar_t kChromeExe[] = L"thorium.exe";\n',
     "chrome/installer/mini_installer/BUILD.gn": (
         '    "$root_out_dir/chrome_elf.dll",\n    "$root_out_dir/thorium.exe",\n'
@@ -243,7 +251,7 @@ class ExeNameTests(unittest.TestCase):
         build = ti.edit_exe_names("chrome/BUILD.gn", EXE_FIXTURES["chrome/BUILD.gn"])
         self.assertIn('    _chrome_output_name = "thorium"\n', build)   # Linux binary: a separate task
         consts = ti.edit_exe_names("chrome/common/chrome_constants.cc", EXE_FIXTURES["chrome/common/chrome_constants.cc"])
-        self.assertEqual(consts.count('FPL("thorium")'), 2)
+        self.assertEqual(consts.count('FPL("thorium")'), 6)
         self.assertEqual(consts.count('FPL("thoron.exe")'), 4)
 
     def test_idempotent(self):

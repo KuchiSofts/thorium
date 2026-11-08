@@ -43,6 +43,7 @@ patches (`ks-native-gpc`, `ks-ffmpeg-158-no-duplicate-bswapdsp`).
 | `thorium-browser-resource-branding` | path updated | 158 renamed `resources/omnibox` to `resources/omnibox_internals`. |
 | `disable-thorium-icons` | ChromeOS files dropped | Two ChromeOS Quick Answers views no longer exist in 158. |
 | (new) `ks-ffmpeg-158-no-duplicate-bswapdsp.patch` | added | Chromium 158's FFmpeg already builds bswapdsp for the targets the HEVC patch adds it to; GN stopped with a duplicate object file. |
+| `thorium-2024-ui-core`, `classic-omnibox` | corner radii moved | Chromium 158 moved the extensions menu button, find bar and expanded omnibox radii out of the shared views code into Chrome's layout provider. Thorium's values for them (and the classic omnibox's 8) now sit there; the build stopped on the old names. |
 | `thorium-build-config-and-simd` | Rust flag removed | The LLVM in 158's Rust toolchain no longer has `-fp-contract`, so rustc stopped. C and C++ keep Thorium's FMA contraction setting; Rust keeps its default (no contraction). |
 
 The licence inventory was regenerated for this series (`docs/legal/PATCH_LICENSES.md`): 0 unknown and
