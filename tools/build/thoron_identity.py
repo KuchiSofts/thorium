@@ -246,6 +246,72 @@ def edit_install_modes(text: str) -> str:
     return text
 
 
+_NL = r"\r?\n"
+_RELEASE = "chrome/installer/mini_installer/chrome.release"
+# Windows program file and installer names (ROADMAP P2.20). Each replacement gives the number of times the old
+# or new text must appear, so a changed upstream file stops the run instead of being half renamed. Removals drop
+# Thorium-only installed files: thor_ver (read by the Thorium updater), the Thorium icons and content shell.
+EXE_EDITS = {
+    "build/win/reorder-imports.py": {"replace": [("thorium.exe", "thoron.exe", 6)]},
+    "chrome/BUILD.gn": {"replace": [("/thorium.exe", "/thoron.exe", 4),
+                                    ('_chrome_output_name = "initialexe/thorium"',
+                                     '_chrome_output_name = "initialexe/thoron"', 1)]},
+    "chrome/app/chrome_exe.ver": {"replace": [("INTERNAL_NAME=thorium_exe", "INTERNAL_NAME=thoron_exe", 1),
+                                              ("ORIGINAL_FILENAME=thorium.exe", "ORIGINAL_FILENAME=thoron.exe", 1)]},
+    "chrome/app/chrome_exe.vsprops": {"replace": [("\\thorium.exe", "\\thoron.exe", 1)]},
+    "chrome/chrome_proxy/chrome_proxy_main_win.cc": {"replace": [('FILE_PATH_LITERAL("thorium.exe")',
+                                                                  'FILE_PATH_LITERAL("thoron.exe")', 1)]},
+    "chrome/common/chrome_constants.cc": {"replace": [('FPL("thorium.exe")', 'FPL("thoron.exe")', 4)]},
+    "chrome/installer/launcher_support/chrome_launcher_support.cc": {
+        "replace": [('kChromeExe[] = L"thorium.exe"', 'kChromeExe[] = L"thoron.exe"', 1)]},
+    "chrome/installer/mini_installer/BUILD.gn": {"replace": [
+        ('"$root_out_dir/thorium.exe"', '"$root_out_dir/thoron.exe"', 1),
+        ('"thorium_mini_installer"', '"thoron_mini_installer"', 1),
+        ('"thorium_ARM64_installer"', '"thoron_ARM64_installer"', 1),
+        ('"thorium_${thorium_windows_installer_label}_mini_installer"',
+         '"thoron_${thorium_windows_installer_label}_mini_installer"', 1)]},
+    _RELEASE: {
+        "replace": [("thorium.exe: %(ChromeDir)s\\", "thoron.exe: %(ChromeDir)s\\", 1)],
+        "remove": [r"(?m)^# thor_ver for Thorium-WinUpdater" + _NL,
+                   r"(?m)^thor_ver: %\(ChromeDir\)s\\" + _NL,
+                   r"(?m)^thorium_shell\.(?:exe|ico): %\(VersionDir\)s\\" + _NL,
+                   r"(?m)^thorium\.(?:ico|svg): %\(VersionDir\)s\\" + _NL],
+        "forbid": [r"(?im)^(?!#)(?!thoron\.exe:)[^:\r\n]*thor[^:\r\n]*:"]},
+    "chrome/installer/mini_installer/mini_installer_constants.cc": {
+        "replace": [('kBrowserExe[] = L"thorium.exe"', 'kBrowserExe[] = L"thoron.exe"', 1)]},
+    "chrome/installer/util/util_constants.h": {"replace": [('L"thorium.exe"', 'L"thoron.exe"', 1),
+                                                           ('L"new_thorium.exe"', 'L"new_thoron.exe"', 1),
+                                                           ('L"old_thorium.exe"', 'L"old_thoron.exe"', 1)]},
+    "chrome/installer/setup/install_worker.cc": {
+        "remove": [r"// Version marker consumed by Thorium-WinUpdater\." + _NL
+                   + r'constexpr wchar_t kThorVer\[\] = L"thor_ver";' + _NL + _NL,
+                   r"  // Add Thorium-specific files\." + _NL
+                   + r"  install_list->AddCopyTreeWorkItem\(src_path\.Append\(kThorVer\)," + _NL
+                   + r"\s*target_path\.Append\(kThorVer\), temp_path\);" + _NL + _NL],
+        "forbid": [r"kThorVer|thor_ver"]},
+}
+
+
+def edit_exe_names(rel: str, text: str) -> str:
+    """Rename the Windows program file in one build file; idempotent; raises naming the file on any surprise."""
+    spec = EXE_EDITS[rel]
+    problems = []
+    for old, new, count in spec.get("replace", []):
+        found = text.count(old) + text.count(new)
+        if found != count:
+            problems.append(f"{old!r} found {found} times, expected {count}")
+        text = text.replace(old, new)
+    for pattern in spec.get("remove", []):
+        text = re.sub(pattern, "", text)
+    for pattern in spec.get("forbid", []) + [r"thorium\.exe"]:
+        hit = re.search(pattern, text)
+        if hit:
+            problems.append(f"left over after the edit: {hit.group(0)!r}")
+    if problems:
+        raise IdentityError(f"{rel}: " + "; ".join(problems))
+    return text
+
+
 def edit_branding(text: str) -> str:
     lines = text.split("\n")
     seen = set()
@@ -322,6 +388,19 @@ def apply(src: Path, repo: Path, string_files: list[str] | None = None, dry_run:
         text = path.read_bytes().decode("utf-8")
         try:
             new = editor(text)
+        except IdentityError as exc:
+            problems.append(str(exc))
+            continue
+        if new != text:
+            planned[path] = new.encode("utf-8")
+    for rel in EXE_EDITS:
+        path = src / rel
+        if not path.is_file():
+            problems.append(f"missing {rel}")
+            continue
+        text = path.read_bytes().decode("utf-8")
+        try:
+            new = edit_exe_names(rel, text)
         except IdentityError as exc:
             problems.append(str(exc))
             continue
