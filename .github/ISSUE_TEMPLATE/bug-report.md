@@ -1,21 +1,31 @@
 ---
-name: Bug Report
-about: Create a report to help me improve Thorium
+name: Bug report
+about: Something in Thoron does not work as it should
 title: ''
-labels: ''
+labels: bug
 assignees: ''
 
 ---
 
-**System Details**
- - OS: [e.g.  Ubuntu 22.04, Windows 7, 8.1, 10, 11]
- - Thorium Version [e.g.126.0.6478.246]
+<!-- Security problem? Do not open a public issue. Report it privately:
+     https://github.com/KuchiSofts/thoron/security/advisories/new -->
 
-**Problem**
-A clear and concise description of what the bug is.
+**What happened**
+A clear description of the problem, and what you expected instead.
 
-**Did you read the FAQ?**
-https://thorium.rocks/faq
+**Steps to reproduce**
+1.
+2.
+3.
 
-**Additional Notes**
-Add any other context about the problem here.
+**System**
+- OS: (for example Windows 11 24H2, Ubuntu 24.04)
+- CPU architecture: x64 or ARM64
+- Thoron version (from `chrome://version`):
+- Installed, or portable:
+
+**Does it also happen in a new profile?**
+Start Thoron with `--user-data-dir=<an empty folder>` and try again. Never attach files from your
+real profile: they can contain passwords, cookies and history.
+
+**Does it also happen in Chromium or upstream Thorium of the same version?**

@@ -17,7 +17,7 @@ clear origin in the upstream `docs/PATCHES.md`; the other 123 were researched as
 2. **Copyright lines in the patch.** Thorium patches change the header of the files they touch, for
    example `Copyright 2026 The Chromium Authors, Alex313031, qcasey and icepie`. Every name found in
    these lines is credited.
-3. **Thorium's own records.** The older `docs/PATCHES.md` of Thorium M138 (kept in this repository)
+3. **Thorium's own records.** The older `docs/PATCHES.md` of Thorium M138 (kept in this repository as `docs/upstream/PATCHES_M138.md`)
    names the source of many features, even where the code was later rewritten.
 4. **The project's licence.** Read from each project's `LICENSE` file, its README or
    `debian/copyright`, and GitHub's licence detection.

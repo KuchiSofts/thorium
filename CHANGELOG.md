@@ -127,6 +127,12 @@ Each release lists:
 - The design document's background section was rewritten as neutral, linked, verifiable
   observations about upstream.
 
+### Removed
+- The old copy of the upstream Thorium M138 tree that the repository still carried (about 1,500 files:
+  sources, logos, build scripts, submodules and old docs). Thoron's builds never used it; they use the
+  pinned, audited upstream source. Thorium's M138 `PATCHES.md` and README stay in `docs/upstream/` as
+  licence evidence, and the upstream Sponsor button is gone; Alex313031 stays credited (ROADMAP **D.8**).
+
 ### Security
 - `.gitignore` now excludes every browser-profile file type (passwords, cookies, sessions, history,
   keys) whose names cannot be mistaken for source folders, on top of the privacy checks that block

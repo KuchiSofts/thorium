@@ -16,7 +16,7 @@
 - Compiler optimizations such as LTO, CFlag, LDFlag, LLVM Loop, and PGO, to make it FAST. :boom:  
   In addition, we release builds tailored to different CPUs with different SIMD instructions, for even more execution speed.
   We offer [SSE3](https://en.wikipedia.org/wiki/SSE3), [SSE4](https://en.wikipedia.org/wiki/SSE4), [AVX](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions), and [AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions#Advanced_Vector_Extensions_2) builds, named as such in the Releases.
-  If you are unsure which one to download, see [About SIMD](../ABOUT_RELEASES.md#about-simd).
+  If you are unsure which one to download, see [About SIMD](https://github.com/Alex313031/thorium/blob/main/docs/ABOUT_RELEASES.md#about-simd).
 
 ### Other Builds &nbsp;<img src="https://github.com/Alex313031/thorium/blob/main/logos/STAGING/winflag_animated.gif" width="34"> &nbsp;<img src="https://github.com/Alex313031/thorium/blob/main/logos/STAGING/AVX2.png" width="48"> &nbsp;<img src="https://github.com/Alex313031/thorium/blob/main/logos/STAGING/apple.png" width="30"> &nbsp;<img src="https://github.com/Alex313031/thorium/blob/main/logos/STAGING/Android_Robot.svg" width="26"> &nbsp;<img src="https://github.com/Alex313031/thorium/blob/main/logos/STAGING/Raspberry_Pi_Logo.svg" width="24"> &nbsp;<img src="https://raw.githubusercontent.com/Alex313031/thorium-win7/main/logos/STAGING/win7/compatible-with-windows-7.png" width="28">
 &nbsp;&ndash; Windows builds are here > [Thorium Win](https://github.com/Alex313031/Thorium-Win) \
@@ -33,7 +33,7 @@
 > - Includes [Widevine](https://www.widevine.com/), [All Codecs](https://tools.woolyss.com/html5-audio-video-tester/), and proper HEVC/H.265 support on Linux and Windows.
 > - [JPEG XL](https://jpeg.org/jpegxl/) Image File Format support restored and turned on by default.
 > - [FTP](https://en.wikipedia.org/wiki/File_Transfer_Protocol) URL support restored and enabled by default.
-> - Restore the classic Chrome UI from before M124, instead of the new "Chrome Refresh 2023" UI. See the [Explainer](../TH24.md). Enable the flag `chrome://flags/#thorium-2024` to try it!
+> - Restore the classic Chrome UI from before M124, instead of the new "Chrome Refresh 2023" UI. See the [Explainer](https://github.com/Alex313031/thorium/blob/main/docs/TH24.md). Enable the flag `chrome://flags/#thorium-2024` to try it!
 > - Restore the classic "Download Shelf". Enable the flag `chrome://flags/#download-shelf` to use it.
 > - Patches from Debian including font rendering patch, VAAPI Patch, Audio Sandbox, GPU drivers, GTK auto dark mode, native notifications patch, title bar patch, and... the VDPAU Patch! (Rejoice Nvidia users)
 > - [DoH](https://en.wikipedia.org/wiki/DNS_over_HTTPS) (DNS over HTTPS) patches from Bromite.

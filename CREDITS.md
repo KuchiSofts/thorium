@@ -21,7 +21,8 @@ patches, build tooling and documentation come from the Thorium project.
 
 - **Alexander Frick ([@Alex313031](https://github.com/Alex313031))** created Thorium and has
   maintained it since 2021. Thorium is © 2021-2026 Alexander Frick, BSD-3-Clause
-  ([`LICENSE.md`](LICENSE.md)).
+  ([`LICENSE.md`](LICENSE.md)). To support his work, see
+  [github.com/sponsors/Alex313031](https://github.com/sponsors/Alex313031).
 - **Ho Cheung ([@gz83](https://github.com/gz83), [@hocheung-chromium](https://github.com/hocheung-chromium))**
   is the current day-to-day maintainer of Thorium (M144 onwards) and the author of most recent
   Thorium development.
@@ -29,7 +30,7 @@ patches, build tooling and documentation come from the Thorium project.
   helped with builds.
 - **[@RobRich999](https://github.com/RobRich999)** contributed information and fixes credited in
   Thorium's README. His [Chromium_Clang](https://github.com/RobRich999/Chromium_Clang) optimisation
-  work is also the origin of several Thorium patches and build settings (see `docs/PATCHES.md`).
+  work is also the origin of several Thorium patches and build settings (see `docs/upstream/PATCHES_M138.md`).
 
 ### Upstream Thorium contributors
 
@@ -55,7 +56,7 @@ anonymous contributors are credited by name only.
 
 ## Projects whose patches Thorium and Thoron use
 
-Thorium is built from patches by many projects, as documented in [`docs/PATCHES.md`](docs/PATCHES.md).
+Thorium is built from patches by many projects, as documented in Thorium's [`PATCHES.md`](docs/upstream/PATCHES_M138.md) (M138 copy).
 Each patch keeps its original attribution.
 
 | Project | Link | Licence of the project |
@@ -94,10 +95,11 @@ author publishes no licence; those patches need the author's permission, or a re
   (https://github.com/gorhill/uBlock).
 - **pak tool**: [@myfreeer](https://github.com/myfreeer)'s
   [chrome-pak-customizer](https://github.com/myfreeer/chrome-pak-customizer), with changes by
-  Alex313031. It is MIT, with LGPL-2.1 parts (`pak_src/`).
+  Alex313031. It is MIT, with LGPL-2.1 parts (`pak_src/` in the upstream repository). Thoron does not
+  ship it.
 - **thorium-win-upgrade**: [@hezhizheng](https://github.com/hezhizheng)'s Windows upgrader,
   [thorium-win-upgrade](https://github.com/hezhizheng/thorium-win-upgrade) (MIT). It is referenced by
-  the upstream repository as the `infra/upgrader` submodule.
+  the upstream repository as the `infra/upgrader` submodule; Thoron does not ship it.
 - **JPEG XL support**: [thorium-libjxl](https://github.com/Alex313031/thorium-libjxl) (BSD-3-Clause),
   built on [libjxl](https://github.com/libjxl/libjxl) by the JPEG XL authors.
 - **Thorium-WinUpdater**: ltguillaume and Alex313031 (https://codeberg.org/ltguillaume/thorium-winupdater),
