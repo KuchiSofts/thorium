@@ -19,6 +19,11 @@ Each release lists:
   config that keeps the user's own config and hooks. `gn gen` succeeds on stock Chromium 156 with
   this toolchain (ROADMAP **P1.1**). The upstream M156 overlay and patch series apply to Chromium
   156.0.8078.28 with 0 rejects (ROADMAP **P1.3**); `pipeline.py apply --log` keeps the full log.
+- First reproduced Windows build: Chromium 156.0.8078.28 with the upstream M156 AVX2 configuration,
+  without bundled Widevine. It builds in 2 hours 35 minutes, writes a `BUILDINFO.json` free of
+  personal paths, and passes the smoke test (JS, WebGL, H.264, HEVC, AV1, JPEG XL, no crashes)
+  (ROADMAP **P1.4**). Measured times and a draft release-build plan are in
+  `docs/build/BUILD_BUDGET.md` (ROADMAP **P1.10**, in progress).
 - Patch licence inventory: `tools/legal/patch_licenses.py` and the generated `docs/legal/PATCH_LICENSES.md`
   for all 152 upstream M156 patches (29 confirmed, 123 still to research; ROADMAP **L.1**).
 - `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed

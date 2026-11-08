@@ -1,8 +1,8 @@
 # Building Thoron on Windows 11
 
-This guide reproduces the Windows x64 build from a clean Windows 11 machine. It is written while the
-first reproducible build is being made (ROADMAP **P1.1**, **P1.3**, **P1.4**). Steps marked
-*Pending* are added once they have been verified end to end.
+This guide reproduces the Windows x64 AVX2 build from a clean Windows 11 machine. Every step was
+verified on the reference machine while making the first build (ROADMAP **P1.1**, **P1.3**,
+**P1.4**). Following it on a second, fresh machine is ROADMAP **P1.9**.
 
 Run every command from a PowerShell window in the root of a Thoron checkout unless a step says
 otherwise.
@@ -183,7 +183,55 @@ into the local checkout. Thoron never bundles or redistributes them (ROADMAP **P
 
 ## 7. Build
 
-*Pending (ROADMAP **P1.4**).*
+The release configuration is upstream's `other\AVX2\win_AVX2_args.gn` with one change:
+`bundle_widevine_cdm = false`, so Google's proprietary Widevine module is never bundled. Widevine
+itself stays enabled, and the browser downloads it from Google when a site needs it.
+
+```powershell
+cd $env:THORON_BUILD_ROOT\chromium\src
+$outDir = 'out\thoron-m156-avx2'
+New-Item -ItemType Directory -Force $outDir | Out-Null
+(Get-Content $env:THORON_BUILD_ROOT\upstream-M156\other\AVX2\win_AVX2_args.gn) `
+    -replace '^\s*bundle_widevine_cdm\s*=\s*true\s*$', 'bundle_widevine_cdm = false' |
+    Set-Content -Encoding Ascii "$outDir\args.gn"
+gn gen $outDir
+(Get-Process -Id $PID).PriorityClass = 'BelowNormal'
+autoninja -j 12 -C $outDir chrome mini_installer
+```
+
+- **Priority:** the build inherits the window's below-normal priority, so the PC stays usable.
+- **Parallel jobs:** `-j 12` suits a 64 GB machine that also runs other heavy workloads such as WSL.
+  Without `-j`, the build uses one job per CPU thread, which ran out of memory on the reference
+  machine. If a build stops for any reason, run the same command again; it continues where it
+  stopped.
+- **Time:** about 2 hours 35 minutes on the reference machine, with a 12 GB output folder
+  ([`BUILD_BUDGET.md`](BUILD_BUDGET.md)).
+
+The outputs keep upstream's names for now: `thorium.exe`, `chrome.dll` and the installer
+`thorium_AVX2_mini_installer.exe`.
+
+## 8. Check the build
+
+Write the build record. It holds no personal paths; check it before sharing it.
+
+```powershell
+py -3 -I tools\build\pipeline.py buildinfo --root $env:THORON_BUILD_ROOT --src $env:THORON_BUILD_ROOT\chromium\src `
+    --repo . --upstream-ref "gz83 M156.0.8078.28 de9a1bc6" --variant win-x64-avx2 `
+    --args <out dir>\args.gn --toolchain toolchain.json --started <epoch> --finished <epoch> `
+    --out <out dir>\BUILDINFO.json
+```
+
+`toolchain.json` lists the tool versions from the table below.
+
+Then run the smoke test. It starts the browser with a fresh, throwaway profile, always with the
+sandbox on, and checks JavaScript, WebGL, H.264, HEVC, AV1 and JPEG XL, and that nothing crashed:
+
+```powershell
+py -3 -I tools\build\smoke.py --browser <out dir>\thorium.exe --work $env:THORON_BUILD_ROOT\smoke\win `
+    --jxl-sample $env:THORON_BUILD_ROOT\chromium\src\third_party\blink\web_tests\external\wpt\jpegxl\resources\3x3_srgb_lossless.jxl
+```
+
+Expected: `SMOKE: PASSED`.
 
 ## Tool versions of the reference build
 
@@ -195,6 +243,9 @@ into the local checkout. Thoron never bundles or redistributes them (ROADMAP **P
 | Debugging Tools for Windows (`cdb.exe`) | 10.0.28000.2526 |
 | depot_tools | `289a37bda` (2026-11-06) |
 | GN | 2578 (`510ec7992c30`) |
+| Siso (build runner) | 1.6.3 |
+| Clang (Chromium's) | 24.0.0git (`86922d51225d`) |
+| Rust (Chromium's) | 1.100.0-nightly (`1edd55dcf`, 2026-09-09) |
 | Python | 3.12.8 |
 | Git for Windows | 2.51.1 |
 
