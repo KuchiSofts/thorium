@@ -23,9 +23,9 @@ keeping Chromium 158's code and re-applying Thorium's change on top of it. The r
 then exported, and the new series was checked on an untouched 158 checkout with both
 `tools/build/rebase_report.py` and upstream's `apply_series.py`.
 
-Result: the series lists **149 patches**. The **146** that the Windows AVX2 build uses all apply exactly
-(the other 3 are for SSE2 and Raspberry Pi builds only). 25 were ported by hand, and 2 are new Thoron
-patches (`ks-native-gpc`, `ks-ffmpeg-158-no-duplicate-bswapdsp`).
+Result: the series lists **150 patches**. The **147** that the Windows AVX2 build uses all apply exactly
+(the other 3 are for SSE2 and Raspberry Pi builds only). 25 were ported by hand, and 3 are new Thoron
+patches (`ks-native-gpc` and two small FFmpeg build fixes).
 
 ## Decisions
 
@@ -44,6 +44,7 @@ patches (`ks-native-gpc`, `ks-ffmpeg-158-no-duplicate-bswapdsp`).
 | `disable-thorium-icons` | ChromeOS files dropped | Two ChromeOS Quick Answers views no longer exist in 158. |
 | (new) `ks-ffmpeg-158-no-duplicate-bswapdsp.patch` | added | Chromium 158's FFmpeg already builds bswapdsp for the targets the HEVC patch adds it to; GN stopped with a duplicate object file. |
 | `thorium-2024-ui-core`, `classic-omnibox` | corner radii moved | Chromium 158 moved the extensions menu button, find bar and expanded omnibox radii out of the shared views code into Chrome's layout provider. Thorium's values for them (and the classic omnibox's 8) now sit there; the build stopped on the old names. |
+| (new) `ks-ffmpeg-158-hevc-x86-pred.patch` | added | Chromium 158's FFmpeg moved the x86 HEVC intra prediction into `x86/hevc/pred_init.c` and `pred.asm`, which the HEVC patch did not build; linking stopped on `ff_hevc_pred_init_x86`. |
 | `thorium-build-config-and-simd` | Rust flag removed | The LLVM in 158's Rust toolchain no longer has `-fp-contract`, so rustc stopped. C and C++ keep Thorium's FMA contraction setting; Rust keeps its default (no contraction). |
 
 The licence inventory was regenerated for this series (`docs/legal/PATCH_LICENSES.md`): 0 unknown and

@@ -305,8 +305,12 @@ The product has its **own identity** and never installs over upstream Thorium. T
 - **Windows:** the product name, the install folder `%LOCALAPPDATA%\Thoron\`, the registry key
   `HKCU\Software\Thoron`, the app GUID in `chromium_install_modes.h`, ProgIDs, and the
   AppUserModelID.
-- **Linux:** the package name, the `.desktop` file, the profile directory `~/.config/thoron`, and
-  the keyring entry `Thoron Safe Storage`.
+- **Linux:** the program `thoron`, the package `thoron-browser` in `/opt/kuchisofts/thoron`, the
+  `.desktop` file, the app ID `org.kuchisofts.Thoron` and the profile directory `~/.config/thoron`.
+  The keyring entry is **not** renamed: Chromium 158 and upstream Thorium both store the Linux
+  password key as `Chromium Safe Storage` (app `chromium`), so a copied Thorium profile keeps every
+  saved password readable without any key migration. Upstream's developer test shell and its
+  prebuilt `pak` tool are not packaged.
 
 Upstream and ours can coexist on the same machine. Version numbers are independent of upstream's.
 
@@ -323,9 +327,9 @@ Upstream and ours can coexist on the same machine. Version numbers are independe
 - **Passwords and cookies must survive the import:**
   - **Windows:** the DPAPI-wrapped key travels inside the copied `Local State`, which works because it
     is the same Windows user.
-  - **Linux:** upstream's key lives in the system keyring under `Thorium Safe Storage`. The import
-    reads that entry and re-stores it under our product's name. This is an explicit builder task
-    with its own test, because a wrong keyring name silently makes every saved password unreadable.
+  - **Linux:** upstream's key lives in the system keyring under `Chromium Safe Storage`, which Thoron
+    reads too, so the copied passwords stay readable as they are. This still gets its own test on
+    GNOME and KDE, because a wrong keyring name silently makes every saved password unreadable.
 - **Extensions:** they come along in the copy. The frozen Chrome Web Store copy of uBlock Origin
   triggers the optional migration in §10.
 - **Afterwards:** the import never disables, modifies or uninstalls upstream Thorium or its updater.
@@ -635,6 +639,7 @@ reproduced Thorium M156 build:
 | Work order (2026-11-08) | Windows first, then Linux: the owner deferred the Linux build tasks and resumed them the same day; both M156 builds are reproduced. Ubuntu stays a target platform |
 | Patch licences (2026-11-08) | All 152 M156 patches researched: 6 GPL-3.0 (Cromite, Bromite), the rest BSD, MIT or public domain; 8 use code from authors with no published licence and need permission or a rewrite before the first release (L.1) |
 | Rename order (2026-11-08) | The Thoron identity is done first on M156, before the Chromium 158 rebase, by a re-appliable tool; the owner's Thorium profile moves to Thoron by verified copy (§7.7) and Thorium stays as an untouched backup |
+| Linux identity (2026-11-09) | Own program, package, desktop file and profile folder (`~/.config/thoron`); the keyring entry stays `Chromium Safe Storage` so imported passwords stay readable; upstream's developer test shell and prebuilt `pak` tool are left out of the Linux package (owner's choice) |
 | Repository layout (2026-11-09) | The old upstream Thorium M138 tree that `main` still carried (about 1,500 files the builds never used) is removed; `main` keeps only Thoron's own work, plus Thorium's M138 `PATCHES.md` and README under `docs/upstream/`. The upstream Sponsor button (`FUNDING.yml`) is removed; Alex313031 stays credited in README and CREDITS |
 | Repository binaries (2026-11-07) | No prebuilt or proprietary binaries in the repository (ROADMAP **L.6**); purging them from history (**L.7**) waits for the owner's decision |
 

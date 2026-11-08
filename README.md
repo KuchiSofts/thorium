@@ -75,10 +75,10 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 - 🔄 **P1.9** Thoron build docs written from scratch and followed end-to-end
 - 🔄 **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
+- 🔄 **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`; the keyring entry stays `Chromium Safe Storage` (shared with Thorium, so imported passwords stay readable)
+- 🔄 **P2.21** Linux program and package names: `thoron` instead of `thorium` for the binary, the `.deb`/`.rpm` packages, the `.desktop` file and the icons; the developer test shell and the prebuilt `pak` tool are not packaged
 - ⬜ **P2.2** Audit all upstream changes since `de9a1bc6` with `tools/audit` (S.1)
-- ⬜ **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`, keyring entry `Thoron Safe Storage`
 - ⬜ **P2.5** About page: Thoron version, Chromium version, verbatim disclaimer, links to credits and changelog
-- ⬜ **P2.6** Widevine not bundled; fetched by Chromium's component updater at runtime
 
 <details>
 <summary><b>Full task list</b> (generated from <a href="ROADMAP.md">ROADMAP.md</a>)</summary>
@@ -115,7 +115,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
 - [ ] **P2.2** Audit all upstream changes since `de9a1bc6` with `tools/audit` (S.1)
 - [x] **P2.3** Identity patch, Windows: product name Thoron, `%LOCALAPPDATA%\Thoron`, `HKCU\Software\Thoron`, new app GUID in `chromium_install_modes.h`, ProgIDs, AppUserModelID
-- [ ] **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`, keyring entry `Thoron Safe Storage`
+- [ ] **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`; the keyring entry stays `Chromium Safe Storage` (shared with Thorium, so imported passwords stay readable)
 - [ ] **P2.5** About page: Thoron version, Chromium version, verbatim disclaimer, links to credits and changelog
 - [ ] **P2.6** Widevine not bundled; fetched by Chromium's component updater at runtime
 - [ ] **P2.7** Variants AVX2 and SSE4 for Windows x64 and Linux x64
@@ -132,7 +132,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P2.18** uBlock Origin runs on 158: check whether `chrome.storage.managed.get` also hangs in the release configuration and for normally installed extensions; fix it (patch or configuration); verify cosmetic filtering with a normally installed extension in a visible window
 - [ ] **P2.19** Thoron's own COM interface IDs (IElevator, tracing service): regenerate the checked-in MIDL output; needed before system-level installs, which register those interfaces
 - [x] **P2.20** Program and installer file names: `thoron.exe` instead of `thorium.exe`, the installer name, and no Thorium updater remnants (`thor_ver`)
-- [ ] **P2.21** Linux program and package names: `thoron` instead of `thorium` for the binary, the `.deb`/`.rpm` packages, the `.desktop` file and the icons, without changing where existing profiles are read from
+- [ ] **P2.21** Linux program and package names: `thoron` instead of `thorium` for the binary, the `.deb`/`.rpm` packages, the `.desktop` file and the icons; the developer test shell and the prebuilt `pak` tool are not packaged
 - [ ] **P2.22** Linux dark mode on 158: check whether Chromium 158 follows a GTK theme switch on its own; if not, write Thoron's own fix (the Thorium patch was not carried over, see `docs/build/M158_REBASE.md`)
 - [ ] **P2.23** Check the hand-ported UI patches in a running 158 build: tab search button on the right (default) and on the left (flag), Thorium 2024 UI, classic omnibox, rectangular tabs, custom tab width, open link in this tab
 
@@ -161,7 +161,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P3.13** Import UI in the installer and in Settings → Import: detected browsers and profiles, per-type checkboxes, a "please close <browser>" prompt (never force-closes)
 - [ ] **P3.14** Chromium-family import engine: copy, never move; verify (hash plus SQLite integrity); bookmarks, history, passwords, cookies, extensions, settings, autofill
 - [ ] **P3.15** Tabs and tab-groups import: our own SNSS session parser (windows, tab order, groups with name, colour and collapsed state, pinned and active tab, per-tab history)
-- [ ] **P3.16** Linux keyring migration (`Thorium Safe Storage` → `Thoron Safe Storage`)
+- [ ] **P3.16** Linux keyring check: Thoron keeps the `Chromium Safe Storage` entry that Thorium uses, so no key migration is needed; prove it on import
 - [ ] **P3.17** Guided Chrome password import (Chrome's own CSV export → import → secure delete); never bypasses app-bound encryption
 - [ ] **P3.18** Import report (counts per type, what was skipped and why; no secrets)
 

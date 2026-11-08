@@ -14,7 +14,13 @@ Each release lists:
 
 ### Added
 - Patch series rebased to Chromium 158.0.8127.30 (ROADMAP **P2.1**), starting from upstream's newer 156.0.8078.80 patches after an audit of the upstream changes. All 146 patches apply exactly; 25 were ported by hand to 158's code. Global Privacy Control now uses Chromium's own implementation instead of the Cromite patch, Android-only patches are not carried over, and two small Thoron patches fix the 158 build (FFmpeg duplicate sources, a Rust compiler flag). Every decision is recorded in `docs/build/M158_REBASE.md`.
-- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 149 patches, 0 unknown,
+- Linux identity in code (ROADMAP **P2.4**, **P2.21**): the program `thoron`, the package `thoron-browser`
+  installed in `/opt/kuchisofts/thoron`, its own desktop file and app ID, and the profile folder
+  `~/.config/thoron`, so Thoron installs next to upstream `thorium-browser` and never reads or changes its
+  profile. The keyring entry stays `Chromium Safe Storage`, as in Thorium, so passwords in a copied profile
+  stay readable. Upstream's developer test shell and prebuilt `pak` tool are not packaged. Not yet built on
+  Linux.
+- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 150 patches, 0 unknown,
   6 that still need the author's permission or a rewrite (was 8). The policy templates patch was rewritten
   without the unlicensed code, and the two new upstream patches were researched (both Thorium,
   BSD-3-Clause). Details in `docs/legal/PATCH_ORIGINS.md`.

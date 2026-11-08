@@ -6,7 +6,7 @@ the upstream `docs/PATCHES.md`, matched against the project licences in `CREDITS
 **UNKNOWN** need research and rows marked **NOT STATED** need the author's permission (or a rewrite)
 before the first release (ROADMAP **L.1**).
 
-Summary: BSD-3-Clause: 136, BSD-3-Clause AND GPL-3.0: 1, GPL-3.0: 2, MIT: 3, MIT AND BSD-3-Clause: 1, NOT STATED: 6 (total 149)
+Summary: BSD-3-Clause: 137, BSD-3-Clause AND GPL-3.0: 1, GPL-3.0: 2, MIT: 3, MIT AND BSD-3-Clause: 1, NOT STATED: 6 (total 150)
 
 | Patch | Origin | Licence | Evidence |
 |---|---|---|---|
@@ -82,6 +82,7 @@ Summary: BSD-3-Clause: 136, BSD-3-Clause AND GPL-3.0: 1, GPL-3.0: 2, MIT: 3, MIT
 | `keep-doh-enabled-on-managed-devices.patch` | Cromite | GPL-3.0 | uazo/Cromite keeps DoH available unless explicitly disabled by policy, including on managed devices and systems with parental controls |
 | `keep-expired-flags.patch` | ungoogled-chromium | BSD-3-Clause | ungoogled-chromium keep expired flags patch |
 | `keyboard_shortcuts.patch` | Thorium (Alex313031, gz83) | BSD-3-Clause | research: Alex313031 in the copyright line; no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md) |
+| `ks-ffmpeg-158-hevc-x86-pred.patch` | Thoron | BSD-3-Clause | patch header |
 | `ks-ffmpeg-158-no-duplicate-bswapdsp.patch` | Thoron | BSD-3-Clause | patch header |
 | `ks-native-gpc.patch` | Thoron | BSD-3-Clause | patch header |
 | `linux-disable-custom-titlebar-default.patch` | chromium-ubuntu-build (saiarcot895), Thorium | BSD-3-Clause | research: credited in upstream docs/PATCHES.md (title-bar-default-system patch); its debian/copyright licenses debian/patches as the patched sources (Chromium, BSD-3-Clause) |
