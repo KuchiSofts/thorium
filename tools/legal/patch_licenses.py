@@ -14,6 +14,9 @@ import re
 import sys
 from pathlib import Path
 
+if __package__ in (None, ""):  # running as a script under `py -3 -I`: make `tools` importable
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 HEADER_RE = re.compile(r"(?im)^(Origin|Author|License):\s*(.+?)\s*$")
 LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 LONG_DASH_RE = re.compile("[" + chr(0x2013) + chr(0x2014) + "]")
@@ -89,12 +92,10 @@ def render_table(rows: list[dict], source: str = "the upstream patch series") ->
 
 
 def series_patches(tree: Path) -> list[str]:
-    entries = []
-    for line in (tree / "patch_scripts" / "series" / "series").read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("#"):
-            entries.append(line.split(":", 1)[1].strip() if ":" in line else line)
-    return entries
+    """Every patch path in the series, conditional ones included (same parser as the rebase report)."""
+    from tools.build.rebase_report import parse_series
+    text = (tree / "patch_scripts" / "series" / "series").read_text(encoding="utf-8")
+    return [e.patch for e in parse_series(text)]
 
 
 def main(argv: list[str]) -> int:

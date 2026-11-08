@@ -53,6 +53,37 @@ class PatchLicenseTests(unittest.TestCase):
         self.assertTrue(body[-1].startswith("| `bromite-thing.patch`"))
         self.assertNotIn("](../", table)                       # relative links from PATCHES.md are flattened
 
+    def test_conditional_series_lines_resolve_to_the_patch_file(self):
+        tmp = Path(tempfile.mkdtemp(prefix="thoron-test-"))
+        try:
+            series = tmp / "patch_scripts" / "series" / "series"
+            series.parent.mkdir(parents=True)
+            series.write_text("[raspi] other/a.patch\n[sse2] third_party/angle: other/SSE2/b.patch\n"
+                              "v8: other/c.patch\nother/d.patch\n", encoding="utf-8")
+            self.assertEqual(pl.series_patches(tmp),
+                             ["other/a.patch", "other/SSE2/b.patch", "other/c.patch", "other/d.patch"])
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_runs_as_a_script(self):
+        import subprocess
+        import sys
+        tmp = Path(tempfile.mkdtemp(prefix="thoron-test-"))
+        try:
+            (tmp / "patch_scripts" / "series").mkdir(parents=True)
+            (tmp / "docs").mkdir()
+            (tmp / "patch_scripts" / "series" / "series").write_text("[raspi] other/a.patch\n", encoding="utf-8")
+            (tmp / "docs" / "PATCHES.md").write_text(PATCHES_MD, encoding="utf-8")
+            (tmp / "credits.md").write_text(CREDITS, encoding="utf-8")
+            script = Path(pl.__file__)
+            proc = subprocess.run([sys.executable, "-I", str(script), "--tree", str(tmp), "--credits",
+                                   str(tmp / "credits.md"), "--out", str(tmp / "out.md")],
+                                  capture_output=True, text=True)
+            self.assertNotIn("Traceback", proc.stderr)
+            self.assertIn(proc.returncode, (0, 1))
+        finally:
+            shutil.rmtree(tmp)
+
     def test_exit_code_reflects_unknowns(self):
         tmp = Path(tempfile.mkdtemp(prefix="thoron-test-"))
         try:

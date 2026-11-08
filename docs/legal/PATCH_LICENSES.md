@@ -64,7 +64,7 @@ Summary: BSD-3-Clause: 21, BSD-3-Clause AND GPL-3.0: 1, GPL-3.0: 4, MIT: 3, UNKN
 | `linux-memory-details-branding.patch` | unknown | **UNKNOWN** | not listed in docs/PATCHES.md |
 | `linux-obsolete-system-policy.patch` | unknown | **UNKNOWN** | not listed in docs/PATCHES.md |
 | `linux-shell-integration-branding.patch` | unknown | **UNKNOWN** | not listed in docs/PATCHES.md |
-| `linux-widevine-cdm-locations.patch` | unknown | **UNKNOWN** | patch file missing |
+| `linux-widevine-cdm-locations.patch` | unknown | **UNKNOWN** | Raspberry Pi / Linux Widevine location compatibility |
 | `llvm-optimized-toolchain-build.patch` | Chromium_Clang | **UNKNOWN** | RobRich999/Chromium_Clang LLVM optimized build-script work, adapted to use compatibility-safe tuning instead of an AVX2 ISA requirement |
 | `new-tab-to-left-context-menu.patch` | unknown | **UNKNOWN** | not listed in docs/PATCHES.md |
 | `notify-shell-after-download-complete.patch` | unknown | **UNKNOWN** | Windows shell refresh notification after completed downloads |
@@ -74,7 +74,7 @@ Summary: BSD-3-Clause: 21, BSD-3-Clause AND GPL-3.0: 1, GPL-3.0: 4, MIT: 3, UNKN
 | `prevent-url-elisions-by-default.patch` | unknown | **UNKNOWN** | not listed in docs/PATCHES.md |
 | `prominent-active-tab-titles.patch` | unknown | **UNKNOWN** | not listed in docs/PATCHES.md |
 | `quiet-notification-defaults.patch` | unknown | **UNKNOWN** | not listed in docs/PATCHES.md |
-| `raspi-netflix-chromeos-ua.patch` | unknown | **UNKNOWN** | patch file missing |
+| `raspi-netflix-chromeos-ua.patch` | unknown | **UNKNOWN** | Raspberry Pi Netflix ChromeOS UA compatibility |
 | `rectangular-tabs.patch` | unknown | **UNKNOWN** | not listed in docs/PATCHES.md |
 | `relax-bad-flags-warning.patch` | unknown | **UNKNOWN** | not listed in docs/PATCHES.md |
 | `restore-tab-button.patch` | unknown | **UNKNOWN** | not listed in docs/PATCHES.md |
