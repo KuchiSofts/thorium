@@ -295,6 +295,10 @@ class ApplyTests(unittest.TestCase):
             (self.src / dest).parent.mkdir(parents=True, exist_ok=True)
             (self.src / dest).write_bytes(b"old icon")
         write_exe_fixtures(self.src)
+        from tools.build.tests.test_thoron_linux_names import LINUX_FIXTURES
+        for rel, text in LINUX_FIXTURES.items():
+            (self.src / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.src / rel).write_bytes(text.encode("utf-8"))
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
