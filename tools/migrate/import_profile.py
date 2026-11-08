@@ -13,6 +13,7 @@ install's empty `Crashpad` folder is fine).
     py -3 -I tools/migrate/import_profile.py --from "%LOCALAPPDATA%\\Thorium\\User Data" --to "%LOCALAPPDATA%\\Thoron\\User Data"
 """
 import argparse
+import os
 import hashlib
 import shutil
 import sys
@@ -35,6 +36,37 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+_REPARSE_POINT = 0x400   # FILE_ATTRIBUTE_REPARSE_POINT: junctions and symbolic links
+
+
+def _walk_entries(root: Path):
+    """Yield (path, is_dir) for everything under root. Any error stops the walk (never a silent skip);
+    junctions and links are refused, so nothing outside the profile can be pulled in."""
+    stack = [root]
+    while stack:
+        folder = stack.pop()
+        with os.scandir(folder) as it:
+            for entry in it:
+                st = entry.stat(follow_symlinks=False)
+                if entry.is_symlink() or getattr(st, "st_file_attributes", 0) & _REPARSE_POINT:
+                    raise ImportRefused(f"{Path(entry.path)} is a link or junction; refusing to follow it")
+                if entry.is_dir(follow_symlinks=False):
+                    stack.append(Path(entry.path))
+                    yield Path(entry.path), True
+                else:
+                    yield Path(entry.path), False
+
+
+def _list(root: Path) -> tuple[list[Path], list[Path]]:
+    try:
+        entries = list(_walk_entries(root))
+    except ImportRefused:
+        raise
+    except OSError as exc:
+        raise ImportRefused(f"cannot read part of {root} ({exc}); nothing was imported") from exc
+    return [p for p, d in entries if not d], [p for p, d in entries if d]
+
+
 def _is_fresh(dest: Path) -> bool:
     """No profile yet: absent, or only what an installer creates (an empty Crashpad folder)."""
     if not dest.exists():
@@ -54,10 +86,13 @@ def import_profile(source: Path, dest: Path) -> dict:
         raise ImportRefused("the source and destination folders overlap")
     if not _is_fresh(dest):
         raise ImportRefused(f"{dest} already holds a profile; nothing was changed")
-    files = [p for p in source.rglob("*") if p.is_file()]
+    files, dirs = _list(source)
     total = 0
-    for d in [source] + [p for p in source.rglob("*") if p.is_dir()]:
-        (dest / d.relative_to(source)).mkdir(parents=True, exist_ok=True)
+    try:
+        for d in [source] + dirs:
+            (dest / d.relative_to(source)).mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ImportRefused(f"cannot create folders in {dest} ({exc}); the source is unchanged") from exc
     for p in files:
         try:
             shutil.copy2(p, dest / p.relative_to(source))
@@ -70,6 +105,13 @@ def import_profile(source: Path, dest: Path) -> dict:
     if mismatched:
         raise VerificationFailed(f"{len(mismatched)} file(s) differ after copying (for example {mismatched[:3]}); "
                                  f"the source is unchanged and the copy is left in {dest} for inspection")
+    src_set = {p.relative_to(source).as_posix() for p in files}
+    dst_set = {p.relative_to(dest).as_posix() for p in _list(dest)[0]}
+    if src_set - dst_set:
+        raise VerificationFailed(f"{len(src_set - dst_set)} file(s) missing in the copy; the source is unchanged")
+    if (source / "lockfile").exists() or (dest / "lockfile").exists():
+        raise ImportRefused("a browser was started during the import, so the copy may be inconsistent; "
+                            "the source is unchanged, close both browsers and import again into a fresh folder")
     return {"files": len(files), "bytes": total, "verified": True}
 
 

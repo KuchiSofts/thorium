@@ -77,6 +77,47 @@ class ImportTests(unittest.TestCase):
         finally:
             ip._sha256 = original
 
+    def test_unreadable_folder_stops_the_import(self):
+        original = ip._walk_entries
+
+        def denied(root):
+            for item in original(root):
+                yield item
+            raise PermissionError("listing denied")
+        ip._walk_entries = denied
+        try:
+            with self.assertRaises(ip.ImportRefused):
+                ip.import_profile(self.src, self.dst)
+        finally:
+            ip._walk_entries = original
+
+    def test_refuses_junctions_and_links(self):
+        target = self.tmp / "elsewhere"
+        target.mkdir()
+        (target / "x.txt").write_text("outside", encoding="utf-8")
+        link = self.src / "Default" / "link"
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except OSError:
+            import subprocess
+            if subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True).returncode:
+                self.skipTest("cannot create a link here")
+        with self.assertRaises(ip.ImportRefused):
+            ip.import_profile(self.src, self.dst)
+
+    def test_browser_started_during_copy_fails(self):
+        original = ip._sha256
+
+        def start_browser(path):
+            (self.src / "lockfile").write_bytes(b"")
+            return original(path)
+        ip._sha256 = start_browser
+        try:
+            with self.assertRaises(ip.ImportRefused):
+                ip.import_profile(self.src, self.dst)
+        finally:
+            ip._sha256 = original
+
     def test_cli(self):
         with contextlib.redirect_stdout(io.StringIO()) as out:
             self.assertEqual(ip.main(["--from", str(self.src), "--to", str(self.dst)]), 0)
