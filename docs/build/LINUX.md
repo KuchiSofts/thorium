@@ -94,10 +94,14 @@ that is how upstream ships them, so do not convert them.
 
 ## 4. Build
 
-The release configuration is upstream's `other/AVX2/AVX2_args.gn` with `bundle_widevine_cdm = false`
-(Widevine is downloaded from Google at runtime instead of being bundled):
+The release configuration is upstream's `other/AVX2/AVX2_args.gn` with Thoron's privacy choices
+applied by `tools/build/release_args.py` (see [`RELEASE_ARGS.md`](RELEASE_ARGS.md); Widevine is
+downloaded from Google at runtime instead of being bundled):
 
 ```bash
+python3 -I tools/build/release_args.py compose --platform linux --upstream <upstream>/other/AVX2/AVX2_args.gn \
+    --source "gz83 <commit> other/AVX2/AVX2_args.gn" --out out/thoron-m156-avx2/args.gn
+python3 -I tools/build/release_args.py check --platform linux --args out/thoron-m156-avx2/args.gn
 python3 -I tools/build/pipeline.py preflight --root ~/thoron-build --need-gb 200 --require-wsl-memory-gb 40
 autoninja -j 16 -C out/thoron-m156-avx2 chrome
 ```

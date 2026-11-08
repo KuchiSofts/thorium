@@ -199,17 +199,20 @@ are still upstream's (ROADMAP **P2.19**), so install Thoron per user only.
 
 ## 8. Build
 
-The release configuration is upstream's `other\AVX2\win_AVX2_args.gn` with one change:
-`bundle_widevine_cdm = false`, so Google's proprietary Widevine module is never bundled. Widevine
-itself stays enabled, and the browser downloads it from Google when a site needs it.
+The release configuration is upstream's `other\AVX2\win_AVX2_args.gn` with Thoron's privacy
+choices applied by `tools/build/release_args.py` (no RLZ tracking library, no bundled Widevine,
+no Google API keys; every choice and its reason is in [`RELEASE_ARGS.md`](RELEASE_ARGS.md)).
+Widevine itself stays enabled, and the browser downloads it from Google when a site needs it.
 
 ```powershell
 cd $env:THORON_BUILD_ROOT\chromium\src
 $outDir = 'out\thoron-m156-avx2'
 New-Item -ItemType Directory -Force $outDir | Out-Null
-(Get-Content $env:THORON_BUILD_ROOT\upstream-M156\other\AVX2\win_AVX2_args.gn) `
-    -replace '^\s*bundle_widevine_cdm\s*=\s*true\s*$', 'bundle_widevine_cdm = false' |
-    Set-Content -Encoding Ascii "$outDir\args.gn"
+$repo = 'H:\path\to\thoron'   # this repository
+py -3 -I "$repo\tools\build\release_args.py" compose --platform win `
+    --upstream $env:THORON_BUILD_ROOT\upstream-M156\other\AVX2\win_AVX2_args.gn `
+    --source "gz83 <commit> other/AVX2/win_AVX2_args.gn" --out "$outDir\args.gn"
+py -3 -I "$repo\tools\build\release_args.py" check --platform win --args "$outDir\args.gn"
 gn gen $outDir
 (Get-Process -Id $PID).PriorityClass = 'BelowNormal'
 autoninja -j 12 -C $outDir chrome mini_installer

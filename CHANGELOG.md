@@ -20,6 +20,10 @@ Each release lists:
   profile. The keyring entry stays `Chromium Safe Storage`, as in Thorium, so passwords in a copied profile
   stay readable. Upstream's developer test shell and prebuilt `pak` tool are not packaged. Not yet built on
   Linux.
+- Release build configuration reviewed for privacy (ROADMAP **P2.17**): `tools/build/release_args.py`
+  builds the release `args.gn` from upstream's and turns off Google's RLZ promotion-tracking library and the
+  DRM storage ID that upstream enabled, never bundles Widevine and refuses Google API keys. Every choice
+  and its reason is in `docs/build/RELEASE_ARGS.md`.
 - Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 150 patches, 0 unknown,
   6 that still need the author's permission or a rewrite (was 8). The policy templates patch was rewritten
   without the unlicensed code, and the two new upstream patches were researched (both Thorium,
