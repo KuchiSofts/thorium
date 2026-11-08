@@ -452,6 +452,9 @@ The installer, and later Settings, shows **"Import from…"** with:
   - Not bundling proprietary Widevine (below) keeps this clean.
   - The builder produces a license inventory of every patch source, and flags any patch whose license
     is unknown or incompatible. Such a patch is rewritten or dropped **before release**.
+  - Code whose author publishes no licence counts as not licensed: it needs the author's written
+    permission or a clean rewrite before release. GPL-2.0-only code is incompatible with the GPLv3
+    patches and is never taken. The 2026-11-08 research is in `docs/legal/PATCH_ORIGINS.md`.
 - **Disclaimer** in the README, installer and About page: "Thoron is an independent browser by
   KuchiSofts, based on Thorium by Alex313031 and Chromium by The Chromium Authors. It is not affiliated
   with or endorsed by the Thorium project or Google."
@@ -629,6 +632,7 @@ reproduced Thorium M156 build:
 | Docs | Every change updates README, ROADMAP, CHANGELOG and every affected `.md` |
 | Roadmap | `ROADMAP.md` must be highly detailed |
 | Work order (2026-11-08) | Windows first, then Linux: the owner deferred the Linux build tasks and resumed them the same day; both M156 builds are reproduced. Ubuntu stays a target platform |
+| Patch licences (2026-11-08) | All 152 M156 patches researched: 6 GPL-3.0 (Cromite, Bromite), the rest BSD, MIT or public domain; 8 use code from authors with no published licence and need permission or a rewrite before the first release (L.1) |
 | Rename order (2026-11-08) | The Thoron identity is done first on M156, before the Chromium 158 rebase, by a re-appliable tool; the owner's Thorium profile moves to Thoron by verified copy (§7.7) and Thorium stays as an untouched backup |
 | Repository binaries (2026-11-07) | No prebuilt or proprietary binaries in the repository (ROADMAP **L.6**); purging them from history (**L.7**) waits for the owner's decision |
 

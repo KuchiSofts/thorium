@@ -109,5 +109,83 @@ class PatchLicenseTests(unittest.TestCase):
             shutil.rmtree(tmp)
 
 
+RESEARCH = ("patch\torigin\tlicense\tevidence\n"
+            "# comment lines and blank lines are ignored\n\n"
+            "mystery.patch\tThorium (Alex313031)\tBSD-3-Clause\tno match in the compared projects\n"
+            "bromite-thing.patch\tCromite\tGPL-3.0\t120 of 130 added lines identical to Cromite X.patch\n"
+            "unclear.patch\tChromium_Clang (RobRich999)\tNOT STATED\tauthor publishes no licence\n")
+
+
+class ResearchTests(unittest.TestCase):
+    def setUp(self):
+        self.projects = pl.load_projects(CREDITS)
+        self.research = pl.load_research(RESEARCH)
+
+    def test_load_research_reads_rows(self):
+        self.assertEqual(set(self.research), {"mystery.patch", "bromite-thing.patch", "unclear.patch"})
+        self.assertEqual(self.research["unclear.patch"]["license"], "NOT STATED")
+
+    def test_load_research_rejects_bad_rows(self):
+        bad = ("patch\torigin\tlicense\tevidence\nx.patch\tA\tBSD-3-Clause\n",                       # missing column
+               "patch\torigin\tlicense\tevidence\nx.patch\tA\tPublic-ish\te\n",                      # not an allowed licence
+               "patch\torigin\tlicense\tevidence\nx.patch\tA\tMIT\te\nx.patch\tB\tMIT\te\n",          # duplicate
+               "patch\torigin\tlicense\tevidence\nx.patch\tA\tMIT\tsee " + chr(0x2014) + " here\n",    # long dash
+               "patch\torigin\tlicense\tevidence\nx.patch\tA\tUNKNOWN\te\n")                          # research never says UNKNOWN
+        for text in bad:
+            with self.assertRaises(ValueError, msg=text):
+                pl.load_research(text)
+
+    def test_research_beats_patches_md_but_not_the_header(self):
+        row = pl.classify("diff\n", PATCHES_MD, "bromite-thing.patch", self.projects, self.research)
+        self.assertEqual((row["origin"], row["license"]), ("Cromite", "GPL-3.0"))
+        self.assertTrue(row["evidence"].startswith("research: "))
+        row = pl.classify("diff\n", PATCHES_MD, "mystery.patch", self.projects, self.research)
+        self.assertEqual(row["license"], "BSD-3-Clause")
+        header = "License: MIT\n---\n"
+        self.assertEqual(pl.classify(header, PATCHES_MD, "mystery.patch", self.projects, self.research)["license"], "MIT")
+
+    def test_not_stated_project_licence_is_kept_distinct(self):
+        projects = pl.load_projects("| Chromium_Clang (RobRich999) | https://github.com/RobRich999/Chromium_Clang | not stated |\n")
+        self.assertEqual(projects["Chromium_Clang (RobRich999)"]["license"], "NOT STATED")
+
+    def test_not_stated_is_flagged_in_the_table(self):
+        row = pl.classify("diff\n", PATCHES_MD, "unclear.patch", self.projects, self.research)
+        table = pl.render_table([row])
+        self.assertIn("**NOT STATED**", table)
+        self.assertIn("NOT STATED: 1", table)
+
+    def test_main_fails_on_not_stated_and_on_stale_research(self):
+        tmp = Path(tempfile.mkdtemp(prefix="thoron-test-"))
+        try:
+            tree = tmp / "tree"
+            (tree / "patch_scripts" / "series").mkdir(parents=True)
+            (tree / "docs").mkdir()
+            (tree / "other").mkdir()
+            (tree / "docs" / "PATCHES.md").write_text(PATCHES_MD, encoding="utf-8")
+            for n in ("mystery.patch", "unclear.patch"):
+                (tree / "other" / n).write_text("diff\n", encoding="utf-8")
+            (tmp / "CREDITS.md").write_text(CREDITS, encoding="utf-8")
+            research = tmp / "origins.tsv"
+            series = tree / "patch_scripts" / "series" / "series"
+            args = ["--tree", str(tree), "--credits", str(tmp / "CREDITS.md"), "--out", str(tmp / "out.md"),
+                    "--research", str(research)]
+            series.write_text("chrome: other/mystery.patch\n", encoding="utf-8")
+            research.write_text("patch\torigin\tlicense\tevidence\nmystery.patch\tThorium\tBSD-3-Clause\te\n", encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(pl.main(args), 0)
+            series.write_text("chrome: other/mystery.patch\nchrome: other/unclear.patch\n", encoding="utf-8")
+            research.write_text(RESEARCH.replace("bromite-thing.patch\tCromite\tGPL-3.0\t120 of 130 added lines identical to Cromite X.patch\n", ""),
+                                encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(pl.main(args), 1)                 # NOT STATED blocks a release
+            research.write_text(RESEARCH, encoding="utf-8")         # names bromite-thing.patch, not in the series
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(pl.main(args), 1)
+            self.assertIn("bromite-thing.patch", out.getvalue())   # stale research row is reported
+        finally:
+            shutil.rmtree(tmp)
+
+
 if __name__ == "__main__":
     unittest.main()
