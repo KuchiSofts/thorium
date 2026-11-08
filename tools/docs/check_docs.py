@@ -47,7 +47,8 @@ EMAIL_ALLOWED_RE = re.compile(
 # Files we author. Upstream docs are reference material: they legitimately contain upstream
 # maintainers' public paths/emails and some pre-existing broken links (tracked in ROADMAP D.3).
 OWNED_DOC_GLOBS = ("README.md", "ROADMAP.md", "CHANGELOG.md", "CREDITS.md", "SECURITY.md",
-                   "CONTRIBUTING.md", "docs/design/**/*.md", "tools/**/*.md", "branding/**/*.md")
+                   "CONTRIBUTING.md", "docs/design/**/*.md", "docs/legal/**/*.md", "docs/build/**/*.md",
+                   "tools/**/*.md", "branding/**/*.md")
 OWNED_PRIVATE_GLOBS = OWNED_DOC_GLOBS + ("NOTICE", ".gitignore", "tools/**/*.py", "branding/**/*.svg",
                                          "branding/**/*.html")
 LINK_GLOBS = OWNED_DOC_GLOBS + ("docs/upstream/**/*.md",)

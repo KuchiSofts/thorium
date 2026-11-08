@@ -7,7 +7,7 @@ Thoron aims to be the fastest, smartest and most secure Thorium-based browser fo
 - never touching user data;
 - with full credit to everyone it builds on.
 
-**Last updated:** 2026-11-07
+**Last updated:** 2026-11-08
 **Status legend:** ⬜ todo · 🔄 in progress · ✅ done · ⛔ blocked
 
 Design (the "why" behind every item): [`docs/design/2026-11-07-thoron-design.md`](docs/design/2026-11-07-thoron-design.md) ·
@@ -40,7 +40,7 @@ Changes: [`CHANGELOG.md`](CHANGELOG.md) · Credits: [`CREDITS.md`](CREDITS.md)
 | Phase | Goal | Status | Exit criteria | Depends on |
 |---|---|---|---|---|
 | [P0](#p0---foundation) | Repository foundation: docs, credits, tooling, brand | ✅ | P0.1-P0.11 done; owner approved push | - |
-| [P1](#p1---build-environment) | Reproduce upstream M156 from source on Windows and Linux; measure | ⬜ | M156 builds reproduced on both OSes; MV2 verdict; licence inventory complete | P0 |
+| [P1](#p1---build-environment) | Reproduce upstream M156 from source on Windows and Linux; measure (Windows first; Linux deferred by the owner) | 🔄 | M156 builds reproduced on both OSes; MV2 verdict; licence inventory complete | P0 |
 | [P2](#p2---first-release) | First Thoron release on Chromium 158 (x64) | ⬜ | Signed draft release with full changelog, published by the owner | P1 |
 | [P2b](#p2b---arm64) | ARM64 builds for Windows and Linux | ⬜ | ARM64 releases published (beta until device-tested) | P2 |
 | [P3](#p3---updater-v1--import) | Updater v1 (full packages) and import from other browsers, including tabs and tab groups | ⬜ | Safe update and rollback; import from the Chromium family | P2 |
@@ -74,16 +74,16 @@ and the Thoron icon.
 risks before changing anything.
 **Also in this phase:** L.1 (licence inventory), Q.1 and Q.2 (benchmark suite and baselines).
 
-- [ ] **P1.1** Windows toolchain: Visual Studio 2022 (Desktop C++, ATL/MFC), Windows 11 SDK 10.0.22621.x plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive - *Role:* Release engineer · *Depends:* P0 · *Done when:* `gn gen` succeeds for stock Chromium 156; tool versions recorded in `docs/build/WINDOWS.md`
-- [ ] **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots - *Role:* Release engineer · *Depends:* P0 · *Done when:* `gn gen` succeeds for linux-x64 and linux-arm64 targets; recorded in `docs/build/LINUX.md`
-- [ ] **P1.3** Branch `ks/M156` from gz83 tag `M156.0.8078.28` (`de9a1bc6`); fetch Chromium 156.0.8078.28; apply the upstream patch series - *Role:* Chromium engineer · *Depends:* P1.1 · *Done when:* the series applies with 0 rejects; the apply log is kept
-- [ ] **P1.4** Reproduce the Windows x64 AVX2 build of M156 - *Role:* Release engineer · *Depends:* P1.3 · *Done when:* the build launches with a fresh `--user-data-dir`; build time and disk use recorded
-- [ ] **P1.5** Reproduce the Linux x64 build of M156 in WSL2 - *Role:* Release engineer · *Depends:* P1.2, P1.3 · *Done when:* it launches under WSLg **with the sandbox enabled** (never `--no-sandbox`)
-- [ ] **P1.6** `BUILDINFO.json` generator: Chromium tag, Thoron commit, depot_tools revision, VS/SDK versions, GN args hash, build time - *Role:* Release engineer · *Depends:* P1.4 · *Done when:* the generator has unit tests, and its output is attached to each build
-- [ ] **P1.7** Smoke-test harness (`tools/qa/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps - *Role:* QA engineer · *Depends:* P1.4, P1.5 · *Done when:* it exits 0 on both M156 builds and fails on an injected crash
-- [ ] **P1.8** Manifest V2 / uBlock Origin viability on Chromium 158: apply the MV2 patches to 158 and load uBO 1.75 - *Role:* Chromium engineer · *Depends:* P1.3 · *Done when:* a verdict (works / needs patches X / fails) is recorded in design §10; it feeds P5.2
+- [x] **P1.1** Windows toolchain: Visual Studio 2026 (Desktop C++, ATL/MFC), Windows SDK 10.0.28000 plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive that is not cloud-synced - *Role:* Release engineer · *Depends:* P0 · *Done when:* `gn gen` succeeds for stock Chromium 156; tool versions recorded in `docs/build/WINDOWS.md` · ✅ 2026-11-07
+- [ ] **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots - *Role:* Release engineer · *Depends:* P0 · *Done when:* `gn gen` succeeds for linux-x64 and linux-arm64 targets; recorded in `docs/build/LINUX.md` · ⏸ deferred by the owner (Windows first, 2026-11-08); a dedicated Ubuntu 24.04 distro is already installed
+- [x] **P1.3** Local-only worktree of gz83 tag `M156.0.8078.28` (`de9a1bc6`, never pushed); fetch Chromium 156.0.8078.28; apply the upstream patch series - *Role:* Chromium engineer · *Depends:* P1.1 · *Done when:* the series applies with 0 rejects; the apply log is kept · 149 of 152 patches apply cleanly for the AVX2 profile (the other 3 are SSE2/Raspberry Pi only) · ✅ 2026-11-07
+- [x] **P1.4** Reproduce the Windows x64 AVX2 build of M156 - *Role:* Release engineer · *Depends:* P1.3 · *Done when:* the build launches with a fresh `--user-data-dir`; build time and disk use recorded · 2 h 35 min, 12.4 GB output, smoke test passed (`docs/build/BUILD_BUDGET.md`) · ✅ 2026-11-08
+- [ ] **P1.5** Reproduce the Linux x64 build of M156 in WSL2 - *Role:* Release engineer · *Depends:* P1.2, P1.3 · *Done when:* it launches under WSLg **with the sandbox enabled** (never `--no-sandbox`) · ⏸ deferred by the owner (Windows first, 2026-11-08)
+- [x] **P1.6** `BUILDINFO.json` generator: Chromium tag, Thoron commit, depot_tools revision, VS/SDK versions, GN args hash, build time - *Role:* Release engineer · *Depends:* P1.4 · *Done when:* the generator has unit tests, and its output is attached to each build · ✅ 2026-11-07
+- [ ] **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps - *Role:* QA engineer · *Depends:* P1.4, P1.5 · *Done when:* it exits 0 on both M156 builds and fails on an injected crash · passes on the Windows M156 build (all six capabilities, no crash dumps); Linux pending · 🔄
+- [x] **P1.8** Manifest V2 / uBlock Origin viability on Chromium 158: apply the MV2 patches to 158 and load uBO 1.75 - *Role:* Chromium engineer · *Depends:* P1.3 · *Done when:* a verdict (works / needs patches X / fails) is recorded in design §10; it feeds P5.2 · verdict in design §10.1: MV2 itself works on 158 (a minimal MV2 blocker blocks every request); uBlock Origin 1.75.4 hangs at start-up because `chrome.storage.managed.get` never answers on the 158 test build (follow-up **P2.18**); rebase report in `docs/build/M158_REBASE_REPORT.md` · ✅ 2026-11-08
 - [ ] **P1.9** Thoron build docs written from scratch and followed end-to-end - *Role:* Docs maintainer · *Depends:* P1.4, P1.5 · *Done when:* a fresh setup that follows only `docs/build/*` succeeds
-- [ ] **P1.10** Release build-matrix time budget (Windows/Linux × AVX2/SSE4, plus ARM64) against the G2 targets - *Role:* Release engineer · *Depends:* P1.4, P1.5 · *Done when:* measured times and a plan (which variants, which order, a second machine?) are documented
+- [ ] **P1.10** Release build-matrix time budget (Windows/Linux × AVX2/SSE4, plus ARM64) against the G2 targets - *Role:* Release engineer · *Depends:* P1.4, P1.5 · *Done when:* measured times and a plan (which variants, which order, a second machine?) are documented · Windows AVX2 measured, draft plan in `docs/build/BUILD_BUDGET.md`; Linux pending · 🔄
 
 ## P2 - First release
 
@@ -106,7 +106,10 @@ full changelog.
 - [ ] **P2.12** Release script `tools/release/release.py`: build matrix → package → `SHA256SUMS` → sign → `BUILDINFO` → **draft** GitHub release - *Role:* Release engineer · *Depends:* P1.6, P2.8, P2.9, P2.11 · *Done when:* a dry run produces the complete artifact set; publishing requires an explicit owner action
 - [ ] **P2.13** `tools/release/changelog.py`: release notes generated from commit prefixes, upstream merges (author-credited), the Chromium version diff and security fixes (CVE and severity), patch changes, and issues - *Role:* Release engineer · *Depends:* P2.1 · *Done when:* tested on fixture repos; the owner reviews the generated notes for 158
 - [ ] **P2.14** Version scheme for Thoron rebuilds of the same Chromium version (4-part numeric, Windows-installer compatible) - *Role:* Release engineer · *Depends:* P2.1 · *Done when:* the scheme is documented in design §14 and enforced by the release script
-- [ ] **P2.15** First draft release, Thoron 158.x (Windows x64 and Linux x64) - *Role:* Owner / Release engineer · *Depends:* P2.1-P2.14, B.3, L.1, L.2, Q.3 · *Done when:* smoke tests pass on both OSes; benchmarks are recorded against Thorium M156 and Chrome 158; the owner publishes
+- [ ] **P2.15** First draft release, Thoron 158.x (Windows x64 and Linux x64) - *Role:* Owner / Release engineer · *Depends:* P2.1-P2.14, P2.16-P2.18, B.3, L.1, L.2, Q.3 · *Done when:* smoke tests pass on both OSes; benchmarks are recorded against Thorium M156 and Chrome 158; the owner publishes
+- [ ] **P2.16** No silent Web Store installs: Thorium's default apps install uBlock Origin from the Chrome Web Store into every new profile, contacting Google when the profile is created; Thoron ships its bundled, SHA-256-pinned uBlock Origin instead and installs nothing from the network without the user's consent - *Role:* Security researcher · *Depends:* P2.1 · *Done when:* a test shows a fresh profile makes no extension download request and has the bundled uBlock Origin
+- [ ] **P2.17** Privacy review of the inherited build configuration, for example `enable_rlz = true` (Google's promotional RLZ library) and any other upstream GN arg that adds network contact or tracking - *Role:* Security researcher · *Depends:* P2.1 · *Done when:* every such arg is set deliberately, with its reason recorded next to the release build configuration
+- [ ] **P2.18** uBlock Origin runs on 158: check whether `chrome.storage.managed.get` also hangs in the release configuration and for normally installed extensions; fix it (patch or configuration); verify cosmetic filtering with a normally installed extension in a visible window - *Role:* Chromium engineer · *Depends:* P1.8, P2.1 · *Done when:* `tools/build/mv2_check.py` reports "works" for the bundled uBlock Origin on the release build
 
 ## P2b - ARM64
 
@@ -205,6 +208,7 @@ long term.
 - [ ] **Q.4** Memory-leak soak test (8 h of tab churn; memory-growth threshold) - *Role:* QA engineer · *Depends:* Q.1 · *Done when:* it runs before every release with a pass/fail threshold
 - [ ] **Q.5** Crash triage process (local Crashpad dumps; symbol publication decision) - *Role:* QA engineer · *Depends:* P2.15 · *Done when:* the process document and symbol decision are recorded
 - [ ] **Q.6** Test VMs: Windows 11 x64, Ubuntu 24.04 and 26.04 x64, clean snapshots - *Role:* QA engineer · *Depends:* P1 · *Done when:* the VMs restore to a clean state in one step
+- [x] **Q.7** Profile compatibility gate: a new version is first started offline on a copy of real profiles, and `tools/qa/profile_check.py` must report 1:1 (windows, tabs, pinned tabs, tab groups with names and colours, saved passwords, bookmarks, enabled extensions, cookies within normal expiry, cookie encryption unchanged, no new app-bound key); it never decrypts or prints secrets - *Role:* QA engineer · *Depends:* P1.4 · *Done when:* the tool has tests and a real Thorium 150 profile passed it on the M156 build · ✅ 2026-11-08
 
 ### Docs (D)
 - [ ] **D.1** Keep README, ROADMAP, CHANGELOG, CREDITS, NOTICE and docs current on every change (definition of done) - *Role:* Docs maintainer · *Depends:* - · *Done when:* ongoing; `check_docs` passes on every commit · 🔄
@@ -216,7 +220,7 @@ long term.
 - [x] **D.7** README shows the live roadmap: overall progress, per-phase bars, what's next and the full task list, generated from this file by `tools/docs/roadmap_progress.py`; `check_docs` fails if it is stale, and validates every heading anchor - *Role:* Docs maintainer · *Depends:* P0.6 · *Done when:* the README section is generated and enforced · ✅ 2026-11-07
 
 ### Legal & licensing (L)
-- [ ] **L.1** Licence inventory of every patch (origin, author, licence); resolve pending sources (Debian, chromium-ubuntu-build, Vanadium, Supermium); rewrite or drop anything incompatible - *Role:* Security researcher · *Depends:* P1.3 · *Done when:* an inventory table covers 100% of the patches; `NOTICE` has no "pending" entries
+- [ ] **L.1** Licence inventory of every patch (origin, author, licence); resolve pending sources (Debian, chromium-ubuntu-build, Vanadium, Supermium); rewrite or drop anything incompatible - *Role:* Security researcher · *Depends:* P1.3 · *Done when:* an inventory table covers 100% of the patches; `NOTICE` has no "pending" entries · 152 inventoried in `docs/legal/PATCH_LICENSES.md`: 29 confirmed, 123 to research · 🔄
 - [ ] **L.2** GPL compliance per release: source tag and Chromium tag in `BUILDINFO`, GPL text in the licence bundle, notes in the release - *Role:* Release engineer · *Depends:* L.1, P2.12 · *Done when:* the release script refuses to build a release without them
 - [ ] **L.3** Regenerate contributors and update `NOTICE` and `CREDITS` every release - *Role:* Docs maintainer · *Depends:* P0.4 · *Done when:* this is a step in the release script
 - [ ] **L.4** Courtesy note to Alex313031 and gz83 introducing Thoron and its credits - *Role:* Owner · *Depends:* P0.11 · *Done when:* the owner has sent it (the owner decides wording and timing)
@@ -285,6 +289,7 @@ Upstream Thorium issues that Thoron will address, and where.
     authors, patch changes, fixed and known issues, checksums, and credits.
 - **Release gates:**
   - smoke tests pass;
+  - the profile compatibility check passes on real profiles (Q.7);
   - no unexplained benchmark regression;
   - the audit of upstream changes has been reviewed;
   - the docs are current.

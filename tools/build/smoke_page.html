@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file. -->
+<!-- Thoron smoke-test page: local checks only, no network. smoke.py fills in the JPEG XL sample. -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Thoron smoke test</title></head>
+<body>
+<img id="jxl" alt="" src="data:image/jxl;base64,__JXL_BASE64__">
+<pre id="result">{}</pre>
+<script>
+  window.addEventListener("load", function () {
+    var r = { js: true, ua: navigator.userAgent };
+    try {
+      var canvas = document.createElement("canvas");
+      r.webgl = !!(canvas.getContext("webgl2") || canvas.getContext("webgl"));
+    } catch (e) { r.webgl = false; }
+    var video = document.createElement("video");
+    function supported(type) {
+      var mse = window.MediaSource && MediaSource.isTypeSupported(type);
+      return !!(mse || video.canPlayType(type) === "probably");
+    }
+    r.h264 = supported('video/mp4; codecs="avc1.42E01E"');
+    r.hevc = supported('video/mp4; codecs="hvc1.1.6.L93.B0"');
+    r.av1 = supported('video/mp4; codecs="av01.0.05M.08"');
+    var img = document.getElementById("jxl");
+    r.jxl = img.complete && img.naturalWidth > 0;
+    document.getElementById("result").textContent = JSON.stringify(r);
+  });
+</script>
+</body>
+</html>

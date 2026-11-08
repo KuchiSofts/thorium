@@ -508,6 +508,34 @@ The installer, and later Settings, shows **"Import from…"** with:
     say so.
 - **Measure early:** Manifest V2 viability is measured in **P1** on Chromium 158, not in P5.
 
+### 10.1 Verdict on Chromium 158 (P1.8, 2026-11-08)
+
+**Needs work, but Manifest V2 itself is viable.** Measured with `tools/build/mv2_check.py` (offline,
+fresh profiles, sandbox on, a control run without the extension) on Chromium 158.0.8127.30 with
+only upstream's `allow_manifest_v2_extensions.patch` applied (it applies cleanly), against the
+reproduced Thorium M156 build:
+
+| Test | Thorium M156 | Chromium 158 + MV2 patch |
+|---|---|---|
+| Minimal MV2 extension: persistent background page, blocking `webRequest` | blocks every request | blocks every request |
+| uBlock Origin 1.75.4 (gorhill CRX, signature verified), network filtering | works (blocks, swaps in its stand-in script) | **does nothing** |
+| `chrome.storage.managed.get` from an extension with a managed schema | answers | **never answers** |
+
+- **Root cause found:** at start-up uBlock Origin first reads its admin settings from managed
+  storage. On the 158 test build that call never answers, so uBlock waits forever without an error:
+  its filter engine is never built (no storage written) and nothing is blocked. Every other start-up
+  call it makes (`storage.local`, IndexedDB, `tabs.query`) answers normally.
+- **Open question:** the 158 test build is a development configuration (component build, not
+  official), while the M156 build is a release build. Whether the managed-storage hang also happens
+  in a 158 release build, or only for extensions loaded from the command line, is checked first in
+  **P2.1**, where the release configuration is built anyway. The fix is either that answer or a
+  small patch in the managed-storage path; tracked as ROADMAP **P2.18**.
+- **Cosmetic filtering** could not be observed in headless runs on either version (no element
+  hiding, even with highly generic EasyList rules); it needs a test with a normally installed
+  extension in a visible window (**P2.18**).
+- **Thorium's default apps** install the Web Store copy of uBlock Origin into every new profile;
+  Thoron replaces that with the bundled copy (**P2.16**).
+
 ## 11. Security program
 
 - **Before every upstream merge:** run the audit tools, committed under `tools/audit/`:
@@ -600,6 +628,8 @@ The installer, and later Settings, shows **"Import from…"** with:
 | Priorities | Security first; never lose user data; always credit and never infringe copyright |
 | Docs | Every change updates README, ROADMAP, CHANGELOG and every affected `.md` |
 | Roadmap | `ROADMAP.md` must be highly detailed |
+| Work order (2026-11-08) | Windows first. Linux work (ROADMAP **P1.2**, **P1.5** and the Linux halves of **P1.7**, **P1.9**, **P1.10**) is deferred until the owner resumes it; Ubuntu stays a target platform |
+| Repository binaries (2026-11-07) | No prebuilt or proprietary binaries in the repository (ROADMAP **L.6**); purging them from history (**L.7**) waits for the owner's decision |
 
 No open questions remain. Anything further found during planning is either a builder decision (§14)
 or comes back to the owner as a single batch.

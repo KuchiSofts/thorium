@@ -6,7 +6,7 @@
 
 **A fast, secure, Thorium-based browser for Windows 11 and Ubuntu.**
 
-[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-16%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
+[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-20%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
 
 [Why Thoron](#why-thoron) · [Features](#features) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits)
 
@@ -54,31 +54,31 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `███░░░░░░░░░░░░░░░░░` 19 of 119 tasks done (16%) · roadmap updated 2026-11-07
+**Overall:** `████░░░░░░░░░░░░░░░░` 25 of 123 tasks done (20%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
 | [P0 - Foundation](ROADMAP.md#p0---foundation) | `████████████████████` | 11/11 | ✅ Done |
-| [P1 - Build environment](ROADMAP.md#p1---build-environment) | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | ⬜ Not started |
-| [P2 - First release](ROADMAP.md#p2---first-release) | `░░░░░░░░░░░░░░░░░░░░` | 0/15 | ⬜ Not started |
+| [P1 - Build environment](ROADMAP.md#p1---build-environment) | `██████████░░░░░░░░░░` | 5/10 | 🔄 In progress |
+| [P2 - First release](ROADMAP.md#p2---first-release) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
 | [P5 - Quality](ROADMAP.md#p5---quality) | `░░░░░░░░░░░░░░░░░░░░` | 0/12 | ⬜ Not started |
 | [Security (S)](ROADMAP.md#security-s) | `██████░░░░░░░░░░░░░░` | 4/13 | 🔄 In progress |
-| [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | ⬜ Not started |
+| [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Branding (B)](ROADMAP.md#branding-b) | `██████████░░░░░░░░░░` | 2/4 | 🔄 In progress |
 
 **What's next**
 
-- ⬜ **P1.1** Windows toolchain: Visual Studio 2022 (Desktop C++, ATL/MFC), Windows 11 SDK 10.0.22621.x plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive
+- 🔄 **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
+- 🔄 **P1.10** Release build-matrix time budget (Windows/Linux × AVX2/SSE4, plus ARM64) against the G2 targets
 - ⬜ **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
-- ⬜ **P1.3** Branch `ks/M156` from gz83 tag `M156.0.8078.28` (`de9a1bc6`); fetch Chromium 156.0.8078.28; apply the upstream patch series
-- ⬜ **P1.4** Reproduce the Windows x64 AVX2 build of M156
 - ⬜ **P1.5** Reproduce the Linux x64 build of M156 in WSL2
-- ⬜ **P1.6** `BUILDINFO.json` generator: Chromium tag, Thoron commit, depot_tools revision, VS/SDK versions, GN args hash, build time
+- ⬜ **P1.9** Thoron build docs written from scratch and followed end-to-end
+- ⬜ **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
 
 <details>
 <summary><b>Full task list</b> (generated from <a href="ROADMAP.md">ROADMAP.md</a>)</summary>
@@ -99,14 +99,14 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 **P1 - Build environment**
 
-- [ ] **P1.1** Windows toolchain: Visual Studio 2022 (Desktop C++, ATL/MFC), Windows 11 SDK 10.0.22621.x plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive
+- [x] **P1.1** Windows toolchain: Visual Studio 2026 (Desktop C++, ATL/MFC), Windows SDK 10.0.28000 plus Debugging Tools, pinned depot_tools, NTFS checkout on a fast local drive that is not cloud-synced
 - [ ] **P1.2** Linux toolchain in WSL2 Ubuntu 24.04: ext4 disk of at least 150 GB, `install-build-deps`, x64 and arm64 sysroots
-- [ ] **P1.3** Branch `ks/M156` from gz83 tag `M156.0.8078.28` (`de9a1bc6`); fetch Chromium 156.0.8078.28; apply the upstream patch series
-- [ ] **P1.4** Reproduce the Windows x64 AVX2 build of M156
+- [x] **P1.3** Local-only worktree of gz83 tag `M156.0.8078.28` (`de9a1bc6`, never pushed); fetch Chromium 156.0.8078.28; apply the upstream patch series
+- [x] **P1.4** Reproduce the Windows x64 AVX2 build of M156
 - [ ] **P1.5** Reproduce the Linux x64 build of M156 in WSL2
-- [ ] **P1.6** `BUILDINFO.json` generator: Chromium tag, Thoron commit, depot_tools revision, VS/SDK versions, GN args hash, build time
-- [ ] **P1.7** Smoke-test harness (`tools/qa/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
-- [ ] **P1.8** Manifest V2 / uBlock Origin viability on Chromium 158: apply the MV2 patches to 158 and load uBO 1.75
+- [x] **P1.6** `BUILDINFO.json` generator: Chromium tag, Thoron commit, depot_tools revision, VS/SDK versions, GN args hash, build time
+- [ ] **P1.7** Smoke-test harness (`tools/build/smoke.py`): fresh profile; local pages for JS, WebGL, H.264/HEVC/AV1 video, JPEG XL; no crash dumps
+- [x] **P1.8** Manifest V2 / uBlock Origin viability on Chromium 158: apply the MV2 patches to 158 and load uBO 1.75
 - [ ] **P1.9** Thoron build docs written from scratch and followed end-to-end
 - [ ] **P1.10** Release build-matrix time budget (Windows/Linux × AVX2/SSE4, plus ARM64) against the G2 targets
 
@@ -127,6 +127,9 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P2.13** `tools/release/changelog.py`: release notes generated from commit prefixes, upstream merges (author-credited), the Chromium version diff and security fixes (CVE and severity), patch changes, and issues
 - [ ] **P2.14** Version scheme for Thoron rebuilds of the same Chromium version (4-part numeric, Windows-installer compatible)
 - [ ] **P2.15** First draft release, Thoron 158.x (Windows x64 and Linux x64)
+- [ ] **P2.16** No silent Web Store installs: Thorium's default apps install uBlock Origin from the Chrome Web Store into every new profile, contacting Google when the profile is created; Thoron ships its bundled, SHA-256-pinned uBlock Origin instead and installs nothing from the network without the user's consent
+- [ ] **P2.17** Privacy review of the inherited build configuration, for example `enable_rlz = true` (Google's promotional RLZ library) and any other upstream GN arg that adds network contact or tracking
+- [ ] **P2.18** uBlock Origin runs on 158: check whether `chrome.storage.managed.get` also hangs in the release configuration and for normally installed extensions; fix it (patch or configuration); verify cosmetic filtering with a normally installed extension in a visible window
 
 **P2b - ARM64**
 
@@ -210,6 +213,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **Q.4** Memory-leak soak test (8 h of tab churn; memory-growth threshold)
 - [ ] **Q.5** Crash triage process (local Crashpad dumps; symbol publication decision)
 - [ ] **Q.6** Test VMs: Windows 11 x64, Ubuntu 24.04 and 26.04 x64, clean snapshots
+- [x] **Q.7** Profile compatibility gate: a new version is first started offline on a copy of real profiles, and `tools/qa/profile_check.py` must report 1:1 (windows, tabs, pinned tabs, tab groups with names and colours, saved passwords, bookmarks, enabled extensions, cookies within normal expiry, cookie encryption unchanged, no new app-bound key); it never decrypts or prints secrets
 
 **Docs (D)**
 
@@ -276,8 +280,10 @@ the checksum and signature as shown above.
 
 ## Building
 
-Thoron's own build guides arrive in phase **P1**. Until then, the Thorium guides apply:
-[Windows](docs/BUILDING_WIN.md) · [Linux](docs/BUILDING.md).
+Thoron's own build guides are being written in phase **P1**, as each step is verified:
+[Windows 11](docs/build/WINDOWS.md) (toolchain, source, build and smoke test), with measured build
+times in [`BUILD_BUDGET.md`](docs/build/BUILD_BUDGET.md). Until they are complete, the
+Thorium guides cover the rest: [Windows](docs/BUILDING_WIN.md) · [Linux](docs/BUILDING.md).
 
 The repository tooling (audit, docs and credits checks) needs only Python 3.11+:
 
