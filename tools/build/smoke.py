@@ -14,6 +14,7 @@ import argparse
 import base64
 import html
 import json
+import os
 import re
 import subprocess
 import sys
@@ -103,22 +104,83 @@ def sandbox_report(browser_pid: int, list_processes, integrity) -> list[str]:
     return problems
 
 
+def _linux_processes() -> list[dict]:
+    procs = []
+    for d in Path("/proc").iterdir():
+        if not d.name.isdigit():
+            continue
+        try:
+            stat = (d / "stat").read_text()
+            ppid = int(stat.rsplit(")", 1)[1].split()[1])
+            cmd = (d / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
+            procs.append({"pid": int(d.name), "ppid": ppid, "cmd": cmd})
+        except (OSError, ValueError, IndexError):
+            continue
+    return procs
+
+
+def _linux_proc_info(pid: int) -> dict | None:
+    try:
+        status = Path(f"/proc/{pid}/status").read_text()
+        seccomp = int(re.search(r"^Seccomp:\s*(\d+)", status, re.M).group(1))
+        return {"seccomp": seccomp, "pidns": os.readlink(f"/proc/{pid}/ns/pid")}
+    except (OSError, AttributeError, ValueError):
+        return None
+
+
+def linux_sandbox_report(browser_pid: int, list_processes, proc_info) -> list[str]:
+    """Linux: every renderer must run under a seccomp-BPF filter (Seccomp: 2) and in its own PID
+    namespace (not the browser's), and no child may carry --no-sandbox."""
+    procs = list_processes()
+    children: dict[int, list[dict]] = {}
+    for p in procs:
+        children.setdefault(p["ppid"], []).append(p)
+    tree, todo = [], [browser_pid]
+    while todo:
+        for child in children.get(todo.pop(), []):
+            if child["pid"] != browser_pid and child not in tree:
+                tree.append(child)
+                todo.append(child["pid"])
+    problems = [f"process {p['pid']} runs with --no-sandbox" for p in tree if "--no-sandbox" in p["cmd"]]
+    renderers = [p for p in tree if "--type=renderer" in p["cmd"]]
+    if not renderers:
+        problems.append("no renderer process found, so the sandbox could not be checked")
+    browser = proc_info(browser_pid)
+    for r in renderers:
+        info = proc_info(r["pid"])
+        if info is None or browser is None:
+            problems.append(f"renderer {r['pid']}: sandbox state could not be read")
+            continue
+        if info["seccomp"] != 2:
+            problems.append(f"renderer {r['pid']} has no seccomp-BPF filter (Seccomp: {info['seccomp']})")
+        if info["pidns"] == browser["pidns"]:
+            problems.append(f"renderer {r['pid']} shares the browser's PID namespace (no namespace sandbox)")
+    return problems
+
+
 def check_sandbox(browser: Path, work_dir: Path, settle_s: float = 5.0) -> list[str]:
     """Start the browser (headless, fresh profile, about:blank) and inspect its live process tree."""
-    import os
     import time
-    if os.name != "nt":
-        return []   # Linux: checked when the Linux build resumes (ROADMAP P1.5)
+    windows = os.name == "nt"
     profile = Path(tempfile.mkdtemp(prefix="sandbox-", dir=work_dir))
     proc = subprocess.Popen([str(browser), "--headless=new", f"--user-data-dir={profile}", "--no-first-run",
                              "--no-default-browser-check", "about:blank"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=not windows)
     try:
         time.sleep(settle_s)
-        return sandbox_report(proc.pid, _list_processes, _integrity_rid)
+        if windows:
+            return sandbox_report(proc.pid, _list_processes, _integrity_rid)
+        return linux_sandbox_report(proc.pid, _linux_processes, _linux_proc_info)
     finally:
         for _ in range(3):        # closing must never hide the result; try a few times, then move on
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+            if windows:
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+            else:
+                import signal
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except OSError:
+                    pass
             try:
                 proc.wait(timeout=20)
                 break
