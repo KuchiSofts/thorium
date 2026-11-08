@@ -58,6 +58,14 @@ class WslConfigTests(unittest.TestCase):
         wslconfig.restore(self.cfg, backup)
         self.assertEqual(self.cfg.read_bytes(), ORIGINAL)
 
+    def test_extra_keys_are_set_and_restore_stays_byte_exact(self):
+        self.cfg.write_bytes(ORIGINAL)
+        backup = wslconfig.raise_limits(self.cfg, memory="36GB", extra={"autoMemoryReclaim": "dropCache"})
+        limits = wslconfig.current_limits(self.cfg)
+        self.assertEqual((limits["memory"], limits["autoMemoryReclaim"]), ("36GB", "dropCache"))
+        wslconfig.restore(self.cfg, backup)
+        self.assertEqual(self.cfg.read_bytes(), ORIGINAL)
+
     def test_raise_adds_missing_keys_and_section(self):
         self.cfg.write_bytes(b"[experimental]\nautoMemoryReclaim=dropCache\n")
         wslconfig.raise_limits(self.cfg)
