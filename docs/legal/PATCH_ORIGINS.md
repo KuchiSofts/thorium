@@ -98,6 +98,10 @@ Muril-o) and the profile reversion part of `disable-encryption.patch` (win32ss) 
 
 ## Keeping it current
 
+Every patch carries `Origin:`, `Author:` and `License:` lines at the top (ROADMAP **S.7**). New upstream
+patches get them with `py -3 -I tools/legal/patch_headers.py add --tree <tree> --credits CREDITS.md
+--research tools/legal/patch_origins.tsv`, and `patch_headers.py lint` checks them.
+
 Run the inventory after every upstream rebase (the Chromium 158 rebase, ROADMAP **P2.1**):
 
 ```powershell

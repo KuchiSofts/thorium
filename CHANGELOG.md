@@ -20,6 +20,9 @@ Each release lists:
   profile. The keyring entry stays `Chromium Safe Storage`, as in Thorium, so passwords in a copied profile
   stay readable. Upstream's developer test shell and prebuilt `pak` tool are not packaged. Not yet built on
   Linux.
+- Every patch in the 158 series now names its origin, author and licence at the top (ROADMAP **S.7**),
+  written from the audited licence research; `tools/legal/patch_headers.py lint` rejects a patch without
+  them, or one whose licence differs from the research.
 - `tools/release/package_audit.py` (ROADMAP **P2.6**): a package must contain the Thoron program and
   no Widevine module, no file named after Thorium (licence and credit texts excepted) and none of the
   upstream-only extras (Thorium updater marker, prebuilt pak tool, test shell).

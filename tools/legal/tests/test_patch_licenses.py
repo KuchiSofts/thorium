@@ -144,6 +144,18 @@ class ResearchTests(unittest.TestCase):
         header = "License: MIT\n---\n"
         self.assertEqual(pl.classify(header, PATCHES_MD, "mystery.patch", self.projects, self.research)["license"], "MIT")
 
+    def test_header_that_agrees_with_research_keeps_the_research_evidence(self):
+        header = "Origin: Cromite\nAuthor: uazo\nLicense: GPL-3.0\n\ndiff\n"
+        row = pl.classify(header, PATCHES_MD, "bromite-thing.patch", self.projects, self.research)
+        self.assertEqual(row["license"], "GPL-3.0")
+        self.assertTrue(row["evidence"].startswith("research: "), row["evidence"])
+
+    def test_header_that_agrees_with_patches_md_keeps_that_evidence(self):
+        plain = pl.classify("diff\n", PATCHES_MD, "bromite-thing.patch", self.projects)   # no research row
+        header = f"Origin: {plain['origin']}\nAuthor: x\nLicense: {plain['license']}\n\ndiff\n"
+        row = pl.classify(header, PATCHES_MD, "bromite-thing.patch", self.projects)
+        self.assertEqual(row["evidence"], plain["evidence"])
+
     def test_not_stated_project_licence_is_kept_distinct(self):
         projects = pl.load_projects("| Chromium_Clang (RobRich999) | https://github.com/RobRich999/Chromium_Clang | not stated |\n")
         self.assertEqual(projects["Chromium_Clang (RobRich999)"]["license"], "NOT STATED")
