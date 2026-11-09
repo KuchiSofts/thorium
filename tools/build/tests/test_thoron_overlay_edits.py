@@ -41,5 +41,19 @@ class OverlayEditTests(unittest.TestCase):
         self.assertIn(FLAGS, ti.OVERLAY_EDITS)
 
 
+
+VERSION_HTML = "components/webui/version/resources/about_version.html"
+VERSION_PAGE = ('          <div id="thor_version"><a target="_self" rel="noopener" '
+                'href="chrome://resources/text/thorium_version.txt">THORIUM_VERSION.txt</a></div>\n')
+
+
+class VersionPageTests(unittest.TestCase):
+    def test_build_variant_link_is_not_named_after_thorium(self):
+        out = ti.edit_overlay(VERSION_HTML, VERSION_PAGE)
+        self.assertIn(">BUILD_VARIANT.txt</a>", out)
+        self.assertNotIn("THORIUM_VERSION", out)
+        self.assertIn("chrome://resources/text/thorium_version.txt", out)    # the resource path stays
+        self.assertEqual(ti.edit_overlay(VERSION_HTML, out), out)
+
 if __name__ == "__main__":
     unittest.main()

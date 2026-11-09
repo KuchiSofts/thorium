@@ -429,7 +429,8 @@ LINUX_EDITS = {
 _W = '"Warning: '
 # Upstream overlay files are copied into the tree before the patch series runs, so a patch in the series
 # cannot change them reliably (some are stored with Windows line endings). Thoron's edits to them live here
-# (ROADMAP S.4): the flags that weaken security start with a plain warning.
+# (ROADMAP S.4): the flags that weaken security start with a plain warning. Also Thorium-named labels in pages
+# the series adds (ROADMAP B.3).
 OVERLAY_EDITS = {
     "chrome/browser/thorium_flag_entries.h": {"replace": [
         ('"Don\'t enforce the same-origin policy;', _W + "every website can read data from every other website,"
@@ -447,6 +448,9 @@ OVERLAY_EDITS = {
          " without the system keyring's protection. Choose the password store backend, instead of using", 1),
         ("Enabled for Thorium Portable.", "Used by portable installs.", 2)],
         "forbid": [r"Thorium Portable"]},
+    # chrome://version: the link to the build variant file is labelled after Thorium (the file path stays)
+    "components/webui/version/resources/about_version.html": {"replace": [
+        (">THORIUM_VERSION.txt</a>", ">BUILD_VARIANT.txt</a>", 1)], "forbid": [r"THORIUM_VERSION"]},
 }
 
 
