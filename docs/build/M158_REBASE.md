@@ -23,9 +23,10 @@ keeping Chromium 158's code and re-applying Thorium's change on top of it. The r
 then exported, and the new series was checked on an untouched 158 checkout with both
 `tools/build/rebase_report.py` and upstream's `apply_series.py`.
 
-Result: the series lists **151 patches**. The **148** that the Windows AVX2 build uses all apply exactly
-(the other 3 are for SSE2 and Raspberry Pi builds only). 25 were ported by hand, and 4 are new Thoron
-patches (`ks-native-gpc`, two small FFmpeg build fixes and `ks-remove-easter-egg-pages`).
+Result: the series lists **152 patches**. The **149** that the Windows AVX2 build uses all apply exactly
+(the other 3 are for SSE2 and Raspberry Pi builds only). 25 were ported by hand, and 5 are new Thoron
+patches (`ks-native-gpc`, two small FFmpeg build fixes, `ks-remove-easter-egg-pages` and
+`ks-authors-page-default-csp`).
 
 ## Decisions
 
