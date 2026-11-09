@@ -13,6 +13,8 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- While native ad blocking is on, page info and Settings call the Ads setting "Ads and trackers" and say what
+  it does (ROADMAP **P5.16**); with it off, Chromium's wording stays.
 - Native ad blocking can be turned off per site (ROADMAP **P5.16**, off by default): it follows the browser's
   per-site "Ads" setting in page info and Settings, so allowing ads on a site, or everywhere, turns it off
   there. The choice is kept with the profile's other site settings. Checked offline with
