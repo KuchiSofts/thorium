@@ -254,10 +254,13 @@ class ExeNameTests(unittest.TestCase):
         self.assertIn("Alex313031, ltguillaume, and gz83", release)    # credits are kept
 
     def test_thoron_named_installed_files_are_allowed(self):
-        # Thoron's own files (the native ad-blocking lists) are not Thorium names
+        # Thoron's own files (the native ad-blocking engine and lists) are not Thorium names
         rel = "chrome/installer/mini_installer/chrome.release"
-        text = EXE_FIXTURES[rel] + "thoron_adblock_lists.txt: %(VersionDir)s\\\n"
-        self.assertIn("thoron_adblock_lists.txt:", ti.edit_exe_names(rel, text))
+        text = (EXE_FIXTURES[rel] + "thoron_adblock_engine.dat: %(VersionDir)s\\\n"
+                "thoron_adblock_lists.txt: %(VersionDir)s\\\n")
+        out = ti.edit_exe_names(rel, text)
+        self.assertIn("thoron_adblock_engine.dat:", out)
+        self.assertIn("thoron_adblock_lists.txt:", out)
         with self.assertRaisesRegex(ti.IdentityError, "chrome.release"):
             ti.edit_exe_names(rel, EXE_FIXTURES[rel] + "thorium_extra.dll: %(VersionDir)s\\\n")
 

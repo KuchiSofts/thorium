@@ -13,6 +13,9 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Native ad blocking ships a pre-compiled engine (ROADMAP **P5.15**, step 1): each build compiles the bundled
+  filter lists into a saved engine and checks that it loads again; the browser loads it at start instead of
+  parsing the lists, and falls back to the lists if it is missing or broken. Both files are in the installer.
 - Native ad blocking connected to page loading (ROADMAP **P5.14**, off by default): Thoron's built-in
   engine sits first in front of every page's requests and ends blocked ones before they leave the browser.
   On the local ad test page it blocked all 10 ad requests on its own (uBlock Origin: 9 of 10).
