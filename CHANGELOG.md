@@ -13,6 +13,10 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Native ad blocking can be turned off per site (ROADMAP **P5.16**, off by default): it follows the browser's
+  per-site "Ads" setting in page info and Settings, so allowing ads on a site, or everywhere, turns it off
+  there. The choice is kept with the profile's other site settings. Checked offline with
+  `tools/qa/adblock_site_switch_check.py`.
 - Native ad blocking keeps its filter lists current (ROADMAP **P5.15**, off by default): at most every 4 days,
   from the addresses uBlock Origin uses, over HTTPS without cookies. A list that is too large, not a list,
   shrinks by more than half or allows every request keeps its previous copy, and an update that would stop
