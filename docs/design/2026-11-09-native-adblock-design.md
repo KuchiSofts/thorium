@@ -129,6 +129,19 @@ On the local ad test page of `tools/build/mv2_check.py --native` (offline, fresh
 the engine alone blocked **all 10** ad requests; none reached the server. uBlock Origin on the same page
 blocks 9 of 10 (its first request goes out while it starts). Cosmetic filtering stays uBlock Origin's job.
 
+### 4.5 Saved engine shipped with each build (P5.15 step 1, 2026-11-09)
+
+The build now also compiles the lists into a saved engine: a small host tool (`compile_engine`) builds
+the engine from the lists, serializes it, checks that the result loads again and writes
+`thoron_adblock_engine.dat` (9.6 MB) next to the browser. At start the browser loads this file
+instead of parsing 6.9 MB of list text (in the spike, loading a saved engine took 5 ms); if the file is
+missing or does not load, it falls back to building from the lists. Both files are in the installer.
+
+Checked: with the lists file removed, the build still blocked all 10 ad requests on the test page, so
+the saved engine works alone; with both files present the result is the same; the smoke test passes;
+the 154-patch series applies exactly on Chromium 158.0.8127.30. Still to do in P5.15: list updates
+(download, validation, and never an "allow everything" state).
+
 ## 5. Where it plugs in
 
 - **Engine host:** one engine per browser (not per profile), built from the compiled lists, shared
