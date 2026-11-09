@@ -34,7 +34,8 @@ ATTEMPTS = 10
 INTERVAL_MS = 2000
 LATE_ATTEMPTS = 3                            # the last attempts must all be blocked (the blocker may still be starting before)
 FRAME_FALLBACK_MS = 14000
-HOLD_MS = 26000                              # keeps the page loading while the blocker starts on a new profile
+HOLD_MS = 26000
+WARMUP_S = 45                                # --bundled: first start installs the built-in uBlock Origin                              # keeps the page loading while the blocker starts on a new profile
 RESULT_RE = re.compile(r'<pre id="thoron-mv2-result">(.*?)</pre>', re.S)
 GIF = bytes.fromhex("47494638396101000100800000000000ffffff21f90401000000002c00000000010001000002024401003b")
 
@@ -56,6 +57,7 @@ function publish() {
     r.ad_element_hidden = el.offsetHeight === 0 || frame.contentWindow.getComputedStyle(el).display === 'none';
   }
   document.getElementById('thoron-mv2-result').textContent = JSON.stringify(r);
+  fetch('/result', {method: 'POST', body: JSON.stringify(r), keepalive: true}).catch(() => {});
 }
 function addFrame() {
   if (frame) return;
@@ -94,6 +96,7 @@ class TestServer:
 
     def __init__(self, work_dir: Path):
         self.ad_hits: list[int] = []
+        self.posted: dict | None = None      # the page's latest result (headed runs read it here)
         server = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -107,6 +110,20 @@ class TestServer:
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(body)
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length") or 0)
+                if self.path != "/result" or length > 65536:
+                    self._send(413 if length > 65536 else 404, "text/plain", b"refused")
+                    return
+                try:
+                    data = json.loads(self.rfile.read(length).decode("utf-8"))
+                except (ValueError, UnicodeError):
+                    self._send(400, "text/plain", b"bad result")
+                    return
+                if isinstance(data, dict):
+                    server.posted = data
+                self._send(200, "text/plain", b"ok")
 
             def do_GET(self):
                 url = urllib.parse.urlsplit(self.path)
@@ -143,17 +160,21 @@ class TestServer:
         self._httpd.server_close()
 
 
-def browser_args(browser: Path, profile: Path, port: int, extension: Path | None, url: str) -> list[str]:
+def browser_args(browser: Path, profile: Path, port: int, extension: Path | None, url: str,
+                 headed: bool = False, bundled: bool = False) -> list[str]:
     # --disable-default-apps: Thorium's default apps install uBlock Origin from the Web Store into
     # every new profile, which would put a blocker into the control run.
     # Fully offline: only the ad host (mapped to the local server) and 127.0.0.1 resolve.
-    args = [str(browser), "--headless=new", f"--user-data-dir={profile}", "--no-first-run",
-            "--no-default-browser-check", "--disable-default-apps", "--disable-background-networking",
+    # headed: a real window, placed off-screen so it does not disturb the person using the PC
+    mode = ["--window-position=-32000,-32000", "--window-size=1024,768"] if headed else ["--headless=new"]
+    args = [str(browser), *mode, f"--user-data-dir={profile}", "--no-first-run",
+            "--no-default-browser-check", *([] if bundled else ["--disable-default-apps"]),
+            "--disable-background-networking",
             "--disable-component-update",
             f"--host-resolver-rules=MAP {AD_HOST} 127.0.0.1:{port}, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]
     if extension is not None:
         args += [f"--load-extension={extension}", "--disable-features=DisableLoadExtensionCommandLineSwitch"]
-    return args + ["--dump-dom", url]
+    return args + ([url] if headed else ["--dump-dom", url])
 
 
 def parse_result(dom: str) -> dict | None:
@@ -166,13 +187,63 @@ def parse_result(dom: str) -> dict | None:
         return None
 
 
-def run_once(browser: Path, work_dir: Path, extension: Path | None, timeout_s: int = 120) -> dict:
+def _run_headed(args: list[str], server, timeout_s: int) -> tuple[int | None, dict | None]:
+    """Run a visible (off-screen) browser until the page reports its final result, then close it."""
+    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    deadline = time.monotonic() + timeout_s
+    try:
+        while time.monotonic() < deadline:
+            r = server.posted
+            if r and r.get("attempts") == ATTEMPTS and r.get("frame"):
+                time.sleep(3)                      # let the last publish land
+                return 0, server.posted
+            time.sleep(0.5)
+        return None, server.posted
+    finally:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+        else:
+            proc.kill()
+        try:
+            proc.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            pass
+        time.sleep(2)
+
+
+def run_once(browser: Path, work_dir: Path, extension: Path | None, timeout_s: int = 120,
+             headed: bool = False, bundled: bool = False) -> dict:
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
     profile = Path(tempfile.mkdtemp(prefix="profile-", dir=work_dir))
     try:
         with TestServer(work_dir) as server:
-            args = browser_args(browser, profile, server.port, extension, f"http://127.0.0.1:{server.port}/test.html")
+            if bundled:
+                # warm-up start: the new profile installs the built-in uBlock Origin and builds its filters,
+                # as on a person's first start; the test is the next start of the same profile
+                # a normal first start (network on), so uBlock Origin fetches and builds its lists as it would
+                # for a person; only the measured start below is offline
+                mode = ["--window-position=-32000,-32000"] if headed else ["--headless=new"]
+                warm = subprocess.Popen([str(browser), *mode, f"--user-data-dir={profile}", "--no-first-run",
+                                         "--no-default-browser-check", "about:blank"],
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                time.sleep(WARMUP_S)
+                if sys.platform == "win32":
+                    subprocess.run(["taskkill", "/T", "/F", "/PID", str(warm.pid)], capture_output=True)
+                else:
+                    warm.kill()
+                warm.wait(timeout=30)
+                time.sleep(3)
+            args = browser_args(browser, profile, server.port, extension, f"http://127.0.0.1:{server.port}/test.html",
+                                headed=headed, bundled=bundled)
+            if headed:
+                code, page = _run_headed(args, server, timeout_s)
+                if code is None:
+                    return {"ok": False, "error": f"timed out after {timeout_s} s", "ad_requests": server.ad_requests}
+                hits = sorted(server.ad_hits)
+                late = [n for n in hits if n >= ATTEMPTS - LATE_ATTEMPTS]
+                return {"ok": page is not None, "exit_code": code, "ad_requests": len(hits), "ad_hits": hits,
+                        "late_ad_requests": len(late), "page": page}
             try:
                 proc = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace",
                                       timeout=timeout_s)
@@ -223,9 +294,12 @@ def verdict(control: dict, with_extension: dict) -> tuple[str, list[str]]:
     return ("works" if network and cosmetic else "partial" if network or cosmetic else "fails"), reasons
 
 
-def run_both(browser: Path, extension: Path, work_dir: Path, timeout_s: int = 120) -> dict:
-    control = run_once(browser, work_dir, None, timeout_s)
-    with_ext = run_once(browser, work_dir, extension, timeout_s)
+def run_both(browser: Path, extension: Path | None, work_dir: Path, timeout_s: int = 120, headed: bool = False,
+             bundled: bool = False) -> dict:
+    """bundled: the second run tests the browser's own built-in uBlock Origin (default apps on) instead of
+    --load-extension, which newer Chromium ignores in a real window."""
+    control = run_once(browser, work_dir, None, timeout_s, headed)
+    with_ext = run_once(browser, work_dir, None if bundled else extension, timeout_s, headed, bundled)
     result, reasons = verdict(control, with_ext)
     return {"verdict": result, "reasons": reasons, "control": control, "with_extension": with_ext}
 
@@ -233,11 +307,18 @@ def run_both(browser: Path, extension: Path, work_dir: Path, timeout_s: int = 12
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--browser", required=True, type=Path)
-    parser.add_argument("--extension", required=True, type=Path, help="unpacked extension folder")
+    parser.add_argument("--extension", type=Path, help="unpacked extension folder (not with --bundled)")
+    parser.add_argument("--bundled", action="store_true",
+                        help="test the browser's own built-in uBlock Origin instead of --extension")
     parser.add_argument("--work", required=True, type=Path)
     parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument("--headed", action="store_true",
+                        help="a real window (off-screen) instead of headless: needed for cosmetic filtering")
     a = parser.parse_args(argv)
-    report = run_both(a.browser, a.extension.resolve(), a.work, a.timeout)
+    if bool(a.extension) == a.bundled:
+        parser.error("give exactly one of --extension and --bundled")
+    report = run_both(a.browser, a.extension.resolve() if a.extension else None, a.work, a.timeout, a.headed,
+                      a.bundled)
     print(json.dumps(report, indent=2))
     print(f"MV2 CHECK: {report['verdict'].upper()}")
     return 0 if report["verdict"] == "works" else 1

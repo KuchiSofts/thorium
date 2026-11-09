@@ -13,6 +13,9 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Design for native ad blocking (`docs/design/2026-11-09-native-adblock-design.md`, approved): a built-in
+  filter engine (`adblock-rust`, MPL-2.0) blocks ads and trackers before requests leave the browser, faster than
+  an extension and independent of Manifest V2; uBlock Origin stays for cosmetic filtering. Steps P5.13-P5.18.
 - `tools/qa/netlog_hosts.py` and `docs/security/NETWORK.md` (ROADMAP **S.10**): the outside hosts a fresh
   profile contacts on its own, with why and what Thoron does about each; first measurement on Thoron 156.
 - `tools/qa/bench.py` (ROADMAP **Q.1**): offline benchmarks (start-up time, private memory with 1 and 20
