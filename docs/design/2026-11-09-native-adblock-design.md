@@ -172,6 +172,29 @@ every rule for the probe requests are all refused and the previous engine stays.
 the current URLhaus list has about 101,000 rules against 9,300 in the shipped copy, so the engine's
 memory after an update must be measured.
 
+### 4.7 Per-site switch (P5.16 step 1, 2026-11-09)
+
+Decision (the builder's call, inside approved goal G5): the switch is Chromium's existing per-site
+"Ads" content setting, not a new one. "Allow" on a site means "show ads here", which is exactly what
+turning the blocker off for a site means, and it brings for free what a new setting would have to
+build: storage in the profile with the person's other site settings (so it survives restarts, browser
+updates and the move from Thorium), the row on every site's page in Settings > Site settings, the
+"Allowed to show ads" list, and enterprise policy. "Allow" as the default turns native blocking off
+everywhere. Chromium's own abusive-ads filter reads the same setting, so the two stay consistent.
+
+- The proxy is inserted only when the top-level site (from the factory's isolation info) is not set to
+  "Allow"; the check is made once per document or worker, so it costs nothing per request, and a
+  changed setting applies from the next load (page info asks for a reload).
+- Page info shows the Ads row on every site while native blocking is on (upstream shows it only after
+  Chromium's abusive-ads filter acted on the site).
+
+Tested offline with `tools/qa/adblock_site_switch_check.py`, which makes the choice through the
+Settings page's own handlers: with no choice all 10 ad requests are blocked; ads allowed on the test
+site, or allowed by default, let all 10 through; after a normal browser exit and a new start the choice
+is kept and all 10 still load. Still to do: the labels say "Intrusive ads" (upstream's wording) and must
+say what the setting now does before native blocking is on by default; the local blocked-count badge;
+a look at the page info row in a desktop session (P2.23).
+
 ## 5. Where it plugs in
 
 - **Engine host:** one engine per browser (not per profile), built from the compiled lists, shared
@@ -183,8 +206,8 @@ memory after an update must be measured.
   stand-ins, the same idea uBlock Origin uses.
 - **CNAME uncloaking:** use Chromium's DNS results to also match the real host behind a tracker's
   CNAME (extensions cannot do this on Chromium).
-- **Per-site switch:** a content setting ("Ads and trackers: blocked / allowed on this site"), in
-  the page info bubble and in Settings; stored in the profile like other site settings.
+- **Per-site switch:** Chromium's own per-site "Ads" content setting (section 4.7), in the page info
+  bubble and in Settings; stored in the profile like other site settings.
 
 ## 6. Filter lists and updates
 
