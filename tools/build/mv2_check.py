@@ -161,7 +161,7 @@ class TestServer:
 
 
 def browser_args(browser: Path, profile: Path, port: int, extension: Path | None, url: str,
-                 headed: bool = False, bundled: bool = False) -> list[str]:
+                 headed: bool = False, bundled: bool = False, native: bool = False) -> list[str]:
     # --disable-default-apps: Thorium's default apps install uBlock Origin from the Web Store into
     # every new profile, which would put a blocker into the control run.
     # Fully offline: only the ad host (mapped to the local server) and 127.0.0.1 resolve.
@@ -174,6 +174,8 @@ def browser_args(browser: Path, profile: Path, port: int, extension: Path | None
             f"--host-resolver-rules=MAP {AD_HOST} 127.0.0.1:{port}, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]
     if extension is not None:
         args += [f"--load-extension={extension}", "--disable-features=DisableLoadExtensionCommandLineSwitch"]
+    if native:
+        args.append("--enable-features=ThoronNativeAdblock")   # Thoron's built-in engine, no extension
     return args + ([url] if headed else ["--dump-dom", url])
 
 
@@ -212,7 +214,7 @@ def _run_headed(args: list[str], server, timeout_s: int) -> tuple[int | None, di
 
 
 def run_once(browser: Path, work_dir: Path, extension: Path | None, timeout_s: int = 120,
-             headed: bool = False, bundled: bool = False) -> dict:
+             headed: bool = False, bundled: bool = False, native: bool = False) -> dict:
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
     profile = Path(tempfile.mkdtemp(prefix="profile-", dir=work_dir))
@@ -235,7 +237,7 @@ def run_once(browser: Path, work_dir: Path, extension: Path | None, timeout_s: i
                 warm.wait(timeout=30)
                 time.sleep(3)
             args = browser_args(browser, profile, server.port, extension, f"http://127.0.0.1:{server.port}/test.html",
-                                headed=headed, bundled=bundled)
+                                headed=headed, bundled=bundled, native=native)
             if headed:
                 code, page = _run_headed(args, server, timeout_s)
                 if code is None:
@@ -295,11 +297,12 @@ def verdict(control: dict, with_extension: dict) -> tuple[str, list[str]]:
 
 
 def run_both(browser: Path, extension: Path | None, work_dir: Path, timeout_s: int = 120, headed: bool = False,
-             bundled: bool = False) -> dict:
+             bundled: bool = False, native: bool = False) -> dict:
     """bundled: the second run tests the browser's own built-in uBlock Origin (default apps on) instead of
     --load-extension, which newer Chromium ignores in a real window."""
     control = run_once(browser, work_dir, None, timeout_s, headed)
-    with_ext = run_once(browser, work_dir, None if bundled else extension, timeout_s, headed, bundled)
+    with_ext = run_once(browser, work_dir, None if (bundled or native) else extension, timeout_s, headed, bundled,
+                        native)
     result, reasons = verdict(control, with_ext)
     return {"verdict": result, "reasons": reasons, "control": control, "with_extension": with_ext}
 
@@ -308,6 +311,8 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--browser", required=True, type=Path)
     parser.add_argument("--extension", type=Path, help="unpacked extension folder (not with --bundled)")
+    parser.add_argument("--native", action="store_true",
+                        help="test Thoron's native ad-blocking engine (no extension) instead of --extension")
     parser.add_argument("--bundled", action="store_true",
                         help="test the browser's own built-in uBlock Origin instead of --extension")
     parser.add_argument("--work", required=True, type=Path)
@@ -315,10 +320,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--headed", action="store_true",
                         help="a real window (off-screen) instead of headless: needed for cosmetic filtering")
     a = parser.parse_args(argv)
-    if bool(a.extension) == a.bundled:
-        parser.error("give exactly one of --extension and --bundled")
+    if sum(map(bool, (a.extension, a.bundled, a.native))) != 1:
+        parser.error("give exactly one of --extension, --bundled and --native")
     report = run_both(a.browser, a.extension.resolve() if a.extension else None, a.work, a.timeout, a.headed,
-                      a.bundled)
+                      a.bundled, a.native)
     print(json.dumps(report, indent=2))
     print(f"MV2 CHECK: {report['verdict'].upper()}")
     return 0 if report["verdict"] == "works" else 1

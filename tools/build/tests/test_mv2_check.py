@@ -64,6 +64,14 @@ class ArgsAndParsingTests(unittest.TestCase):
         control = mc.browser_args(Path("b.exe"), Path("prof"), 1, None, "u", headed=True)
         self.assertIn("--disable-default-apps", control)          # the control run has no blocker
 
+    def test_native_mode_turns_on_the_engine_and_loads_no_extension(self):
+        args = mc.browser_args(Path("b.exe"), Path("prof"), 1, None, "u", native=True)
+        self.assertIn("--enable-features=ThoronNativeAdblock", args)
+        self.assertFalse(any(a.startswith("--load-extension") for a in args))
+        self.assertIn("--disable-default-apps", args)        # no uBlock Origin: the engine alone
+        control = mc.browser_args(Path("b.exe"), Path("prof"), 1, None, "u")
+        self.assertNotIn("--enable-features=ThoronNativeAdblock", control)
+
     def test_page_posts_its_result_to_the_local_server(self):
         self.assertIn("fetch('/result'", mc.PAGE)
         with mc.TestServer(Path(tempfile.gettempdir())) as server:
