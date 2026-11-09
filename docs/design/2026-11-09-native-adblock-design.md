@@ -218,8 +218,14 @@ reads "10 ads and trackers blocked on this page", the text above, and the checkb
 link. That look found one fault, fixed in the same step: the icon's label (also its accessible name) still
 said upstream's "Ads blocked", because only the tooltip had been changed.
 
-Still to do: translations of the new strings; a look at the page info row in a desktop session (P2.23);
-the bubble's checkbox was read, not clicked (the setting it writes is the one the check above covers).
+The page info row was read the same way: it is named "Ads and trackers" and shows its state ("Not allowed
+(default)" while blocking is on). That look found a second fault, also fixed: the line under the row still
+said upstream's "Site shows intrusive or misleading ads", which reads as a warning about the site when the
+row is only there because Thoron's blocker is on. It now says "Thoron blocks them unless you allow them on
+this site", which is true whether the row is on or off.
+
+Still to do: translations of the new strings. The bubble's checkbox and the page info toggle were read, not
+clicked (the setting they write is the one the check above covers).
 
 ## 5. Where it plugs in
 

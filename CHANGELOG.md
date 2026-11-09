@@ -17,7 +17,8 @@ Each release lists:
   appears when something was blocked, and its bubble says how many ads and trackers were blocked on the page,
   with a checkbox to always allow them on that site. The count is kept only in memory with the page; nothing
   is stored or sent. Checked offline with `tools/qa/adblock_site_switch_check.py` (10 blocked, count 10) and
-  seen in a desktop window; the icon's label says "Ads and trackers blocked", not Chromium's "Ads blocked".
+  seen in a desktop window; the icon's label says "Ads and trackers blocked", not Chromium's "Ads blocked", and page info says
+  "Thoron blocks them unless you allow them on this site" instead of warning that the site shows intrusive ads.
 - While native ad blocking is on, page info and Settings call the Ads setting "Ads and trackers" and say what
   it does (ROADMAP **P5.16**); with it off, Chromium's wording stays.
 - Native ad blocking can be turned off per site (ROADMAP **P5.16**, off by default): it follows the browser's
