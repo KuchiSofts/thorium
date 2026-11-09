@@ -13,6 +13,8 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Thoron wordmark (logo and name) and the Thoron logo replace Thorium's wordmark and mascot on
+  `chrome://version` (ROADMAP **B.3**); `tools/branding/wordmark.py` builds the wordmark from the logo SVG.
 - About page (ROADMAP **P2.5**): below the version it says which Chromium version the build is based on,
   shows the disclaimer ("Thoron is an independent browser by KuchiSofts, based on Thorium by Alex313031 and
   Chromium by The Chromium Authors...") and links to the release notes.
