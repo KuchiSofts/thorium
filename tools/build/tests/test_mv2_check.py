@@ -49,6 +49,33 @@ class ArgsAndParsingTests(unittest.TestCase):
         self.assertFalse(any(a.startswith("--load-extension") for a in
                              mc.browser_args(Path("b.exe"), Path("prof"), 1, None, "u")))
 
+    def test_headed_args_open_a_real_window_off_screen(self):
+        args = mc.browser_args(Path("b.exe"), Path("prof"), 1, Path("ext"), "u", headed=True)
+        self.assertNotIn("--headless=new", args)
+        self.assertNotIn("--dump-dom", args)
+        self.assertIn("--window-position=-32000,-32000", args)
+        self.assertNotIn("--no-sandbox", args)
+        self.assertEqual(args[-1], "u")
+
+    def test_bundled_mode_lets_the_browser_install_its_own_ublock(self):
+        args = mc.browser_args(Path("b.exe"), Path("prof"), 1, None, "u", headed=True, bundled=True)
+        self.assertNotIn("--disable-default-apps", args)          # the built-in uBlock Origin installs itself
+        self.assertFalse(any(a.startswith("--load-extension") for a in args))
+        control = mc.browser_args(Path("b.exe"), Path("prof"), 1, None, "u", headed=True)
+        self.assertIn("--disable-default-apps", control)          # the control run has no blocker
+
+    def test_page_posts_its_result_to_the_local_server(self):
+        self.assertIn("fetch('/result'", mc.PAGE)
+        with mc.TestServer(Path(tempfile.gettempdir())) as server:
+            req = urllib.request.Request(f"http://127.0.0.1:{server.port}/result", method="POST",
+                                         data=b'{"attempts": 10, "frame": true}')
+            urllib.request.urlopen(req).read()
+            self.assertEqual(server.posted, {"attempts": 10, "frame": True})
+            big = urllib.request.Request(f"http://127.0.0.1:{server.port}/result", method="POST", data=b"x" * 70000)
+            with self.assertRaises(Exception):
+                urllib.request.urlopen(big).read()                  # oversized bodies are refused
+            self.assertEqual(server.posted, {"attempts": 10, "frame": True})
+
     def test_parse_result(self):
         dom = '<html><pre id="thoron-mv2-result">{"attempts": 4, "loaded": 0, "ad_element_hidden": true}</pre>'
         self.assertEqual(mc.parse_result(dom), {"attempts": 4, "loaded": 0, "ad_element_hidden": True})
