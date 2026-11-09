@@ -44,6 +44,13 @@ class AuditTests(unittest.TestCase):
         # licence and credits files may name Thorium; they are text, not product names
         self.assertEqual(pa.audit(GOOD_WIN + ["Chrome-bin/158.0.8127.3000/credits_thorium.html"], "win"), [])
 
+    def test_7z_listing_is_parsed(self):
+        listing = ("7-Zip 25.01\n\nListing archive: chrome.7z\n\n--\nPath = chrome.7z\nType = 7z\n\n----------\n"
+                   "Path = Chrome-bin\nFolder = +\n\nPath = Chrome-bin\\thoron.exe\nFolder = -\nSize = 10\n\n"
+                   "Path = Chrome-bin\\158.0.8127.3000\\chrome.dll\nFolder = -\n")
+        self.assertEqual(pa.parse_7z_listing(listing),
+                         ["Chrome-bin", "Chrome-bin/thoron.exe", "Chrome-bin/158.0.8127.3000/chrome.dll"])
+
     def test_cli_on_a_folder(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

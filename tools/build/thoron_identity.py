@@ -71,7 +71,13 @@ ICON_MAP = [
   + [("branding/thoron/thoron.ico", p) for p in (
       "chrome/installer/mini_installer/mini_installer.ico", "chrome/installer/setup/setup.ico",
       "chrome/browser/web_applications/chrome_pwa_launcher/chrome_pwa_launcher.ico",
-      f"{_THEME}/chromium/win/app_list.ico")]
+      f"{_THEME}/chromium/win/app_list.ico")] \
+  + [("branding/thoron/png/thoron_wordmark.png", f"components/resources/default_{s}_percent/chromium/product_logo.png")
+     for s in (100, 200)] \
+  + [("branding/thoron/png/thoron_wordmark_white.png",
+      f"components/resources/default_{s}_percent/chromium/product_logo_white.png") for s in (100, 200)] \
+  + [(_PNG.format(252), f"{_THEME}/default_100_percent/chromium/thorium_mascot.png"),   # chrome://version, dark
+     (_PNG.format(504), f"{_THEME}/default_200_percent/chromium/thorium_mascot.png")]
 
 # The product name only: not inside URLs, paths or identifiers, not part of a longer word.
 NAME_RE = re.compile(r"(?<![\w/\\.\-@%])Thorium(?![\w\-/\\])(?!\.\w)")
