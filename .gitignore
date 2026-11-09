@@ -52,3 +52,6 @@ Network Persistent State
 *.pfx
 *.p12
 .env
+
+# Rust build output (tools/qa/adblock_bench)
+target/
