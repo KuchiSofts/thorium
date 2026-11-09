@@ -54,7 +54,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `██████░░░░░░░░░░░░░░` 41 of 131 tasks done (31%) · roadmap updated 2026-11-08
+**Overall:** `██████░░░░░░░░░░░░░░` 41 of 132 tasks done (31%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -68,7 +68,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [Security (S)](ROADMAP.md#security-s) | `███████████░░░░░░░░░` | 8/15 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `██████████░░░░░░░░░░` | 4/8 | 🔄 In progress |
-| [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
+| [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `██░░░░░░░░░░░░░░░░░░` | 1/8 | 🔄 In progress |
 | [Branding (B)](ROADMAP.md#branding-b) | `██████████░░░░░░░░░░` | 2/4 | 🔄 In progress |
 
 **What's next**
@@ -242,6 +242,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **L.5** Name and logo check: "Thoron" in trademark registries and existing software in target markets; logo similarity to other browser marks (for example Chrome's three-segment logo)
 - [x] **L.6** No prebuilt or proprietary binaries in the repository: removed the Widevine CDM (Google proprietary, no redistribution right), Flash Player (Adobe, end-of-life), `shc`-compiled launchers whose embedded script cannot be verified, and prebuilt tools and packages; `tools/audit/binary_policy.py` enforces it
 - [ ] **L.7** Remove those binaries from the repository's git history as well, and include them in the GitHub Support cache request (D.6)
+- [ ] **L.8** Google API keys and OAuth credentials compiled in by upstream's `thorium-default-api-keys.patch` belong to Google and other projects; decide before the first release whether Thoron ships without them (Google sync, sign-in, translation and Safe Browsing then off, see S.14) or with keys of its own; kept for now by the owner's decision (2026-11-09)
 
 **Branding (B)**
 

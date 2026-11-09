@@ -22,7 +22,7 @@ args, using the values GN resolves for the release output folder (`gn args <out>
 | `enable_rlz` | `true` (Windows) | `false` | RLZ is Google's promotion-tracking library (install and first-search pings with a brand code). Chromium turns it on only for Google Chrome; no Thorium patch needs it. |
 | `enable_cdm_storage_id` | `true` (Windows) | `false` | Gives DRM modules a per-device storage ID. It needs a private key that only Google Chrome has; with the empty key upstream uses, the ID is always empty, so the setting only made the browser read the machine ID. Chromium turns it off for non-Google builds. |
 | `bundle_widevine_cdm` | `true` | `false` | Google's proprietary Widevine module may not be redistributed. Chromium downloads it from Google's component updater when a site needs DRM (ROADMAP **P2.6**). |
-| `use_official_google_api_keys` | not set | `false` | Never build with Google's own API keys. Thoron ships no Google API keys, so keyed Google services (sync, Google sign-in, Google's geolocation and translation APIs) are off. |
+| `use_official_google_api_keys` | not set | `false` | Never build with Google's official Chrome keys. (Keys compiled in by a patch are a separate matter, see below.) |
 
 ## Kept from upstream, now checked
 
@@ -33,6 +33,14 @@ args, using the values GN resolves for the release output folder (`gn args <out>
 | `enable_hangout_services_extension` | `false` | No hidden component extension that gives Google Meet pages extra system information. |
 | `disable_fieldtrial_testing_config` | `true` | No Google field-trial configuration is compiled in; features keep their coded defaults. |
 | `google_api_key`, `google_default_client_id`, `google_default_client_secret` | not set | `check` refuses any non-empty value. |
+
+## Google API keys compiled in by a patch
+
+`args.gn` sets no Google API keys, but upstream's `thorium-default-api-keys.patch` compiles Google API
+keys and OAuth sign-in credentials into the browser (found on 2026-11-09 by watching a fresh profile's
+traffic, `docs/security/NETWORK.md`). They belong to Google and other projects. They make Google sync,
+sign-in, translation, Safe Browsing and the optimization guide work. The owner decided to keep the patch
+for now; it blocks the first release until it is decided for good (ROADMAP **L.8**).
 
 ## Chromium defaults reviewed and kept
 
