@@ -70,6 +70,19 @@ already vendors most of its dependencies (`regex`, `memchr`, `aho-corasick`, `se
 Rust also matters for security: filter lists are untrusted input from the network, and Rust parses
 them without memory-safety bugs.
 
+### 4.1 What Chromium 158 already has (checked 2026-11-09)
+
+`adblock` 0.13.5 (`brave/adblock-rust` at `09d297c`, MPL-2.0, Rust edition 2024). Chromium 158's own
+Rust toolchain (rustc 1.101 nightly) builds edition 2024.
+
+| Dependency | In Chromium 158 |
+|---|---|
+| `regex`, `bitflags`, `itertools`, `serde`, `serde_json`, `memchr`, `base64` | vendored (`third_party/rust/chromium_crates_io`) |
+| ICU4X crates `idna` relies on (`icu_normalizer`, `icu_properties`, v2) | vendored |
+| `flatbuffers` | in `third_party/flatbuffers` (25.9.23; `adblock` asks for 25.12.19: check in the spike) |
+| `percent-encoding`, `idna`, `seahash`, `rustc-hash`, `arrayvec`, `thiserror` 1.x | to vendor with Chromium's `gnrt` tool, each licence-checked and credited |
+| `addr`/`psl`, `cssparser`, `selectors` | optional features, not needed for network blocking |
+
 ## 5. Where it plugs in
 
 - **Engine host:** one engine per browser (not per profile), built from the compiled lists, shared
