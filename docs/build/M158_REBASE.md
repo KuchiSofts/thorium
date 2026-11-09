@@ -23,10 +23,10 @@ keeping Chromium 158's code and re-applying Thorium's change on top of it. The r
 then exported, and the new series was checked on an untouched 158 checkout with both
 `tools/build/rebase_report.py` and upstream's `apply_series.py`.
 
-Result: the series lists **153 patches**, and all of them apply exactly: the **150** that the x64 builds use and,
-checked separately, the 1 SSE2 and 2 Raspberry Pi patches. 25 were ported by hand, and 6 are new Thoron
+Result: the series lists **154 patches**, and all of them apply exactly: the **151** that the x64 builds use and,
+checked separately, the 1 SSE2 and 2 Raspberry Pi patches. 25 were ported by hand, and 7 are new Thoron
 patches (`ks-native-gpc`, two small FFmpeg build fixes, `ks-remove-easter-egg-pages`,
-`ks-authors-page-default-csp` and `ks-security-flag-warnings`).
+`ks-authors-page-default-csp`, `ks-security-flag-warnings` and `ks-about-page`).
 
 ## Decisions
 

@@ -13,6 +13,9 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- About page (ROADMAP **P2.5**): below the version it says which Chromium version the build is based on,
+  shows the disclaimer ("Thoron is an independent browser by KuchiSofts, based on Thorium by Alex313031 and
+  Chromium by The Chromium Authors...") and links to the release notes.
 - Patch series rebased to Chromium 158.0.8127.30 (ROADMAP **P2.1**), starting from upstream's newer 156.0.8078.80 patches after an audit of the upstream changes. All 146 patches apply exactly; 25 were ported by hand to 158's code. Global Privacy Control now uses Chromium's own implementation instead of the Cromite patch, Android-only patches are not carried over, and two small Thoron patches fix the 158 build (FFmpeg duplicate sources, a Rust compiler flag). Every decision is recorded in `docs/build/M158_REBASE.md`.
 - Linux identity in code (ROADMAP **P2.4**, **P2.21**): the program `thoron`, the package `thoron-browser`
   installed in `/opt/kuchisofts/thoron`, its own desktop file and app ID, and the profile folder
@@ -37,7 +40,7 @@ Each release lists:
   builds the release `args.gn` from upstream's and turns off Google's RLZ promotion-tracking library and the
   DRM storage ID that upstream enabled, never bundles Widevine and refuses Google API keys. Every choice
   and its reason is in `docs/build/RELEASE_ARGS.md`.
-- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 153 patches, 0 unknown,
+- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 154 patches, 0 unknown,
   6 that still need the author's permission or a rewrite (was 8). The policy templates patch was rewritten
   without the unlicensed code, and the two new upstream patches were researched (both Thorium,
   BSD-3-Clause). Details in `docs/legal/PATCH_ORIGINS.md`.
