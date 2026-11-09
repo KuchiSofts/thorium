@@ -191,9 +191,15 @@ everywhere. Chromium's own abusive-ads filter reads the same setting, so the two
 Tested offline with `tools/qa/adblock_site_switch_check.py`, which makes the choice through the
 Settings page's own handlers: with no choice all 10 ad requests are blocked; ads allowed on the test
 site, or allowed by default, let all 10 through; after a normal browser exit and a new start the choice
-is kept and all 10 still load. Still to do: the labels say "Intrusive ads" (upstream's wording) and must
-say what the setting now does before native blocking is on by default; the local blocked-count badge;
-a look at the page info row in a desktop session (P2.23).
+is kept and all 10 still load.
+
+Labels (step 2): while native blocking is on, page info and Settings call the setting "Ads and trackers"
+and say what it does ("Block ads and trackers" / "Sites can show ads and use trackers", with a short
+description and the two site lists named to match); with it off, upstream's "Intrusive ads" wording stays,
+because then the setting only controls Chromium's abusive-ads filter. The new English strings have no
+translations yet, so other languages show them in English. The check above also reads the Settings page
+and fails on upstream's wording. Still to do: the local blocked-count badge; a look at the page info row
+in a desktop session (P2.23).
 
 ## 5. Where it plugs in
 

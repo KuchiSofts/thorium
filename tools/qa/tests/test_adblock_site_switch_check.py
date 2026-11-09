@@ -27,6 +27,18 @@ class SettingTests(unittest.TestCase):
         self.assertEqual(sc.SITE_PATTERN, "127.0.0.1")
 
 
+class LabelTests(unittest.TestCase):
+    def test_settings_page_says_what_the_switch_does(self):
+        text = "Ads and trackers\nAds and many trackers are blocked before they load\nBlock ads and trackers\n"
+        self.assertEqual(sc.label_problems(text), [])
+
+    def test_upstream_intrusive_ads_wording_is_a_problem(self):
+        text = "Intrusive ads\nAds are blocked on sites known to show intrusive or misleading ads\n"
+        found = sc.label_problems(text)
+        self.assertTrue(found)
+        self.assertTrue(any("Intrusive ads" in p for p in found))
+
+
 class VerdictTests(unittest.TestCase):
     def run_result(self, loaded, errors):
         return {"ok": True, "page": {"attempts": 10, "loaded": loaded, "errors": errors}}

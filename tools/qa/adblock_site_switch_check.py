@@ -11,7 +11,8 @@ with the ThoronNativeAdblock feature, makes the choice the way the Settings page
 `chrome.send` handlers on chrome://settings), then opens the local ad test page of
 `tools/build/mv2_check.py` (offline: only the ad host and 127.0.0.1 resolve):
 
-    none        no choice made: every ad request is blocked
+    none        no choice made: every ad request is blocked; the Ads page in Settings uses Thoron's labels
+                ("Ads and trackers"), not upstream's "Intrusive ads"
     site        ads allowed on 127.0.0.1: none is blocked
     everywhere  ads allowed by default: none is blocked
     restart     the "site" profile after a normal browser exit, with no new choice: the browser kept it,
@@ -35,11 +36,14 @@ from pathlib import Path
 if __package__ in (None, ""):  # running as a script under `py -3 -I`: make `tools` importable
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.build import mv2_check  # noqa: E402
-from tools.qa.cdp import WebSocket  # noqa: E402
+from tools.qa.cdp import TEXT_JS, WebSocket  # noqa: E402
 
 SITE_PATTERN = "127.0.0.1"   # the test host on any port: the restart run gets a new server port
 MODES = ("none", "site", "everywhere")
 PAGE_TIMEOUT_S = 90
+# chrome://settings/content/ads while native blocking is on: Thoron's labels, not upstream's
+LABELS_EXPECTED = ("Ads and trackers", "Block ads and trackers", "Ads and many trackers are blocked")
+LABELS_UPSTREAM = ("Intrusive ads", "intrusive or misleading ads")
 
 
 def settings_call(mode: str) -> str | None:
@@ -52,6 +56,12 @@ def settings_call(mode: str) -> str | None:
     if mode in ("none", "restart"):
         return None
     raise ValueError(mode)
+
+
+def label_problems(text: str) -> list[str]:
+    out = [f"missing label: {label!r}" for label in LABELS_EXPECTED if label not in text]
+    out += [f"upstream wording still shown: {label!r}" for label in LABELS_UPSTREAM if label in text]
+    return out
 
 
 def problems(mode: str, run: dict) -> list[str]:
@@ -128,6 +138,16 @@ def run_mode(browser: Path, profile: Path, work: Path, mode: str) -> dict:
         try:
             port = _devtools_port(profile)
             call = settings_call(mode)
+            labels = None
+            if mode == "none":
+                target = _open(port, "chrome://settings/content/ads")
+                time.sleep(3)
+                ws = WebSocket(target["webSocketDebuggerUrl"])
+                try:
+                    labels = ws.call("Runtime.evaluate", expression=TEXT_JS,
+                                     returnByValue=True)["result"].get("value", "")
+                finally:
+                    ws.close()
             if call:
                 target = _open(port, "chrome://settings/content/ads")
                 time.sleep(3)
@@ -147,7 +167,7 @@ def run_mode(browser: Path, profile: Path, work: Path, mode: str) -> dict:
                 time.sleep(0.5)
             page = server.posted
             ok = bool(page and page.get("attempts") == mv2_check.ATTEMPTS)
-            return {"ok": ok, "page": page, "ad_requests": server.ad_requests,
+            return {"ok": ok, "page": page, "ad_requests": server.ad_requests, "labels": labels,
                     **({} if ok else {"error": f"no final page result in {PAGE_TIMEOUT_S} s"})}
         except (OSError, RuntimeError, ValueError) as e:
             return {"ok": False, "error": str(e)}
@@ -167,6 +187,10 @@ def run_all(browser: Path, work: Path) -> list[dict]:
         try:
             run = run_mode(browser, profile, work, mode)
             results.append({"mode": mode, "problems": problems(mode, run), "page": run.get("page")})
+            if mode == "none":
+                text = run.get("labels") or ""
+                results.append({"mode": "labels", "problems": label_problems(text) if text else
+                                ["the Settings page text could not be read"], "page": None})
             if mode == "site":
                 run = run_mode(browser, profile, work, "restart")
                 results.append({"mode": "restart", "problems": problems("restart", run), "page": run.get("page")})
