@@ -212,8 +212,14 @@ upstream's. The check above reads the page's count from the browser's verbose lo
 (`--vmodule=blocked_count=1`, the number only) and fails if it is lower than the number of blocked ad
 requests: 10 blocked, count 10.
 
-Still to do: translations of the new strings; a look at the page info row, the icon and its bubble in a
-desktop session (P2.23), since the automated check runs headless and cannot see the address bar.
+Seen in a desktop window (2026-11-09, throwaway profile, offline test page, read through Windows UI
+Automation): the icon appears in the address bar with the label "Ads and trackers blocked"; its bubble
+reads "10 ads and trackers blocked on this page", the text above, and the checkbox, with no "Learn more"
+link. That look found one fault, fixed in the same step: the icon's label (also its accessible name) still
+said upstream's "Ads blocked", because only the tooltip had been changed.
+
+Still to do: translations of the new strings; a look at the page info row in a desktop session (P2.23);
+the bubble's checkbox was read, not clicked (the setting it writes is the one the check above covers).
 
 ## 5. Where it plugs in
 
