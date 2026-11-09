@@ -13,6 +13,10 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- `tools/qa/netlog_hosts.py` and `docs/security/NETWORK.md` (ROADMAP **S.10**): the outside hosts a fresh
+  profile contacts on its own, with why and what Thoron does about each; first measurement on Thoron 156.
+- `tools/qa/bench.py` (ROADMAP **Q.1**): offline benchmarks (start-up time, private memory with 1 and 20
+  tabs, idle CPU) on throwaway profiles and local pages only, with median and spread per measure.
 - Thoron wordmark (logo and name) and the Thoron logo replace Thorium's wordmark and mascot on
   `chrome://version` (ROADMAP **B.3**); `tools/branding/wordmark.py` builds the wordmark from the logo SVG.
 - About page (ROADMAP **P2.5**): below the version it says which Chromium version the build is based on,

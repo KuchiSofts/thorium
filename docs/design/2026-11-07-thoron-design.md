@@ -652,6 +652,7 @@ one; the release script (P2.12) runs both.
 | Patch licences (2026-11-08) | All 152 M156 patches researched: 6 GPL-3.0 (Cromite, Bromite), the rest BSD, MIT or public domain; 8 use code from authors with no published licence and need permission or a rewrite before the first release (L.1) |
 | Rename order (2026-11-08) | The Thoron identity is done first on M156, before the Chromium 158 rebase, by a re-appliable tool; the owner's Thorium profile moves to Thoron by verified copy (§7.7) and Thorium stays as an untouched backup |
 | Linux identity (2026-11-09) | Own program, package, desktop file and profile folder (`~/.config/thoron`); the keyring entry stays `Chromium Safe Storage` so imported passwords stay readable; upstream's developer test shell and prebuilt `pak` tool are left out of the Linux package (owner's choice) |
+| Google API keys (2026-11-09) | Upstream's patch compiles Google API keys and OAuth credentials into the browser; kept for now, decided before the first release (ROADMAP **L.8**) |
 | Repository layout (2026-11-09) | The old upstream Thorium M138 tree that `main` still carried (about 1,500 files the builds never used) is removed; `main` keeps only Thoron's own work, plus Thorium's M138 `PATCHES.md` and README under `docs/upstream/`. The upstream Sponsor button (`FUNDING.yml`) is removed; Alex313031 stays credited in README and CREDITS |
 | Repository binaries (2026-11-07) | No prebuilt or proprietary binaries in the repository (ROADMAP **L.6**); purging them from history (**L.7**) waits for the owner's decision |
 

@@ -59,8 +59,10 @@ which a checkout made only for testing does not have.
 
 ## Still to do
 
-- Build, smoke test, sandbox proof and profile check on 158 (with ROADMAP **P2.23**). The build found
-  four more 158 changes the series had to follow (recorded above); it is still running.
+- The first 158 build (Windows x64 AVX2, reviewed release settings) is done: the smoke test passed
+  (JS, WebGL, H.264, HEVC, AV1, JPEG XL, sandbox proven on every renderer) and the installer audit
+  passed. The build surfaced six 158 changes the series had to follow (recorded above). Still to do:
+  the profile check and the browser UI review (ROADMAP **P2.23**).
 - Look at the ported UI patches in a running build (tab search position, Thorium 2024 UI, classic
   omnibox): ROADMAP **P2.23**.
 - uBlock Origin on 158 (ROADMAP **P2.18**).
