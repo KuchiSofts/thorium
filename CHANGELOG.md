@@ -13,6 +13,8 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Native ad blocking spike (ROADMAP **P5.13**): `adblock-rust` with the lists Thoron ships loads in 5 ms,
+  uses 9.7 MB and checks a request in about 5 µs (uBlock Origin's extension process: 110.8 MB). Verdict: go.
 - Design for native ad blocking (`docs/design/2026-11-09-native-adblock-design.md`, approved): a built-in
   filter engine (`adblock-rust`, MPL-2.0) blocks ads and trackers before requests leave the browser, faster than
   an extension and independent of Manifest V2; uBlock Origin stays for cosmetic filtering. Steps P5.13-P5.18.

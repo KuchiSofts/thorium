@@ -1,0 +1,16 @@
+# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
+# Native ad-blocking spike (ROADMAP P5.13). Point ADBLOCK_RUST at a checkout of brave/adblock-rust.
+[package]
+name = "thoron-adblock-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+adblock = { path = "../../../../adblock-rust" }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

@@ -83,6 +83,27 @@ Rust toolchain (rustc 1.101 nightly) builds edition 2024.
 | `percent-encoding`, `idna`, `seahash`, `rustc-hash`, `arrayvec`, `thiserror` 1.x | to vendor with Chromium's `gnrt` tool, each licence-checked and credited |
 | `addr`/`psl`, `cssparser`, `selectors` | optional features, not needed for network blocking |
 
+### 4.2 Spike measurements (P5.13, 2026-11-09)
+
+`adblock` 0.13.5 built with Chromium 158's Rust toolchain, the filter lists Thoron's bundled uBlock
+Origin 1.75.0 ships (EasyList, EasyPrivacy, uBlock filters, privacy, badware, quick fixes, unbreak,
+URLhaus: 182,989 lines), and 242,945 recorded real page requests (`adblock-rust`'s `data/requests.json`).
+Three runs, spread under 5 %, PC busy with other work. Tool: `tools/qa/adblock_bench`.
+
+| Measure | Native engine | uBlock Origin 1.75.0 on the 158 build |
+|---|---|---|
+| Ready at browser start | 5 ms (load a saved engine); 95 ms to build from the list text | its own start-up |
+| Memory | **9.7 MB** | **110.8 MB** private (its extension process, same lists) |
+| Time to check one request | **about 5 µs** (median 3.8 µs, slowest 1 %: about 21 µs) | its own matching plus a hop from the network code to the extension process and back for every request |
+| Share of the recorded requests blocked | 43.4 % | (same lists) |
+
+**Verdict: go.** The engine is fast and small, builds with Chromium's own toolchain, and parses the
+untrusted lists in Rust. What the hybrid gains first is speed (blocked requests never make the extension
+round trip) and blocking that survives Manifest V2's removal. While uBlock Origin keeps running for
+cosmetic filtering, its memory stays; the memory saving comes when the native engine also takes over
+cosmetic filtering (P5.18). Still to do in the spike: link the engine into a Thoron 158 build and block
+a real page (it becomes P5.14's first step).
+
 ## 5. Where it plugs in
 
 - **Engine host:** one engine per browser (not per profile), built from the compiled lists, shared
