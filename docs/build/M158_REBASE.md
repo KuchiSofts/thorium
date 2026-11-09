@@ -48,6 +48,7 @@ patches (`ks-native-gpc`, two small FFmpeg build fixes, `ks-remove-easter-egg-pa
 | (new) `ks-ffmpeg-158-hevc-x86-pred.patch` | added | Chromium 158's FFmpeg moved the x86 HEVC intra prediction into `x86/hevc/pred_init.c` and `pred.asm`, which the HEVC patch did not build; linking stopped on `ff_hevc_pred_init_x86`. |
 | `restore_download_shelf`, `open_in_same_tab`, `add-flag-for-open-bookmarks-in-new-tab`, `add-flag-for-open-omnibox-url-in-new-tab` | names updated | Chromium 158 turned `WindowOpenDisposition` into a mojom enum (`kNewForegroundTab` instead of `NEW_FOREGROUND_TAB`); ten added lines used the old names. |
 | `thorium-startup-logging` | include added | The startup log line uses `version_info::GetProductName()`; on 158 no other header brings in `base/version_info/version_info.h`. |
+| `enable-sharing-hub-page-action`, `disable-thorium-icons` | names and an include updated | Chromium 158 split `GetCleanTitleAndTooltipText` into `GetCleanTitleText` and `GetCleanTooltipText`, and `glic_selection_widget.cc` no longer gets `base/command_line.h` through another header. |
 | `thorium-build-config-and-simd` | Rust flag removed | The LLVM in 158's Rust toolchain no longer has `-fp-contract`, so rustc stopped. C and C++ keep Thorium's FMA contraction setting; Rust keeps its default (no contraction). |
 
 The licence inventory was regenerated for this series (`docs/legal/PATCH_LICENSES.md`): 0 unknown and
