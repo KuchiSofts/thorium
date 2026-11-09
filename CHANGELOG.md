@@ -16,7 +16,8 @@ Each release lists:
 - Native ad blocking shows what it did on a page (ROADMAP **P5.16**, off by default): an address bar icon
   appears when something was blocked, and its bubble says how many ads and trackers were blocked on the page,
   with a checkbox to always allow them on that site. The count is kept only in memory with the page; nothing
-  is stored or sent. Checked offline with `tools/qa/adblock_site_switch_check.py` (10 blocked, count 10).
+  is stored or sent. Checked offline with `tools/qa/adblock_site_switch_check.py` (10 blocked, count 10) and
+  seen in a desktop window; the icon's label says "Ads and trackers blocked", not Chromium's "Ads blocked".
 - While native ad blocking is on, page info and Settings call the Ads setting "Ads and trackers" and say what
   it does (ROADMAP **P5.16**); with it off, Chromium's wording stays.
 - Native ad blocking can be turned off per site (ROADMAP **P5.16**, off by default): it follows the browser's
