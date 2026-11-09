@@ -117,6 +117,18 @@ a real page (it becomes P5.14's first step).
 - Chromium builds C++ without exceptions, so the bridge reports a failed load as an engine whose
   `is_valid()` is false, which blocks nothing.
 
+### 4.4 First in-browser result (P5.14, 2026-11-09)
+
+The engine runs in a Thoron 158 build: `ChromeContentBrowserClient::WillCreateURLLoaderFactory` puts its
+proxy first in front of every document, worker and service-worker subresource loader; blocked requests
+end with `ERR_BLOCKED_BY_CLIENT`. It is off unless the `ThoronNativeAdblock` feature is on. The lists
+(6.9 MB) are taken at build time from the pinned uBlock Origin CRX and shipped next to the browser; the
+engine is built from them on a background thread at the first page load.
+
+On the local ad test page of `tools/build/mv2_check.py --native` (offline, fresh profile, no extension),
+the engine alone blocked **all 10** ad requests; none reached the server. uBlock Origin on the same page
+blocks 9 of 10 (its first request goes out while it starts). Cosmetic filtering stays uBlock Origin's job.
+
 ## 5. Where it plugs in
 
 - **Engine host:** one engine per browser (not per profile), built from the compiled lists, shared

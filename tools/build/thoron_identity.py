@@ -291,7 +291,8 @@ EXE_EDITS = {
                    r"(?m)^thor_ver: %\(ChromeDir\)s\\" + _NL,
                    r"(?m)^thorium_shell\.(?:exe|ico): %\(VersionDir\)s\\" + _NL,
                    r"(?m)^thorium\.(?:ico|svg): %\(VersionDir\)s\\" + _NL],
-        "forbid": [r"(?im)^(?!#)(?!thoron\.exe:)[^:\r\n]*thor[^:\r\n]*:"]},
+        # no installed file may be named after Thorium (Thoron's own names, "thoron...", are fine)
+        "forbid": [r"(?im)^(?!#)[^:\r\n]*thor(?!on)[^:\r\n]*:"]},
     "chrome/installer/mini_installer/mini_installer_constants.cc": {
         "replace": [('kBrowserExe[] = L"thorium.exe"', 'kBrowserExe[] = L"thoron.exe"', 1)]},
     "chrome/installer/util/util_constants.h": {"replace": [('L"thorium.exe"', 'L"thoron.exe"', 1),

@@ -253,6 +253,14 @@ class ExeNameTests(unittest.TestCase):
         self.assertIn("pack.bat: %(VersionDir)s\\", release)           # other entries are kept
         self.assertIn("Alex313031, ltguillaume, and gz83", release)    # credits are kept
 
+    def test_thoron_named_installed_files_are_allowed(self):
+        # Thoron's own files (the native ad-blocking lists) are not Thorium names
+        rel = "chrome/installer/mini_installer/chrome.release"
+        text = EXE_FIXTURES[rel] + "thoron_adblock_lists.txt: %(VersionDir)s\\\n"
+        self.assertIn("thoron_adblock_lists.txt:", ti.edit_exe_names(rel, text))
+        with self.assertRaisesRegex(ti.IdentityError, "chrome.release"):
+            ti.edit_exe_names(rel, EXE_FIXTURES[rel] + "thorium_extra.dll: %(VersionDir)s\\\n")
+
     def test_other_platforms_keep_their_names(self):
         build = ti.edit_exe_names("chrome/BUILD.gn", EXE_FIXTURES["chrome/BUILD.gn"])
         self.assertIn('    _chrome_output_name = "thorium"\n', build)   # Linux binary: a separate task
