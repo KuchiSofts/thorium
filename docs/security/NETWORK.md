@@ -30,6 +30,22 @@ Build: Thoron 158.0.8127.30, Windows x64 AVX2, the reviewed build settings (`doc
 `curbengh.github.io`, `pgl.yoyo.org`, `publicsuffix.org`). The Google contacts go away with ROADMAP
 **S.15**, **P2.16** and **L.8**; this list is measured again before the first release.
 
+## Native ad blocking list updates (ROADMAP P5.15, off by default)
+
+When the `ThoronNativeAdblock` feature is on, the browser checks its filter lists at most every 4 days
+(the first check 2 minutes after start, then an hourly look at whether one is due). It fetches the
+same files uBlock Origin uses, from the same hosts, each with one fallback:
+
+| List | Host (fallback) |
+|---|---|
+| EasyList, EasyPrivacy | `ublockorigin.github.io` (`ublockorigin.pages.dev`) |
+| uBlock filters, privacy, badware, quick fixes, unbreak | `ublockorigin.github.io` (`ublockorigin.pages.dev`) |
+| URLhaus malware list | `malware-filter.gitlab.io` (`curbengh.github.io`) |
+
+Each request is a plain HTTPS GET through the browser's own network context: no profile, no cookies
+or other credentials, not stored in the HTTP cache, no identifiers. A redirect away from HTTPS is
+refused. What happens to a downloaded list is in the native ad-blocking design, section 6.
+
 ## Re-measuring
 
 ```powershell
