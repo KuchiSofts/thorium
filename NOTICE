@@ -59,6 +59,11 @@ Component: thorium-win-upgrade (upstream infra/upgrader submodule)
   Copyright: hezhizheng
   Licence:   MIT (https://github.com/hezhizheng/thorium-win-upgrade). Not part of Thoron releases.
 
+Component: adblock-rust (native ad blocking, in development)
+  Copyright: Brave Software and contributors
+  Licence:   MPL-2.0 (source files unmodified; https://github.com/brave/adblock-rust, version 0.13.3)
+  With:      MIT or Apache-2.0 crates it depends on, listed in CREDITS.md
+
 Component: uBlock Origin (bundled, unmodified, as a separate extension)
   Copyright: Raymond Hill and contributors
   Licence:   GPL-3.0

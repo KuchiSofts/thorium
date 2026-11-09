@@ -90,6 +90,12 @@ author publishes no licence; those patches need the author's permission, or a re
 
 ## Bundled and related software
 
+- **adblock-rust** (native ad blocking, in development): Brave Software and contributors,
+  [brave/adblock-rust](https://github.com/brave/adblock-rust), MPL-2.0. Vendored unmodified with the crates it
+  needs, each under MIT or Apache-2.0: `addr`, `arrayvec`, `flatbuffers` (Google), `form_urlencoded`, `idna`,
+  `idna_adapter`, `percent-encoding`, `precomputed-hash`, `psl`, `psl-types`, `rustc-hash`, `rustc_version`,
+  `seahash`, `semver`, `thiserror` 1.x, `url`. Two small build fixes are kept as patches (the MIT text `seahash`
+  does not ship; FlatBuffers without nightly-only features).
 - **uBlock Origin**: Raymond Hill ([@gorhill](https://github.com/gorhill)) and contributors,
   GPL-3.0. Thoron bundles the **unmodified** official release as a separate extension
   (https://github.com/gorhill/uBlock).

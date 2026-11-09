@@ -6,7 +6,7 @@ the upstream `docs/PATCHES.md`, matched against the project licences in `CREDITS
 **UNKNOWN** need research and rows marked **NOT STATED** need the author's permission (or a rewrite)
 before the first release (ROADMAP **L.1**).
 
-Summary: BSD-3-Clause: 141, BSD-3-Clause AND GPL-3.0: 1, GPL-3.0: 2, MIT: 3, MIT AND BSD-3-Clause: 1, NOT STATED: 6 (total 154)
+Summary: BSD-3-Clause: 143, BSD-3-Clause AND GPL-3.0: 1, GPL-3.0: 2, MIT: 3, MIT AND BSD-3-Clause: 1, NOT STATED: 6 (total 156)
 
 | Patch | Origin | Licence | Evidence |
 |---|---|---|---|
@@ -86,6 +86,8 @@ Summary: BSD-3-Clause: 141, BSD-3-Clause AND GPL-3.0: 1, GPL-3.0: 2, MIT: 3, MIT
 | `ks-authors-page-default-csp.patch` | Thoron | BSD-3-Clause | patch header |
 | `ks-ffmpeg-158-hevc-x86-pred.patch` | Thoron | BSD-3-Clause | patch header |
 | `ks-ffmpeg-158-no-duplicate-bswapdsp.patch` | Thoron | BSD-3-Clause | patch header |
+| `ks-native-adblock-crates.patch` | Thoron | BSD-3-Clause | patch header |
+| `ks-native-adblock-engine.patch` | Thoron | BSD-3-Clause | patch header |
 | `ks-native-gpc.patch` | Thoron | BSD-3-Clause | patch header |
 | `ks-remove-easter-egg-pages.patch` | Thoron | BSD-3-Clause | patch header |
 | `ks-security-flag-warnings.patch` | Thoron | BSD-3-Clause | patch header |
