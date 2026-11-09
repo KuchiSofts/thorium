@@ -23,6 +23,9 @@ Each release lists:
 - Every patch in the 158 series now names its origin, author and licence at the top (ROADMAP **S.7**),
   written from the audited licence research; `tools/legal/patch_headers.py lint` rejects a patch without
   them, or one whose licence differs from the research.
+- `tools/release/changelog.py` (ROADMAP **P2.13**): release notes from git and local files, in the
+  design's order: Chromium change and its security fixes, Thoron changes grouped by commit prefix, upstream
+  Thorium commits credited by author, patch changes, fixed issues, downloads with SHA-256, credits.
 - `tools/release/package_audit.py` (ROADMAP **P2.6**): a package must contain the Thoron program and
   no Widevine module, no file named after Thorium (licence and credit texts excepted) and none of the
   upstream-only extras (Thorium updater marker, prebuilt pak tool, test shell).
