@@ -104,6 +104,19 @@ cosmetic filtering, its memory stays; the memory saving comes when the native en
 cosmetic filtering (P5.18). Still to do in the spike: link the engine into a Thoron 158 build and block
 a real page (it becomes P5.14's first step).
 
+### 4.3 Building it into Chromium (P5.14, 2026-11-09)
+
+- `adblock` **0.13.3**: Chromium's crate tooling refuses versions younger than 14 days (supply-chain rule), so
+  0.13.5 waits.
+- Crates come from Chromium's own `gnrt` (vendor, then gen), pinned and checksummed in `Cargo.lock`;
+  `tools/build/rust_crates.py` repeats it on Windows (where `gnrt` passes paths git and `gn` reject).
+- **`regex` outside tests:** Chromium lists the Rust `regex` crate for tests only and uses RE2 in C++.
+  `adblock` always needs it. Thoron allows it (with `aho-corasick`): memory-safe Rust with guaranteed
+  linear-time matching, so a hostile list cannot cause catastrophic backtracking. Recorded in
+  `gnrt_config.toml` next to the setting.
+- Chromium builds C++ without exceptions, so the bridge reports a failed load as an engine whose
+  `is_valid()` is false, which blocks nothing.
+
 ## 5. Where it plugs in
 
 - **Engine host:** one engine per browser (not per profile), built from the compiled lists, shared

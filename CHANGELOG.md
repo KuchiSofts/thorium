@@ -13,6 +13,9 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Native ad blocking, first step (ROADMAP **P5.14**): `adblock-rust` 0.13.3 and its crates are vendored with
+  Chromium's own tooling (`tools/build/rust_crates.py`), and the engine component builds in the 158 tree with
+  its tests passing. Not yet connected to page loading.
 - Native ad blocking spike (ROADMAP **P5.13**): `adblock-rust` with the lists Thoron ships loads in 5 ms,
   uses 9.7 MB and checks a request in about 5 µs (uBlock Origin's extension process: 110.8 MB). Verdict: go.
 - Design for native ad blocking (`docs/design/2026-11-09-native-adblock-design.md`, approved): a built-in
@@ -55,7 +58,7 @@ Each release lists:
   builds the release `args.gn` from upstream's and turns off Google's RLZ promotion-tracking library and the
   DRM storage ID that upstream enabled, never bundles Widevine and refuses Google API keys. Every choice
   and its reason is in `docs/build/RELEASE_ARGS.md`.
-- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 154 patches, 0 unknown,
+- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 156 patches, 0 unknown,
   6 that still need the author's permission or a rewrite (was 8). The policy templates patch was rewritten
   without the unlicensed code, and the two new upstream patches were researched (both Thorium,
   BSD-3-Clause). Details in `docs/legal/PATCH_ORIGINS.md`.
