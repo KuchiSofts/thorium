@@ -20,6 +20,10 @@ Each release lists:
   profile. The keyring entry stays `Chromium Safe Storage`, as in Thorium, so passwords in a copied profile
   stay readable. Upstream's developer test shell and prebuilt `pak` tool are not packaged. Not yet built on
   Linux.
+- Version scheme for Thoron builds (ROADMAP **P2.14**): Chromium's version with the last part widened to
+  `patch x 100 + rebuild`, for example `158.0.8127.3000` and its rebuild `158.0.8127.3001`, so rebuilds of
+  the same Chromium upgrade cleanly and a newer Chromium always wins. `tools/release/version.py` sets
+  and checks it.
 - Release build configuration reviewed for privacy (ROADMAP **P2.17**): `tools/build/release_args.py`
   builds the release `args.gn` from upstream's and turns off Google's RLZ promotion-tracking library and the
   DRM storage ID that upstream enabled, never bundles Widevine and refuses Google API keys. Every choice

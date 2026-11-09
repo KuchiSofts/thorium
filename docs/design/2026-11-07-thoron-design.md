@@ -599,6 +599,18 @@ reproduced Thorium M156 build:
 
 ## 14. Left to the builder
 
+**Decided: version numbers (ROADMAP P2.14).** A Thoron version is Chromium's four numbers with the
+last one widened: `PATCH = Chromium patch x 100 + rebuild` (rebuild 0-99). Thoron `158.0.8127.3000`
+is the first build of Chromium `158.0.8127.30`, `158.0.8127.3001` its first rebuild, and a newer
+Chromium (`158.0.8127.4500`) always sorts above every rebuild of an older one. Every part stays within
+the Windows version resource limit of 65535, so the installer and the updater compare versions the
+usual way, and Chromium's own uses of the version (user agent, extension minimum versions) are
+unaffected. Using Chromium's always-zero MINOR field for rebuilds was rejected: `158.1.8127.30`
+would sort above the newer `158.0.8127.45`. The About page shows the Chromium version as well,
+computed back from the Thoron version (P2.5). `tools/release/version.py` writes the version into
+`chrome/VERSION` before a release build and refuses a release that is not higher than the previous
+one; the release script (P2.12) runs both.
+
 - Exact file formats (manifest schema, delta container) and their versioning.
 - UI wording, and the About page and installer screens.
 - Test strategy (unit tests for the updater, an end-to-end update test between two real builds, a
