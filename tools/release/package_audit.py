@@ -10,9 +10,11 @@ folder) must contain the Thoron program and must not contain:
     developer test shell.
     py -3 -I tools/release/package_audit.py --dir <extracted package> --platform win
     py -3 -I tools/release/package_audit.py --list <file with one path per line> --platform linux
+    py -3 -I tools/release/package_audit.py --archive out/<dir>/chrome.7z --sevenzip <7za.exe> --platform win
 """
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -47,15 +49,39 @@ def audit(names: list[str], platform: str) -> list[str]:
     return problems
 
 
+def parse_7z_listing(text: str) -> list[str]:
+    """Paths from `7z l -slt` output (the archive's own header block comes before the ---------- line)."""
+    _, sep, body = text.replace("\r\n", "\n").partition("\n----------\n")
+    if not sep:
+        raise ValueError("not a 7z technical listing")
+    return [l[len("Path = "):].strip().replace("\\", "/") for l in body.splitlines() if l.startswith("Path = ")]
+
+
+def list_archive(archive: Path, sevenzip: str) -> list[str]:
+    out = subprocess.run([sevenzip, "l", "-slt", str(archive)], capture_output=True, text=True,
+                         encoding="utf-8", errors="replace")
+    if out.returncode != 0:
+        raise ValueError(f"7-Zip could not list {archive}: {out.stderr.strip()[:200]}")
+    return parse_7z_listing(out.stdout)
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     src = parser.add_mutually_exclusive_group(required=True)
     src.add_argument("--dir", type=Path, help="an extracted package")
     src.add_argument("--list", type=Path, help="a text file with one packaged path per line")
+    src.add_argument("--archive", type=Path, help="a .7z archive (the Windows installer's chrome.7z)")
+    parser.add_argument("--sevenzip", default="7z", help="7-Zip program for --archive")
     parser.add_argument("--platform", choices=PLATFORMS, required=True)
     a = parser.parse_args(argv)
     if a.dir:
         names = [str(p.relative_to(a.dir)) for p in a.dir.rglob("*")]
+    elif a.archive:
+        try:
+            names = list_archive(a.archive, a.sevenzip)
+        except (ValueError, OSError) as exc:
+            print(f"package_audit: {exc}", file=sys.stderr)
+            return 2
     else:
         names = a.list.read_text(encoding="utf-8").splitlines()
     problems = audit(names, a.platform)
