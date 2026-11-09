@@ -37,7 +37,7 @@ Each release lists:
   builds the release `args.gn` from upstream's and turns off Google's RLZ promotion-tracking library and the
   DRM storage ID that upstream enabled, never bundles Widevine and refuses Google API keys. Every choice
   and its reason is in `docs/build/RELEASE_ARGS.md`.
-- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 152 patches, 0 unknown,
+- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 153 patches, 0 unknown,
   6 that still need the author's permission or a rewrite (was 8). The policy templates patch was rewritten
   without the unlicensed code, and the two new upstream patches were researched (both Thorium,
   BSD-3-Clause). Details in `docs/legal/PATCH_ORIGINS.md`.
@@ -164,6 +164,11 @@ Each release lists:
   licence evidence, and the upstream Sponsor button is gone; Alex313031 stays credited (ROADMAP **D.8**).
 
 ### Security
+- Flags that weaken security (`disable-web-security`, `allow-file-access-from-files`, `disable-encryption`,
+  `allow-insecure-downloads`, the password store choice) now start with a plain warning in `chrome://flags`,
+  and Chromium's unsupported-flag bar is back for `--extensions-on-chrome-urls`, `--enable-blink-features`,
+  `--disable-blink-features` and `--enable-unsafe-webgpu` (ROADMAP **S.4**). Every flag still works and all
+  stay off by default.
 - `chrome://authors` (the Thorium credits page) now uses Chromium's default WebUI security policy
   instead of allowing inline scripts, and may no longer make network requests (ROADMAP **S.3**). The page
   and its credits are unchanged.
