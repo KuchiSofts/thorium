@@ -82,6 +82,11 @@ def classify(patch_text: str, patches_md: str, name: str, projects: dict[str, di
     head = "\n".join(patch_text.splitlines()[:40])
     fields = {k.lower(): v for k, v in HEADER_RE.findall(head)}
     if "license" in fields:
+        # a header that agrees with the research or PATCHES.md (for example one written from them by
+        # patch_headers.py) keeps their evidence; otherwise the header wins
+        without = classify("", patches_md, name, projects, research)
+        if without["license"] == fields["license"]:
+            return without
         return {"patch": name, "origin": fields.get("origin", "unstated"), "license": fields["license"],
                 "evidence": "patch header"}
     if research and name in research:

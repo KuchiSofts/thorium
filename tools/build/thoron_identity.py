@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
-"""Apply Thoron's Windows identity to a Chromium tree that already has the upstream Thorium overlay
+"""Apply Thoron's identity (Windows and Linux) to a Chromium tree that already has the upstream Thorium overlay
 and patch series (ROADMAP P2.3).
 
 It changes what makes the browser a separate product, so it installs and runs side by side with
@@ -11,7 +11,9 @@ Thorium and keeps its own profile:
     app ID, ProgIDs, URL scheme, Active Setup GUID, COM class IDs (notifications, elevation,
     tracing), the sandbox AppContainer SID prefix, and the list of old IDs the installer cleans up;
   - `BRANDING` (name, company, copyright with the original credits kept);
-  - the icons, from `branding/thoron/`.
+  - the icons, from `branding/thoron/`;
+  - the Windows program file `thoron.exe` (P2.20) and, on Linux, the `thoron` program, the
+    `thoron-browser` package, desktop file and the profile folder `~/.config/thoron` (P2.4, P2.21).
 The COM *interface* IDs stay as upstream's: they are compiled into the checked-in MIDL output and
 are only registered by system-level installs (ROADMAP P2.19).
 
@@ -259,6 +261,13 @@ EXE_EDITS = {
     "chrome/app/chrome_exe.ver": {"replace": [("INTERNAL_NAME=thorium_exe", "INTERNAL_NAME=thoron_exe", 1),
                                               ("ORIGINAL_FILENAME=thorium.exe", "ORIGINAL_FILENAME=thoron.exe", 1)]},
     "chrome/app/chrome_exe.vsprops": {"replace": [("\\thorium.exe", "\\thoron.exe", 1)]},
+    # Extra command-line flags from a file: Thoron reads only its own (%APPDATA%\Thoron\thoron-flags.conf, or
+    # next to thoron.exe), never Thorium's, which could turn on unsafe switches.
+    "chrome/app/chrome_main_delegate.cc": {"replace": [
+        ('kThoriumFlagsConfigDirName[] =\n    FILE_PATH_LITERAL("Thorium");',
+         'kThoriumFlagsConfigDirName[] =\n    FILE_PATH_LITERAL("Thoron");', 1),
+        ('"thorium-flags.conf', '"thoron-flags.conf', 2)],
+        "forbid": [r"thorium-flags\.conf", r'FILE_PATH_LITERAL\("Thorium"\)']},
     "chrome/chrome_proxy/chrome_proxy_main_win.cc": {"replace": [('FILE_PATH_LITERAL("thorium.exe")',
                                                                   'FILE_PATH_LITERAL("thoron.exe")', 1)]},
     "chrome/common/chrome_constants.cc": {"replace": [('FPL("thorium.exe")', 'FPL("thoron.exe")', 4)]},
@@ -292,9 +301,151 @@ EXE_EDITS = {
 }
 
 
-def edit_exe_names(rel: str, text: str) -> str:
-    """Rename the Windows program file in one build file; idempotent; raises naming the file on any surprise."""
-    spec = EXE_EDITS[rel]
+_L = "chrome/installer/linux/"
+_OUT = '"$root_out_dir/'
+_LINE = r"(?m)^[ \t]*"
+_EOL = r"\r?\n"
+_GH = "https://github.com/KuchiSofts/thoron"
+# Linux program, package, desktop and profile names (ROADMAP P2.4, P2.21), in the same anchored form as
+# EXE_EDITS. Thoron gets its own package (thoron-browser), program (thoron), install folder
+# (/opt/kuchisofts/thoron), desktop file and profile folder (~/.config/thoron), so it installs next to upstream
+# thorium-browser and never reads or changes Thorium's profile. Upstream's developer test shell and its prebuilt
+# `pak` tool are not packaged (smaller attack surface; /usr/bin/pak would also clash with upstream's package).
+# The keyring entry is left as it is ("Chromium Safe Storage", as in upstream Thorium), so passwords in a profile
+# copied from Thorium stay readable.
+_INFO = _L + "common/chromium-browser.info"
+LINUX_EDITS = {
+    "base/version_info/nix/version_extra_utils.cc": {"replace": [
+        ('kAppName = "org.chromium.Thorium"', 'kAppName = "org.kuchisofts.Thoron"', 1),
+        ('kSessionNamePrefix = "thorium"', 'kSessionNamePrefix = "thoron"', 1)]},
+    "chrome/BUILD.gn": {"replace": [('_chrome_output_name = "thorium"', '_chrome_output_name = "thoron"', 1),
+                                    ('binary = "$root_out_dir/thorium"', 'binary = "$root_out_dir/thoron"', 1)]},
+    "chrome/browser/memory_details_linux.cc": {"replace": [('process_name = u"thorium"', 'process_name = u"thoron"', 1)]},
+    "chrome/browser/shell_integration_linux.cc": {"replace": [('return "thorium-browser";', 'return "thoron-browser";', 1)]},
+    "chrome/common/channel_info_posix.cc": {"replace": [('return "thorium-browser.desktop";',
+                                                         'return "thoron-browser.desktop";', 1)]},
+    "chrome/common/chrome_constants.cc": {"replace": [('FPL("thorium")', 'FPL("thoron")', 6)]},
+    "chrome/common/chrome_paths_linux.cc": {"replace": [('data_dir_basename = "thorium"',
+                                                         'data_dir_basename = "thoron"', 1)]},
+    "chrome/app/resources/manpage.1.in": {
+        "replace": [("the web browser from Alex313031", "the web browser from KuchiSofts, based on Thorium by Alex313031", 1),
+                    ("See the Thorium Repository for help", "See the Thoron repository for help", 1),
+                    ("<https://github.com/Alex313031/thorium/>", f"<{_GH}/>", 1),
+                    ("https://github.com/Alex313031/thorium/issues", f"{_GH}/issues", 1),
+                    (".I $HOME/.config/@@PACKAGE@@", ".I $HOME/.config/thoron", 2),
+                    (".I $HOME/.cache/@@PACKAGE@@", ".I $HOME/.cache/thoron", 1),
+                    ("The Chromium team and Alex313031 \\-", "The Chromium team, Alex313031 and KuchiSofts \\-", 1)],
+        "forbid": [r"github\.com/Alex313031", r"Thorium Repository"]},
+    _L + "BUILD.gn": {
+        "replace": [('Thorium packaging does not support', 'Thoron packaging does not support', 1),
+                    (_OUT + 'thorium",', _OUT + 'thoron",', 1),
+                    ('binary_input = "$root_out_dir/thorium"\n', 'binary_input = "$root_out_dir/thoron"\n', 1),
+                    (_OUT + 'thorium.svg"', _OUT + 'thoron.svg"', 2),
+                    ('copy("thorium_svg")', 'copy("thoron_svg")', 1),
+                    ('":thorium_svg",', '":thoron_svg",', 1),
+                    ('package = "thorium-browser"', 'package = "thoron-browser"', 1)],
+        "remove": [_LINE + r'"\$root_out_dir/(?:content_shell\.pak|shell_resources\.pak|thorium_shell\.stripped'
+                   r'|thorium_shell)",' + _EOL,
+                   r'(?m)^strip_binary\("strip_thorium_shell"\) \{' + _EOL + r'(?:  [^\r\n]*' + _EOL + r')*\}'
+                   + _EOL + _EOL + r"?",
+                   _LINE + r'"(?::strip_thorium_shell|//content/shell:[a-z_]+)",' + _EOL],
+        "forbid": [r"thorium_shell|content_shell|shell_resources|//content/shell|thorium-browser|thorium\.svg"]},
+    _L + "common/installer.py": {
+        "replace": [('"https://github.com/Alex313031/Thorium/releases"', f'"{_GH}/releases"', 1),
+                    ('"thorium.svg",', '"thoron.svg",', 2),
+                    ("Missing declared Thorium package inputs", "Missing declared Thoron package inputs", 1)],
+        "remove": [_LINE + r'"(?:content_shell\.pak|shell_resources\.pak|thorium_shell\.stripped|thorium_shell\.png'
+                   r'|thorium-shell|thorium-shell\.desktop|pak)",' + _EOL,
+                   r"(?m)^        self\._install\(" + _EOL
+                   + r'            self\.output_dir / "(?:thorium_shell\.stripped|pak|thorium-shell|thorium-shell\.desktop)",'
+                   + _EOL + r"[^\r\n]*" + _EOL + r"[^\r\n]*" + _EOL + r"        \)" + _EOL,
+                   _EOL + r"        pak_link = [^\r\n]*" + _EOL + r"(?:        [^\r\n]*" + _EOL + r"){3}"],
+        "forbid": [r"thorium_shell|thorium-shell|content_shell|shell_resources|\bpak_link\b|/pak\b|\"pak\""]},
+    _INFO: {
+        "replace": [('PACKAGE="thorium-browser"', 'PACKAGE="thoron-browser"', 1),
+                    ("PROGNAME=thorium\n", "PROGNAME=thoron\n", 1),
+                    ("INSTALLDIR=/opt/chromium.org/thorium", "INSTALLDIR=/opt/kuchisofts/thoron", 1),
+                    ('MENUNAME="Thorium Browser"', 'MENUNAME="Thoron"', 1),
+                    ('SHORTDESC="The web browser from Alex313031"',
+                     'SHORTDESC="The web browser from KuchiSofts, based on Thorium by Alex313031"', 1),
+                    ('FULLDESC="Thorium is a browser that combines a minimal design with sophisticated technology to'
+                     ' make the web faster, safer, and easier."',
+                     'FULLDESC="Thoron is a fast, private and secure web browser, built on Chromium and on Thorium by'
+                     ' Alex313031."', 1),
+                    ('MAINTNAME="Thorium Linux Maintainers"', 'MAINTNAME="KuchiSofts"', 1),
+                    ('MAINTMAIL="alex313031@gmail.com"', 'MAINTMAIL="KuchiSofts@users.noreply.github.com"', 1),
+                    ('PRODUCTURL="https://thorium.rocks/"', f'PRODUCTURL="{_GH}"', 1),
+                    ('DEVELOPER_NAME="The Chromium Authors and Alex313031"',
+                     'DEVELOPER_NAME="The Chromium Authors, Alex313031 and KuchiSofts"', 1),
+                    ('BUGTRACKERURL="https://github.com/Alex313031/thorium/issues"', f'BUGTRACKERURL="{_GH}/issues"', 1),
+                    ('RDN="org.chromium.Thorium"', 'RDN="org.kuchisofts.Thoron"', 1)],
+        "forbid": [r"thorium-browser|/thorium\b|org\.chromium\.Thorium|alex313031@|thorium\.rocks"]},
+    _L + "common/wrapper": {
+        "replace": [("# Prefer Thorium's bundled libraries.", "# Prefer Thoron's bundled libraries.", 1),
+                    ("$HOME/.config/thorium/Crash Reports", "$HOME/.config/thoron/Crash Reports", 1),
+                    ("APPNAME=thorium\n", "APPNAME=thoron\n", 1),
+                    ('# DESKTOP="thorium-browser"', '# DESKTOP="thoron-browser"', 1),
+                    ('TITLE="Thorium Browser"', 'TITLE="Thoron"', 1),
+                    ('CHROME_DESKTOP="thorium-browser.desktop"', 'CHROME_DESKTOP="thoron-browser.desktop"', 1),
+                    ("SET_BY_THORIUM", "SET_BY_THORON", 1),
+                    ('echo "thorium-browser [-h', 'echo "thoron-browser [-h', 1),
+                    ("man thorium-browser", "man thoron-browser", 2),
+                    ("$XDG_CONFIG_HOME/thorium/thorium-flags.conf", "$XDG_CONFIG_HOME/thoron/thoron-flags.conf", 2),
+                    ('"$XDG_CONFIG_HOME/thorium"', '"$XDG_CONFIG_HOME/thoron"', 2),
+                    ("# Launch Thorium\n", "# Launch Thoron\n", 1)],
+        "forbid": [r"(?i)thorium"]},
+    _L + "common/desktop.template": {
+        "replace": [("Name=Thorium Browser\n", "Name=Thoron\n", 1),
+                    ("StartupWMClass=thorium-browser", "StartupWMClass=thoron-browser", 1),
+                    ("temp-profile;content-shell;safe-mode;", "temp-profile;safe-mode;", 1)],
+        "remove": [r"(?m)^\[Desktop Action content-shell\]" + _EOL + r"(?:[^\r\n\[][^\r\n]*" + _EOL + r")*" + _EOL],
+        "forbid": [r"(?i)thorium|content-shell"]},
+    _L + "common/appdata.xml.template": {
+        "replace": [("    Thorium is an open-source browser project that aims to build a safer, faster,\n",
+                     "    Thoron is a fast, private and secure web browser by KuchiSofts, built on\n", 1),
+                    ("    and more stable way to experience the web.\n", "    Chromium and on Thorium by Alex313031.\n", 1),
+                    ("    Thorium supports Vorbis", "    Thoron supports Vorbis", 1)],
+        "remove": [r"(?m)^  <screenshots>" + _EOL + r"(?:[^\r\n]*" + _EOL + r")*?  </screenshots>" + _EOL],
+        "forbid": [r"Thorium is|Thorium supports|Thorium_Screenshot"]},
+    _L + "debian/control.template": {"replace": [("Conflicts: thorium-browser-unstable", "Conflicts: thoron-browser-unstable", 1),
+                                                 ("Replaces: thorium-browser-unstable", "Replaces: thoron-browser-unstable", 1)],
+                                     "forbid": [r"(?i)thorium"]},
+    _L + "rpm/thorium.spec.template": {
+        "replace": [("#   Thorium RPM spec", "#   Thoron RPM spec", 1),
+                    ("ln -sf /opt/chromium.org/thorium/thorium-browser /usr/bin/",
+                     "ln -sf @@INSTALLDIR@@/@@PACKAGE@@ /usr/bin/", 1)],
+        "remove": [r"(?m)^# Extra Thorium stuff" + _EOL,
+                   r"(?m)^/usr/(?:bin/pak|bin/thorium-shell|share/applications/thorium-shell\.desktop)" + _EOL],
+        "forbid": [r"(?i)thorium|/usr/bin/pak"]},
+}
+
+
+_W = '"Warning: '
+# Upstream overlay files are copied into the tree before the patch series runs, so a patch in the series
+# cannot change them reliably (some are stored with Windows line endings). Thoron's edits to them live here
+# (ROADMAP S.4): the flags that weaken security start with a plain warning.
+OVERLAY_EDITS = {
+    "chrome/browser/thorium_flag_entries.h": {"replace": [
+        ('"Don\'t enforce the same-origin policy;', _W + "every website can read data from every other website,"
+         " including sites you are signed in to. Use only for testing, in a separate profile. Don't enforce the"
+         ' same-origin policy;', 1),
+        ('"By default, file:// URIs cannot read other file:// URIs.', _W + "any local HTML file you open can read"
+         " your other local files. By default, file:// URIs cannot read other file:// URIs.", 1),
+        ('"Disable encryption of cookies, passwords, and settings', _W + "saved passwords and cookies are stored"
+         " unencrypted, readable by anyone who can copy the profile folder. Disable encryption of cookies,"
+         " passwords, and settings", 1),
+        ('"Allows downloading files from mixed origin/cross origin schemes."', _W + "downloads over plain HTTP"
+         ' can be replaced by an attacker on the network. Allows downloading files from mixed origin/cross'
+         ' origin schemes."', 1),
+        ('"Choose the password store backend, instead of using', _W + "the Basic backend stores passwords"
+         " without the system keyring's protection. Choose the password store backend, instead of using", 1),
+        ("Enabled for Thorium Portable.", "Used by portable installs.", 2)],
+        "forbid": [r"Thorium Portable"]},
+}
+
+
+def _edit_names(rel: str, text: str, spec: dict, always_forbid: list[str]) -> str:
+    """Apply one anchored rename spec to one file; idempotent; raises naming the file on any surprise."""
     problems = []
     for old, new, count in spec.get("replace", []):
         found = text.count(old) + text.count(new)
@@ -303,13 +454,28 @@ def edit_exe_names(rel: str, text: str) -> str:
         text = text.replace(old, new)
     for pattern in spec.get("remove", []):
         text = re.sub(pattern, "", text)
-    for pattern in spec.get("forbid", []) + [r"thorium\.exe"]:
+    for pattern in spec.get("forbid", []) + always_forbid:
         hit = re.search(pattern, text)
         if hit:
             problems.append(f"left over after the edit: {hit.group(0)!r}")
     if problems:
         raise IdentityError(f"{rel}: " + "; ".join(problems))
     return text
+
+
+def edit_exe_names(rel: str, text: str) -> str:
+    """Rename the Windows program file in one build file (ROADMAP P2.20)."""
+    return _edit_names(rel, text, EXE_EDITS[rel], [r"thorium\.exe"])
+
+
+def edit_overlay(rel: str, text: str) -> str:
+    """Thoron's edits to one upstream overlay file (ROADMAP S.4)."""
+    return _edit_names(rel, text, OVERLAY_EDITS[rel], [])
+
+
+def edit_linux_names(rel: str, text: str) -> str:
+    """Rename the Linux program, package, desktop and profile names in one file (ROADMAP P2.4, P2.21)."""
+    return _edit_names(rel, text, LINUX_EDITS[rel], [])
 
 
 def edit_branding(text: str) -> str:
@@ -393,14 +559,16 @@ def apply(src: Path, repo: Path, string_files: list[str] | None = None, dry_run:
             continue
         if new != text:
             planned[path] = new.encode("utf-8")
-    for rel in EXE_EDITS:
+    for rel in dict.fromkeys([*EXE_EDITS, *LINUX_EDITS, *OVERLAY_EDITS]):
         path = src / rel
         if not path.is_file():
             problems.append(f"missing {rel}")
             continue
         text = path.read_bytes().decode("utf-8")
         try:
-            new = edit_exe_names(rel, text)
+            new = edit_exe_names(rel, text) if rel in EXE_EDITS else text
+            new = edit_linux_names(rel, new) if rel in LINUX_EDITS else new
+            new = edit_overlay(rel, new) if rel in OVERLAY_EDITS else new
         except IdentityError as exc:
             problems.append(str(exc))
             continue

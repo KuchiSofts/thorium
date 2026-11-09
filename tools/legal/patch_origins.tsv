@@ -1,7 +1,6 @@
 patch	origin	license	evidence
-# L.1 research for Thorium M156.0.8078.28. Method and sources: docs/legal/PATCH_ORIGINS.md.
+# L.1 research for the Thoron series on Chromium 158.0.8127.30 (from Thorium 156.0.8078.80). Method and sources: docs/legal/PATCH_ORIGINS.md.
 # A row here overrides docs/PATCHES.md; a patch header still wins. Licence ids: see LICENCE_IDS in patch_licenses.py.
-add-flag-for-auto-dark-mode.patch	Thorium, qcasey, icepie	NOT STATED	copyright line names qcasey and icepie; Thorium's M138 docs credit qcasey gtk-dark-mode-switch-fix.patch (modified); qcasey/chromium-patches publishes no licence
 add-flag-for-encrypted-client-hello.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 add-flag-for-hover-activate-tab.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 add-flag-for-incognito-themes.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
@@ -14,7 +13,6 @@ allow-insecure-downloads.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex31303
 allow-webaudio-autoplay.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex313031 in the copyright line; no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 always-enable-reload-menu.patch	Thorium (Alex313031, gz83); idea from ungoogled-chromium	BSD-3-Clause	same feature as ungoogled-chromium enable-menu-on-reload-button.patch (credited in Thorium's M138 docs/PATCHES.md); the code differs; both BSD-3-Clause
 android-disable-signin-without-account-manager.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
-android-thorium-branding.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex313031 in the copyright line; no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 angle-lockfree.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 bookmark-default-prefs.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex313031 in the copyright line; no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 bookmark-dialog-default-folder.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
@@ -34,9 +32,7 @@ disable-thorium-icons.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex313031 i
 disable-vulkan-gpu-log-warnings.patch	Chromium_Clang (RobRich999)	NOT STATED	10 of 11 distinctive lines identical to Chromium_Clang linux64-avx.patch; the repository publishes no licence
 dom-distiller-reader-mode.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex313031 in the copyright line; no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 downloads-page-enhancements.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
-enable-android-devtools-frontend.patch	Cromite (uazo)	GPL-3.0	same change as Cromite Enable-Android-DevTools-Frontend.patch (3 of 6 distinctive lines identical); Android only, not part of Thoron's builds
 enable-chrome-labs-by-default.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex313031 in the copyright line; no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
-enable-ctrl-tab-mru.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 enable-mpeg2-ac3-eac3-decoding.patch	Thorium, RobRich999, electron-chromium-codecs (Muril-o)	NOT STATED	upstream docs/PATCHES.md credits Muril-o/electron-chromium-codecs and the copyright line names RobRich999; neither publishes a licence
 enable-parallel-downloading-by-default.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex313031 in the copyright line; no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 enable-sharing-hub-page-action.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
@@ -45,10 +41,9 @@ enable-whats-new-by-default.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex31
 enable-xnnpack-arm-fp16-vector.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 expand-chrome-color-choices.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 fix-ffmpeg-android-x86-disable-hevc-nasm.patch	enable-chromium-hevc-hardware-decoding (StaZhu), Thorium	MIT AND BSD-3-Clause	8 of 12 distinctive lines identical to StaZhu add-hevc-ffmpeg-decoder-parser.patch (MIT)
-fix-policy-templates.patch	chromium-win64 (Hibbiki), Thorium	NOT STATED	6 of 22 distinctive lines identical to Hibbiki 0004-Fix-Grit-branding-args-for-policy_templates.patch; the repository publishes no licence
+fix-policy-templates.patch	Thorium (Alex313031, gz83), Thoron	BSD-3-Clause	rewritten for Chromium 158: only the policy names change; the 8 lines it shares with Hibbiki 0004-Fix-Grit-branding-args-for-policy_templates.patch are all Chromium's own writer_configuration.py lines
 force-disable-tab-outlines.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 ftp-support-thorium.patch	Chromium, Thorium	BSD-3-Clause	restores Chromium FTP files removed upstream (their Chromium Authors headers are kept) plus Thorium changes
-GPC.patch	Cromite (uazo)	GPL-3.0	126 of 140 distinctive added lines are identical to Cromite Enable-Global-Privacy-Control.patch
 hide-cast-context-menu.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 increase-bookmark-open-prompt-threshold.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 increase-dnr-limits.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
@@ -124,3 +119,5 @@ windows-chrome-proxy-branding.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex
 windows-profile-shortcut-icon-version.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	Alex313031 in the copyright line; no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 windows-thorium-flags-conf.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
 zstd-clang-cl-bmi2-detection.patch	Thorium (Alex313031, gz83)	BSD-3-Clause	no code match in the 13 compared projects (docs/legal/PATCH_ORIGINS.md); part of the BSD-3-Clause Thorium tree (LICENSE.md)
+developer-crx-installation.patch	Thorium (gz83)	BSD-3-Clause	written in the Thorium repo (312d9b5, 2026-10-27); the only lines it shares with the 13 reference projects are common Chromium code (includes, file dialog and feature checks)
+thorium-first-run-branding.patch	Thorium (gz83)	BSD-3-Clause	written in the Thorium repo (2782b07, 2026-10-27); none of its distinctive lines appear in the 13 reference projects

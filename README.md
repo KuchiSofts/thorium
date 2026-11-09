@@ -6,7 +6,7 @@
 
 **A fast, secure, Thorium-based browser for Windows 11 and Ubuntu.**
 
-[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-27%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
+[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-28%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
 
 [Why Thoron](#why-thoron) · [Features](#features) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits)
 
@@ -54,18 +54,18 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `█████░░░░░░░░░░░░░░░` 34 of 127 tasks done (27%) · roadmap updated 2026-11-08
+**Overall:** `██████░░░░░░░░░░░░░░` 37 of 130 tasks done (28%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
 | [P0 - Foundation](ROADMAP.md#p0---foundation) | `████████████████████` | 11/11 | ✅ Done |
 | [P1 - Build environment](ROADMAP.md#p1---build-environment) | `██████████████████░░` | 9/10 | 🔄 In progress |
-| [P2 - First release](ROADMAP.md#p2---first-release) | `██░░░░░░░░░░░░░░░░░░` | 2/21 | 🔄 In progress |
+| [P2 - First release](ROADMAP.md#p2---first-release) | `███░░░░░░░░░░░░░░░░░` | 4/23 | 🔄 In progress |
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
 | [P5 - Quality](ROADMAP.md#p5---quality) | `░░░░░░░░░░░░░░░░░░░░` | 0/12 | ⬜ Not started |
-| [Security (S)](ROADMAP.md#security-s) | `██████░░░░░░░░░░░░░░` | 4/13 | 🔄 In progress |
+| [Security (S)](ROADMAP.md#security-s) | `███████░░░░░░░░░░░░░` | 5/14 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `██████████░░░░░░░░░░` | 4/8 | 🔄 In progress |
 | [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
@@ -74,11 +74,11 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 **What's next**
 
 - 🔄 **P1.9** Thoron build docs written from scratch and followed end-to-end
-- ⬜ **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
-- ⬜ **P2.2** Audit all upstream changes since `de9a1bc6` with `tools/audit` (S.1)
-- ⬜ **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`, keyring entry `Thoron Safe Storage`
-- ⬜ **P2.5** About page: Thoron version, Chromium version, verbatim disclaimer, links to credits and changelog
-- ⬜ **P2.6** Widevine not bundled; fetched by Chromium's component updater at runtime
+- 🔄 **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`; the keyring entry stays `Chromium Safe Storage` (shared with Thorium, so imported passwords stay readable)
+- 🔄 **P2.6** Widevine not bundled; fetched by Chromium's component updater at runtime
+- 🔄 **P2.13** `tools/release/changelog.py`: release notes generated from commit prefixes, upstream merges (author-credited), the Chromium version diff and security fixes (CVE and severity), patch changes, and issues
+- 🔄 **P2.14** Version scheme for Thoron rebuilds of the same Chromium version (4-part numeric, Windows-installer compatible)
+- 🔄 **P2.21** Linux program and package names: `thoron` instead of `thorium` for the binary, the `.deb`/`.rpm` packages, the `.desktop` file and the icons; the developer test shell and the prebuilt `pak` tool are not packaged
 
 <details>
 <summary><b>Full task list</b> (generated from <a href="ROADMAP.md">ROADMAP.md</a>)</summary>
@@ -112,10 +112,10 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 **P2 - First release**
 
-- [ ] **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
+- [x] **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
 - [ ] **P2.2** Audit all upstream changes since `de9a1bc6` with `tools/audit` (S.1)
 - [x] **P2.3** Identity patch, Windows: product name Thoron, `%LOCALAPPDATA%\Thoron`, `HKCU\Software\Thoron`, new app GUID in `chromium_install_modes.h`, ProgIDs, AppUserModelID
-- [ ] **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`, keyring entry `Thoron Safe Storage`
+- [ ] **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`; the keyring entry stays `Chromium Safe Storage` (shared with Thorium, so imported passwords stay readable)
 - [ ] **P2.5** About page: Thoron version, Chromium version, verbatim disclaimer, links to credits and changelog
 - [ ] **P2.6** Widevine not bundled; fetched by Chromium's component updater at runtime
 - [ ] **P2.7** Variants AVX2 and SSE4 for Windows x64 and Linux x64
@@ -123,16 +123,18 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P2.9** Linux packaging: `.deb` with an AppArmor profile for user namespaces, plus portable `.tar.xz`
 - [ ] **P2.10** Signed APT repository on GitHub Pages (fixes the unsigned-repo problem of upstream #1164 and #1049)
 - [ ] **P2.11** Key ceremony: Ed25519 release key (minisign) and APT signing key, offline root, encrypted backups
-- [ ] **P2.12** Release script `tools/release/release.py`: build matrix → package → `SHA256SUMS` → sign → `BUILDINFO` → **draft** GitHub release
+- [ ] **P2.12** Release script `tools/release/release.py`: build matrix → package → `SHA256SUMS` → sign → `BUILDINFO` → **draft** GitHub release; sets the version and refuses a non-increasing one with `tools/release/version.py` (P2.14)
 - [ ] **P2.13** `tools/release/changelog.py`: release notes generated from commit prefixes, upstream merges (author-credited), the Chromium version diff and security fixes (CVE and severity), patch changes, and issues
 - [ ] **P2.14** Version scheme for Thoron rebuilds of the same Chromium version (4-part numeric, Windows-installer compatible)
 - [ ] **P2.15** First draft release, Thoron 158.x (Windows x64 and Linux x64)
 - [ ] **P2.16** No silent Web Store installs: Thorium's default apps install uBlock Origin from the Chrome Web Store into every new profile, contacting Google when the profile is created; Thoron ships its bundled, SHA-256-pinned uBlock Origin instead and installs nothing from the network without the user's consent
-- [ ] **P2.17** Privacy review of the inherited build configuration, for example `enable_rlz = true` (Google's promotional RLZ library) and any other upstream GN arg that adds network contact or tracking
+- [x] **P2.17** Privacy review of the inherited build configuration, for example `enable_rlz = true` (Google's promotional RLZ library) and any other upstream GN arg that adds network contact or tracking
 - [ ] **P2.18** uBlock Origin runs on 158: check whether `chrome.storage.managed.get` also hangs in the release configuration and for normally installed extensions; fix it (patch or configuration); verify cosmetic filtering with a normally installed extension in a visible window
 - [ ] **P2.19** Thoron's own COM interface IDs (IElevator, tracing service): regenerate the checked-in MIDL output; needed before system-level installs, which register those interfaces
 - [x] **P2.20** Program and installer file names: `thoron.exe` instead of `thorium.exe`, the installer name, and no Thorium updater remnants (`thor_ver`)
-- [ ] **P2.21** Linux program and package names: `thoron` instead of `thorium` for the binary, the `.deb`/`.rpm` packages, the `.desktop` file and the icons, without changing where existing profiles are read from
+- [ ] **P2.21** Linux program and package names: `thoron` instead of `thorium` for the binary, the `.deb`/`.rpm` packages, the `.desktop` file and the icons; the developer test shell and the prebuilt `pak` tool are not packaged
+- [ ] **P2.22** Linux dark mode on 158: check whether Chromium 158 follows a GTK theme switch on its own; if not, write Thoron's own fix (the Thorium patch was not carried over, see `docs/build/M158_REBASE.md`)
+- [ ] **P2.23** Check the hand-ported UI patches in a running 158 build: tab search button on the right (default) and on the left (flag), Thorium 2024 UI, classic omnibox, rectangular tabs, custom tab width, open link in this tab
 
 **P2b - ARM64**
 
@@ -159,7 +161,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P3.13** Import UI in the installer and in Settings → Import: detected browsers and profiles, per-type checkboxes, a "please close <browser>" prompt (never force-closes)
 - [ ] **P3.14** Chromium-family import engine: copy, never move; verify (hash plus SQLite integrity); bookmarks, history, passwords, cookies, extensions, settings, autofill
 - [ ] **P3.15** Tabs and tab-groups import: our own SNSS session parser (windows, tab order, groups with name, colour and collapsed state, pinned and active tab, per-tab history)
-- [ ] **P3.16** Linux keyring migration (`Thorium Safe Storage` → `Thoron Safe Storage`)
+- [ ] **P3.16** Linux keyring check: Thoron keeps the `Chromium Safe Storage` entry that Thorium uses, so no key migration is needed; prove it on import
 - [ ] **P3.17** Guided Chrome password import (Chrome's own CSV export → import → secure delete); never bypasses app-bound encryption
 - [ ] **P3.18** Import report (counts per type, what was skipped and why; no secrets)
 
@@ -200,13 +202,14 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **S.4** Review every flag that weakens security (for example `allow-insecure-downloads`, `disable-web-security`, `disable-encryption`); each must stay opt-in and carry a warning
 - [ ] **S.5** Sandbox verification every release (Windows sandbox; Linux AppArmor and user namespaces)
 - [x] **S.6** Enable GitHub Issues and private vulnerability reporting for the repository, before the docs that link to them go public (part of P0.11)
-- [ ] **S.7** Every patch carries `Origin:`, `Author:` and `License:` headers (with L.1)
+- [x] **S.7** Every patch carries `Origin:`, `Author:` and `License:` headers (with L.1)
 - [ ] **S.8** Authenticode code signing once a certificate exists
 - [ ] **S.9** Security-release process: watch Chrome Releases, triage, fast-track build within the G2 targets
 - [ ] **S.10** Publish the list of every network endpoint Thoron contacts and why (upstream #126)
 - [ ] **S.11** Remove Thorium's hidden Easter-egg WebUI pages (`chrome://eggs`, `chrome://robot`) from Thoron: a professional product with a smaller WebUI attack surface (pairs with S.3)
 - [x] **S.12** Content standards: written policy in `CONTRIBUTING.md`, plus an automatic `adult_content` check in `tools/audit` (added text and file names, `--strict`)
 - [x] **S.13** Inherited history cleaned: three inappropriate image files that upstream added in 2023 and later deleted were purged from every commit; the current tree is unchanged; they were verified absent from the M150 browser build
+- [ ] **S.14** Safe Browsing decision: without Google API keys the built-in Safe Browsing cannot query Google; choose between a key-free setup, another provider, or Google's service with the user's consent, and measure what it contacts
 
 **Quality & performance (Q)**
 

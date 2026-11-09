@@ -69,6 +69,30 @@ def _detail(stderr: str, private_prefixes: tuple[str, ...]) -> str:
     return text if len(text) <= 200 else text[:197] + "..."
 
 
+OVERLAY_COMPONENTS = ("chrome", "components", "content", "third_party", "ui")   # as upstream setup.py
+
+
+def _add_overlay(tree: Path, repo: Path, env: dict) -> None:
+    """Put upstream's overlay files (<tree>/src/<component>/...) into the scratch index, byte for byte,
+    because setup.py copies them into the checkout before the series runs."""
+    entries = []
+    for component in OVERLAY_COMPONENTS:
+        base = tree / "src" / component
+        if not base.is_dir():
+            continue
+        for f in sorted(p for p in base.rglob("*") if p.is_file()):
+            blob = _git(["hash-object", "-w", "--no-filters", str(f)], repo, env).stdout.strip()
+            entries.append(f"100644 {blob}\t{f.relative_to(tree / 'src').as_posix()}\0")
+    if entries:
+        # bytes and NUL separators: text mode on Windows would turn "\n" into "\r\n" and git would
+        # then ignore every path
+        proc = subprocess.run(["git", "update-index", "-z", "--index-info"], cwd=repo, env=env,
+                              input="".join(entries).encode("utf-8"), capture_output=True)
+        err = proc.stderr.decode("utf-8", "replace").strip()
+        if proc.returncode != 0 or err:
+            raise RuntimeError(f"cannot add the upstream overlay: {err}")
+
+
 def check_series(tree: Path, src: Path, conditions: set[str]) -> list[dict]:
     tree, src = Path(tree).resolve(), Path(src).resolve()
     entries = select(parse_series((tree / "patch_scripts" / "series" / "series").read_text(encoding="utf-8")),
@@ -88,9 +112,18 @@ def check_series(tree: Path, src: Path, conditions: set[str]) -> list[dict]:
             repo_root = _git(["rev-parse", "--show-toplevel"], apply_dir).stdout.strip()
             env = envs.get(repo_root)
             if env is None:
-                env = dict(os.environ, GIT_INDEX_FILE=str(Path(tmp) / f"index-{len(envs)}"))
+                n = len(envs)
+                git_dir = _git(["rev-parse", "--absolute-git-dir"], Path(repo_root)).stdout.strip()
+                objects = Path(tmp) / f"objects-{n}"
+                objects.mkdir()
+                # new objects go to a scratch store; the checkout's own objects are only read
+                env = dict(os.environ, GIT_INDEX_FILE=str(Path(tmp) / f"index-{n}"),
+                           GIT_OBJECT_DIRECTORY=str(objects),
+                           GIT_ALTERNATE_OBJECT_DIRECTORIES=str(Path(git_dir) / "objects"))
                 if _git(["read-tree", "HEAD"], Path(repo_root), env).returncode != 0:
                     raise RuntimeError(f"cannot read HEAD of {e.root}")
+                if Path(repo_root).resolve() == src:
+                    _add_overlay(tree, Path(repo_root), env)
                 envs[repo_root] = env
             rel = apply_dir.relative_to(Path(repo_root).resolve()).as_posix()
             base = ["apply", "--cached"] + ([f"--directory={rel}"] if rel != "." else [])

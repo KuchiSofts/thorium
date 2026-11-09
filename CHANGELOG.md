@@ -13,6 +13,34 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Patch series rebased to Chromium 158.0.8127.30 (ROADMAP **P2.1**), starting from upstream's newer 156.0.8078.80 patches after an audit of the upstream changes. All 146 patches apply exactly; 25 were ported by hand to 158's code. Global Privacy Control now uses Chromium's own implementation instead of the Cromite patch, Android-only patches are not carried over, and two small Thoron patches fix the 158 build (FFmpeg duplicate sources, a Rust compiler flag). Every decision is recorded in `docs/build/M158_REBASE.md`.
+- Linux identity in code (ROADMAP **P2.4**, **P2.21**): the program `thoron`, the package `thoron-browser`
+  installed in `/opt/kuchisofts/thoron`, its own desktop file and app ID, and the profile folder
+  `~/.config/thoron`, so Thoron installs next to upstream `thorium-browser` and never reads or changes its
+  profile. The keyring entry stays `Chromium Safe Storage`, as in Thorium, so passwords in a copied profile
+  stay readable. Upstream's developer test shell and prebuilt `pak` tool are not packaged. Not yet built on
+  Linux.
+- Every patch in the 158 series now names its origin, author and licence at the top (ROADMAP **S.7**),
+  written from the audited licence research; `tools/legal/patch_headers.py lint` rejects a patch without
+  them, or one whose licence differs from the research.
+- `tools/release/changelog.py` (ROADMAP **P2.13**): release notes from git and local files, in the
+  design's order: Chromium change and its security fixes, Thoron changes grouped by commit prefix, upstream
+  Thorium commits credited by author, patch changes, fixed issues, downloads with SHA-256, credits.
+- `tools/release/package_audit.py` (ROADMAP **P2.6**): a package must contain the Thoron program and
+  no Widevine module, no file named after Thorium (licence and credit texts excepted) and none of the
+  upstream-only extras (Thorium updater marker, prebuilt pak tool, test shell).
+- Version scheme for Thoron builds (ROADMAP **P2.14**): Chromium's version with the last part widened to
+  `patch x 100 + rebuild`, for example `158.0.8127.3000` and its rebuild `158.0.8127.3001`, so rebuilds of
+  the same Chromium upgrade cleanly and a newer Chromium always wins. `tools/release/version.py` sets
+  and checks it.
+- Release build configuration reviewed for privacy (ROADMAP **P2.17**): `tools/build/release_args.py`
+  builds the release `args.gn` from upstream's and turns off Google's RLZ promotion-tracking library and the
+  DRM storage ID that upstream enabled, never bundles Widevine and refuses Google API keys. Every choice
+  and its reason is in `docs/build/RELEASE_ARGS.md`.
+- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 153 patches, 0 unknown,
+  6 that still need the author's permission or a rewrite (was 8). The policy templates patch was rewritten
+  without the unlicensed code, and the two new upstream patches were researched (both Thorium,
+  BSD-3-Clause). Details in `docs/legal/PATCH_ORIGINS.md`.
 - First reproduced Linux build: Chromium 156.0.8078.28 with the upstream M156 AVX2 configuration
   (no bundled Widevine) in a dedicated Ubuntu 24.04 WSL2 distro, built in about 2 hours 37 minutes.
   It passes the smoke test with the sandbox proven (renderers under seccomp-BPF in their own PID
@@ -128,12 +156,31 @@ Each release lists:
   observations about upstream.
 
 ### Removed
+- Thorium's hidden `chrome://eggs` and `chrome://robot` pages (ROADMAP **S.11**): they only showed pictures,
+  yet were allowed to make network requests. `chrome://authors`, which credits the Thorium authors, stays.
 - The old copy of the upstream Thorium M138 tree that the repository still carried (about 1,500 files:
   sources, logos, build scripts, submodules and old docs). Thoron's builds never used it; they use the
   pinned, audited upstream source. Thorium's M138 `PATCHES.md` and README stay in `docs/upstream/` as
   licence evidence, and the upstream Sponsor button is gone; Alex313031 stays credited (ROADMAP **D.8**).
 
+### Fixed
+- `tools/build/rebase_report.py` now puts upstream's overlay files into its scratch index, as the real setup
+  does before the series runs, so a patch that changes an overlay file is no longer reported as rejected;
+  and it writes its temporary git objects to a scratch folder instead of the Chromium checkout.
+
 ### Security
+- Flags that weaken security (`disable-web-security`, `allow-file-access-from-files`, `disable-encryption`,
+  `allow-insecure-downloads`, the password store choice) now start with a plain warning in `chrome://flags`,
+  and Chromium's unsupported-flag bar is back for `--extensions-on-chrome-urls`, `--enable-blink-features`,
+  `--disable-blink-features` and `--enable-unsafe-webgpu` (ROADMAP **S.4**). Every flag still works and all
+  stay off by default.
+- `chrome://authors` (the Thorium credits page) now uses Chromium's default WebUI security policy
+  instead of allowing inline scripts, and may no longer make network requests (ROADMAP **S.3**). The page
+  and its credits are unchanged.
+- Thoron reads extra command-line flags only from its own file on Windows (`%APPDATA%\Thoron\thoron-flags.conf`
+  or `thoron-flags.conf` next to `thoron.exe`). The upstream patch read Thorium's file, so switches meant for
+  Thorium, unsafe ones included, would have applied to Thoron. On Linux the file is
+  `~/.config/thoron/thoron-flags.conf`.
 - `.gitignore` now excludes every browser-profile file type (passwords, cookies, sessions, history,
   keys) whose names cannot be mistaken for source folders, on top of the privacy checks that block
   such data at commit and push time.

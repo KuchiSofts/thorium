@@ -68,14 +68,39 @@ commits that Thorium's docs name.
 | `llvm-optimized-toolchain-build.patch` | RobRich999 | permission, or rewrite the build flags |
 | `thorium-build-config-and-simd.patch` | RobRich999 (30 of 210 lines) | permission, or rewrite those lines |
 | `enable-mpeg2-ac3-eac3-decoding.patch` | RobRich999, Muril-o | permission from both, or rewrite |
-| `fix-policy-templates.patch` | Hibbiki (6 of 22 lines) | permission, or rewrite those lines |
-| `add-flag-for-auto-dark-mode.patch` | qcasey, icepie | permission, or rewrite |
+| `fix-policy-templates.patch` | Hibbiki (6 of 22 lines) | rewritten for Chromium 158 (see below) |
+| `add-flag-for-auto-dark-mode.patch` | qcasey, icepie | not carried over to Chromium 158 (see below) |
 | `disable-encryption.patch` | win32ss (Supermium) | permission for the profile reversion part, or rewrite it |
 
 RobRich999 has worked with Thorium for years and is credited in its README, so asking for a written
 licence statement is the natural first step. Asking any author is the owner's decision.
 
+## Chromium 158 series
+
+Re-run on 2026-11-08 for the series rebased to Chromium 158.0.8127.30 (ROADMAP **P2.1**,
+`docs/build/M158_REBASE.md`): **153 patches, 0 unknown, 6 not stated** (was 8).
+
+- `fix-policy-templates.patch` was rewritten for 158 and no longer uses Hibbiki's code: the 8 lines
+  it still shares with Hibbiki's patch are all lines of Chromium's own `writer_configuration.py`.
+- `add-flag-for-auto-dark-mode.patch` (qcasey, icepie) is not carried over (Linux, ROADMAP **P2.22**).
+- `GPC.patch` (Cromite, GPL-3.0) is replaced by Thoron's `ks-native-gpc.patch`, which only turns on
+  Chromium 158's own Global Privacy Control. The other Cromite patches stay, so releases still follow
+  the GPL-3.0 rules (ROADMAP **L.2**).
+- The Android-only patches and `enable-ctrl-tab-mru.patch` are gone; their research rows were removed.
+- Two patches new in upstream since the M156 tag, `developer-crx-installation.patch` and
+  `thorium-first-run-branding.patch`, were written in the Thorium repo by gz83 (BSD-3-Clause). Compared
+  with the 13 projects above, they share only common Chromium code (includes, file dialog and feature
+  checks).
+- The six new Thoron patches carry `Origin:` and `License:` headers (BSD-3-Clause).
+
+The six patches that still need permission or a rewrite are the five RobRich999 ones (one also
+Muril-o) and the profile reversion part of `disable-encryption.patch` (win32ss) in the table above.
+
 ## Keeping it current
+
+Every patch carries `Origin:`, `Author:` and `License:` lines at the top (ROADMAP **S.7**). New upstream
+patches get them with `py -3 -I tools/legal/patch_headers.py add --tree <tree> --credits CREDITS.md
+--research tools/legal/patch_origins.tsv`, and `patch_headers.py lint` checks them.
 
 Run the inventory after every upstream rebase (the Chromium 158 rebase, ROADMAP **P2.1**):
 
