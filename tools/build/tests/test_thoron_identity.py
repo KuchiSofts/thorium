@@ -310,7 +310,8 @@ class ApplyTests(unittest.TestCase):
             (self.src / dest).write_bytes(b"old icon")
         write_exe_fixtures(self.src)
         from tools.build.tests.test_thoron_linux_names import LINUX_FIXTURES
-        for rel, text in LINUX_FIXTURES.items():
+        from tools.build.tests.test_thoron_overlay_edits import FLAG_ENTRIES, FLAGS
+        for rel, text in {**LINUX_FIXTURES, FLAGS: FLAG_ENTRIES}.items():
             (self.src / rel).parent.mkdir(parents=True, exist_ok=True)
             (self.src / rel).write_bytes(text.encode("utf-8"))
 

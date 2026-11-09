@@ -420,6 +420,30 @@ LINUX_EDITS = {
 }
 
 
+_W = '"Warning: '
+# Upstream overlay files are copied into the tree before the patch series runs, so a patch in the series
+# cannot change them reliably (some are stored with Windows line endings). Thoron's edits to them live here
+# (ROADMAP S.4): the flags that weaken security start with a plain warning.
+OVERLAY_EDITS = {
+    "chrome/browser/thorium_flag_entries.h": {"replace": [
+        ('"Don\'t enforce the same-origin policy;', _W + "every website can read data from every other website,"
+         " including sites you are signed in to. Use only for testing, in a separate profile. Don't enforce the"
+         ' same-origin policy;', 1),
+        ('"By default, file:// URIs cannot read other file:// URIs.', _W + "any local HTML file you open can read"
+         " your other local files. By default, file:// URIs cannot read other file:// URIs.", 1),
+        ('"Disable encryption of cookies, passwords, and settings', _W + "saved passwords and cookies are stored"
+         " unencrypted, readable by anyone who can copy the profile folder. Disable encryption of cookies,"
+         " passwords, and settings", 1),
+        ('"Allows downloading files from mixed origin/cross origin schemes."', _W + "downloads over plain HTTP"
+         ' can be replaced by an attacker on the network. Allows downloading files from mixed origin/cross'
+         ' origin schemes."', 1),
+        ('"Choose the password store backend, instead of using', _W + "the Basic backend stores passwords"
+         " without the system keyring's protection. Choose the password store backend, instead of using", 1),
+        ("Enabled for Thorium Portable.", "Used by portable installs.", 2)],
+        "forbid": [r"Thorium Portable"]},
+}
+
+
 def _edit_names(rel: str, text: str, spec: dict, always_forbid: list[str]) -> str:
     """Apply one anchored rename spec to one file; idempotent; raises naming the file on any surprise."""
     problems = []
@@ -442,6 +466,11 @@ def _edit_names(rel: str, text: str, spec: dict, always_forbid: list[str]) -> st
 def edit_exe_names(rel: str, text: str) -> str:
     """Rename the Windows program file in one build file (ROADMAP P2.20)."""
     return _edit_names(rel, text, EXE_EDITS[rel], [r"thorium\.exe"])
+
+
+def edit_overlay(rel: str, text: str) -> str:
+    """Thoron's edits to one upstream overlay file (ROADMAP S.4)."""
+    return _edit_names(rel, text, OVERLAY_EDITS[rel], [])
 
 
 def edit_linux_names(rel: str, text: str) -> str:
@@ -530,7 +559,7 @@ def apply(src: Path, repo: Path, string_files: list[str] | None = None, dry_run:
             continue
         if new != text:
             planned[path] = new.encode("utf-8")
-    for rel in dict.fromkeys([*EXE_EDITS, *LINUX_EDITS]):
+    for rel in dict.fromkeys([*EXE_EDITS, *LINUX_EDITS, *OVERLAY_EDITS]):
         path = src / rel
         if not path.is_file():
             problems.append(f"missing {rel}")
@@ -539,6 +568,7 @@ def apply(src: Path, repo: Path, string_files: list[str] | None = None, dry_run:
         try:
             new = edit_exe_names(rel, text) if rel in EXE_EDITS else text
             new = edit_linux_names(rel, new) if rel in LINUX_EDITS else new
+            new = edit_overlay(rel, new) if rel in OVERLAY_EDITS else new
         except IdentityError as exc:
             problems.append(str(exc))
             continue
