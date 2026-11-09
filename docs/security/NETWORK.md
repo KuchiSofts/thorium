@@ -20,8 +20,15 @@ Build: Thoron 156.0.8078.28, Windows x64 AVX2, upstream build settings. 90 secon
 | `accounts.google.com` | 12 | Google sign-in cookie check at start-up (`ListAccounts`) | turn off (ROADMAP **S.15**) |
 | `cdn.jsdelivr.net`, `ublockorigin.pages.dev`, `malware-filter.gitlab.io`, `pgl.yoyo.org`, `publicsuffix.org` | 42, 25, 12, 12, 12 | uBlock Origin downloading its filter lists | keep: this is the ad and malware blocking the user wants |
 
-The Thoron 158 release build (with the reviewed build settings, `docs/build/RELEASE_ARGS.md`) is
-measured the same way before the first release.
+## Thoron 158 (first build, 2026-11-09)
+
+Build: Thoron 158.0.8127.30, Windows x64 AVX2, the reviewed build settings (`docs/build/RELEASE_ARGS.md`).
+90 seconds. The same hosts as 156, for the same reasons: `optimizationguide-pa.googleapis.com` (78),
+`update.googleapis.com` (37), `chromewebstore.googleapis.com` (22), `www.google.com` (20),
+`clients2.google.com` (18), `accounts.google.com` (12), `clients2.googleusercontent.com` (12),
+`edgedl.me.gvt1.com` (7), and uBlock Origin's filter lists (`ublockorigin.pages.dev`, `cdn.jsdelivr.net`,
+`curbengh.github.io`, `pgl.yoyo.org`, `publicsuffix.org`). The Google contacts go away with ROADMAP
+**S.15**, **P2.16** and **L.8**; this list is measured again before the first release.
 
 ## Re-measuring
 
