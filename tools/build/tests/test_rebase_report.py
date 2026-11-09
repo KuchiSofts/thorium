@@ -69,6 +69,23 @@ class ReportTests(unittest.TestCase):
         self.assertEqual([r["status"] for r in rows], ["applied", "fuzz", "rejected", "already applied"])
         self.assertIn("f.txt", rows[2]["detail"])
 
+    def test_patches_can_change_upstream_overlay_files(self):
+        # setup.py copies <tree>/src/<component>/... into the checkout before the series runs
+        overlay = "chrome/browser/overlay_only.h"
+        self.tree.write("src/" + overlay, BASE.encode())
+        patch = self.make_patch("overlay.patch", overlay, BASE, lines_with(l5="changed 5"))
+        rows = self.run_report(patch + "\n")
+        self.assertEqual(rows[0]["status"], "applied", rows[0]["detail"])
+        self.assertFalse((Path(self.src.path) / overlay).exists())     # still nothing written to the checkout
+
+    def test_report_writes_no_objects_into_the_checkout(self):
+        before = self.src.git("count-objects", "-v")
+        clean = self.make_patch("clean.patch", "f.txt", BASE, lines_with(l5="changed 5"))
+        after_make = self.src.git("count-objects", "-v")
+        self.run_report(clean + "\n")
+        self.assertEqual(self.src.git("count-objects", "-v"), after_make)
+        self.assertTrue(before)
+
     def test_series_applies_cumulatively(self):
         first = self.make_patch("first.patch", "f.txt", BASE, lines_with(l10="first"))
         second = self.make_patch("second.patch", "f.txt", lines_with(l10="first"), lines_with(l10="second"))

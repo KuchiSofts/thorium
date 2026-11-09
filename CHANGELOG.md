@@ -163,6 +163,11 @@ Each release lists:
   pinned, audited upstream source. Thorium's M138 `PATCHES.md` and README stay in `docs/upstream/` as
   licence evidence, and the upstream Sponsor button is gone; Alex313031 stays credited (ROADMAP **D.8**).
 
+### Fixed
+- `tools/build/rebase_report.py` now puts upstream's overlay files into its scratch index, as the real setup
+  does before the series runs, so a patch that changes an overlay file is no longer reported as rejected;
+  and it writes its temporary git objects to a scratch folder instead of the Chromium checkout.
+
 ### Security
 - Flags that weaken security (`disable-web-security`, `allow-file-access-from-files`, `disable-encryption`,
   `allow-insecure-downloads`, the password store choice) now start with a plain warning in `chrome://flags`,
