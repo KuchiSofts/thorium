@@ -26,6 +26,10 @@ Each release lists:
 - Every patch in the 158 series now names its origin, author and licence at the top (ROADMAP **S.7**),
   written from the audited licence research; `tools/legal/patch_headers.py lint` rejects a patch without
   them, or one whose licence differs from the research.
+- `tools/release/release.py` (ROADMAP **P2.12**): one command checks a build (release args, version,
+  installer contents) before packaging, names the files `thoron-<version>-<variant>-...`, writes `SHA256SUMS`,
+  BUILDINFO and the release notes, signs with minisign when a key is given, and publishes only as a draft,
+  never without a signature.
 - `tools/release/changelog.py` (ROADMAP **P2.13**): release notes from git and local files, in the
   design's order: Chromium change and its security fixes, Thoron changes grouped by commit prefix, upstream
   Thorium commits credited by author, patch changes, fixed issues, downloads with SHA-256, credits.
