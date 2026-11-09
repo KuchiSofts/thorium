@@ -13,6 +13,10 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Native ad blocking keeps its filter lists current (ROADMAP **P5.15**, off by default): at most every 4 days,
+  from the addresses uBlock Origin uses, over HTTPS without cookies. A list that is too large, not a list,
+  shrinks by more than half or allows every request keeps its previous copy, and an update that would stop
+  blocking known ads is refused whole. Checked offline with `tools/qa/adblock_update_check.py`.
 - Native ad blocking ships a pre-compiled engine (ROADMAP **P5.15**, step 1): each build compiles the bundled
   filter lists into a saved engine and checks that it loads again; the browser loads it at start instead of
   parsing the lists, and falls back to the lists if it is missing or broken. Both files are in the installer.

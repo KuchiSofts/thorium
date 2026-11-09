@@ -142,6 +142,36 @@ the saved engine works alone; with both files present the result is the same; th
 the 154-patch series applies exactly on Chromium 158.0.8127.30. Still to do in P5.15: list updates
 (download, validation, and never an "allow everything" state).
 
+### 4.6 Safe list updates (P5.15 step 2, 2026-11-09)
+
+The browser now keeps the lists current (only with the feature on). Two minutes after start, and then
+every hour, it looks whether the last check is more than 4 days old; if so it downloads the 8 lists from
+the addresses uBlock Origin uses (`docs/security/NETWORK.md`), each with one fallback host, over HTTPS
+only, without cookies or other credentials, through the browser's own network context. Each download
+is checked on its own and keeps the previous copy (the last accepted download, else the shipped one)
+when it:
+
+- is larger than 20 MB, is not UTF-8 text, or is a web page (for example a Wi-Fi sign-in page);
+- has no rules, or fewer than half the rules of the copy it would replace;
+- holds an exception that allows every request (`@@*`, `@@||^`, `@@|http` and the like, with no site
+  limit): no real list has one (checked against all 18 shipped and current lists).
+
+A new engine is built only when at least one list changed, and it must still block each of six probe
+requests (well-known ad and tracker scripts) that the current engine blocks; otherwise the whole update
+is refused. Accepted lists, the saved engine and a small `state.json` (version, time of the last check,
+per list: where it came from, its rule count and what happened) are written atomically to
+`<user data dir>/Thoron Adblock/`, the state last, and the engine is swapped in at once. At the next
+start the saved engine is used when this browser version wrote it; after a browser update the shipped
+engine is used until the next check. Profiles and browsing data are never touched.
+
+Tested offline with `tools/qa/adblock_update_check.py` (a local list server, throwaway profiles, the
+browser accepts a test list address only on loopback): a good update is used within about 2 seconds and
+blocks a new test host; after a restart the saved engine blocks it from the first request with no
+download; a shrunken list, a list with `@@*`, a web page instead of a list, and an update that drops
+every rule for the probe requests are all refused and the previous engine stays. Observation for P5.17:
+the current URLhaus list has about 101,000 rules against 9,300 in the shipped copy, so the engine's
+memory after an update must be measured.
+
 ## 5. Where it plugs in
 
 - **Engine host:** one engine per browser (not per profile), built from the compiled lists, shared
@@ -164,8 +194,9 @@ the 154-patch series applies exactly on Chromium 158.0.8127.30. Still to do in P
 - **Updates:** downloaded from their published URLs like uBlock Origin does today, at most every 4
   days, over HTTPS only. A compiled copy of known-good lists ships with each release, so a fresh
   install blocks from the first page with no download at all.
-- **Validation:** a downloaded list is compiled in a background step; if it fails to parse, is empty
-  or shrinks by more than half, the previous compiled engine stays (no "everything allowed" state).
+- **Validation:** a downloaded list is checked and compiled in a background step; if it is too large,
+  not a list, empty, shrinks by more than half or allows every request, its previous copy stays, and a
+  new engine that stops blocking known ads is refused whole (no "everything allowed" state; section 4.6).
 - **Privacy:** list downloads send no identifiers or cookies, and the hosts are listed in
   `docs/security/NETWORK.md`.
 
