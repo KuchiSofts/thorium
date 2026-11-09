@@ -78,7 +78,7 @@ licence statement is the natural first step. Asking any author is the owner's de
 ## Chromium 158 series
 
 Re-run on 2026-11-08 for the series rebased to Chromium 158.0.8127.30 (ROADMAP **P2.1**,
-`docs/build/M158_REBASE.md`): **150 patches, 0 unknown, 6 not stated** (was 8).
+`docs/build/M158_REBASE.md`): **151 patches, 0 unknown, 6 not stated** (was 8).
 
 - `fix-policy-templates.patch` was rewritten for 158 and no longer uses Hibbiki's code: the 8 lines
   it still shares with Hibbiki's patch are all lines of Chromium's own `writer_configuration.py`.
@@ -91,7 +91,7 @@ Re-run on 2026-11-08 for the series rebased to Chromium 158.0.8127.30 (ROADMAP *
   `thorium-first-run-branding.patch`, were written in the Thorium repo by gz83 (BSD-3-Clause). Compared
   with the 13 projects above, they share only common Chromium code (includes, file dialog and feature
   checks).
-- The three new Thoron patches carry `Origin:` and `License:` headers (BSD-3-Clause).
+- The four new Thoron patches carry `Origin:` and `License:` headers (BSD-3-Clause).
 
 The six patches that still need permission or a rewrite are the five RobRich999 ones (one also
 Muril-o) and the profile reversion part of `disable-encryption.patch` (win32ss) in the table above.

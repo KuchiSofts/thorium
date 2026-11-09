@@ -31,7 +31,7 @@ Each release lists:
   builds the release `args.gn` from upstream's and turns off Google's RLZ promotion-tracking library and the
   DRM storage ID that upstream enabled, never bundles Widevine and refuses Google API keys. Every choice
   and its reason is in `docs/build/RELEASE_ARGS.md`.
-- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 150 patches, 0 unknown,
+- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 151 patches, 0 unknown,
   6 that still need the author's permission or a rewrite (was 8). The policy templates patch was rewritten
   without the unlicensed code, and the two new upstream patches were researched (both Thorium,
   BSD-3-Clause). Details in `docs/legal/PATCH_ORIGINS.md`.
@@ -150,6 +150,8 @@ Each release lists:
   observations about upstream.
 
 ### Removed
+- Thorium's hidden `chrome://eggs` and `chrome://robot` pages (ROADMAP **S.11**): they only showed pictures,
+  yet were allowed to make network requests. `chrome://authors`, which credits the Thorium authors, stays.
 - The old copy of the upstream Thorium M138 tree that the repository still carried (about 1,500 files:
   sources, logos, build scripts, submodules and old docs). Thoron's builds never used it; they use the
   pinned, audited upstream source. Thorium's M138 `PATCHES.md` and README stay in `docs/upstream/` as
