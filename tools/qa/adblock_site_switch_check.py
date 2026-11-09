@@ -11,7 +11,8 @@ with the ThoronNativeAdblock feature, makes the choice the way the Settings page
 `chrome.send` handlers on chrome://settings), then opens the local ad test page of
 `tools/build/mv2_check.py` (offline: only the ad host and 127.0.0.1 resolve):
 
-    none        no choice made: every ad request is blocked; the Ads page in Settings uses Thoron's labels
+    none        no choice made: every ad request is blocked; the page's blocked count (behind the address bar
+                badge) covers every blocked request; the Ads page in Settings uses Thoron's labels
                 ("Ads and trackers"), not upstream's "Intrusive ads"
     site        ads allowed on 127.0.0.1: none is blocked
     everywhere  ads allowed by default: none is blocked
@@ -24,6 +25,7 @@ Exit status 0 only when every mode passes.
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -44,6 +46,8 @@ PAGE_TIMEOUT_S = 90
 # chrome://settings/content/ads while native blocking is on: Thoron's labels, not upstream's
 LABELS_EXPECTED = ("Ads and trackers", "Block ads and trackers", "Ads and many trackers are blocked")
 LABELS_UPSTREAM = ("Intrusive ads", "intrusive or misleading ads")
+# the browser's per-page count behind the address bar badge (blocked_count.cc, --vmodule=blocked_count=1)
+COUNT_RE = re.compile(r"Thoron native ad blocking: blocked on this page: (\d+)")
 
 
 def settings_call(mode: str) -> str | None:
@@ -56,6 +60,17 @@ def settings_call(mode: str) -> str | None:
     if mode in ("none", "restart"):
         return None
     raise ValueError(mode)
+
+
+def blocked_count(log: str) -> int:
+    return max((int(n) for n in COUNT_RE.findall(log)), default=0)
+
+
+def count_problems(run: dict, count: int) -> list[str]:
+    errors = ((run or {}).get("page") or {}).get("errors", 0)
+    if count < errors:
+        return [f"the page counted {count} blocked requests, but {errors} ad requests were blocked"]
+    return []
 
 
 def label_problems(text: str) -> list[str]:
@@ -78,16 +93,23 @@ def problems(mode: str, run: dict) -> list[str]:
     raise ValueError(mode)
 
 
-def _launch(browser: Path, profile: Path, port: int) -> subprocess.Popen:
+def _launch(browser: Path, profile: Path, port: int, log: Path | None = None) -> subprocess.Popen:
     # a port file left by the previous start of this profile would point at a closed port
     (profile / "DevToolsActivePort").unlink(missing_ok=True)
     args = [str(browser), "--headless=new", f"--user-data-dir={profile}", "--no-first-run",
             "--no-default-browser-check", "--disable-default-apps", "--disable-background-networking",
             "--disable-component-update", "--enable-features=ThoronNativeAdblock",
             f"--host-resolver-rules=MAP {mv2_check.AD_HOST} 127.0.0.1:{port}, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
-            "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "about:blank"]
-    return subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                            start_new_session=os.name != "nt")
+            "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0"]
+    if log is not None:
+        args += ["--enable-logging=stderr", "--vmodule=blocked_count=1"]
+    args.append("about:blank")
+    err = open(log, "wb") if log is not None else subprocess.DEVNULL
+    try:
+        return subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=err, start_new_session=os.name != "nt")
+    finally:
+        if log is not None:
+            err.close()
 
 
 def _devtools_port(profile: Path) -> int:
@@ -133,7 +155,8 @@ def _close_browser(port: int, proc: subprocess.Popen) -> None:
 
 def run_mode(browser: Path, profile: Path, work: Path, mode: str) -> dict:
     with mv2_check.TestServer(work) as server:
-        proc = _launch(browser, profile, server.port)
+        log = profile.parent / f"{profile.name}.log" if mode == "none" else None
+        proc = _launch(browser, profile, server.port, log)
         port = None
         try:
             port = _devtools_port(profile)
@@ -167,7 +190,7 @@ def run_mode(browser: Path, profile: Path, work: Path, mode: str) -> dict:
                 time.sleep(0.5)
             page = server.posted
             ok = bool(page and page.get("attempts") == mv2_check.ATTEMPTS)
-            return {"ok": ok, "page": page, "ad_requests": server.ad_requests, "labels": labels,
+            return {"ok": ok, "page": page, "ad_requests": server.ad_requests, "labels": labels, "log": log,
                     **({} if ok else {"error": f"no final page result in {PAGE_TIMEOUT_S} s"})}
         except (OSError, RuntimeError, ValueError) as e:
             return {"ok": False, "error": str(e)}
@@ -188,6 +211,11 @@ def run_all(browser: Path, work: Path) -> list[dict]:
             run = run_mode(browser, profile, work, mode)
             results.append({"mode": mode, "problems": problems(mode, run), "page": run.get("page")})
             if mode == "none":
+                log = run.get("log")
+                text_log = log.read_text(encoding="utf-8", errors="replace") if log and log.is_file() else ""
+                count = blocked_count(text_log)
+                results.append({"mode": "count", "problems": count_problems(run, count), "page": None,
+                                "count": count})
                 text = run.get("labels") or ""
                 results.append({"mode": "labels", "problems": label_problems(text) if text else
                                 ["the Settings page text could not be read"], "page": None})

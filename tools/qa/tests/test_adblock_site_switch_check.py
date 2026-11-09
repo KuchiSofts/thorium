@@ -39,6 +39,23 @@ class LabelTests(unittest.TestCase):
         self.assertTrue(any("Intrusive ads" in p for p in found))
 
 
+class CountTests(unittest.TestCase):
+    LOG = ("[1:2:1109/1.0:VERBOSE1:components\\thoron_adblock\\blocked_count.cc:30] "
+           "Thoron native ad blocking: blocked on this page: 1\n"
+           "noise\n"
+           "[1:2:1109/1.1:VERBOSE1:blocked_count.cc:30] Thoron native ad blocking: blocked on this page: 10\n")
+
+    def test_the_highest_page_count_is_read_from_the_log(self):
+        self.assertEqual(sc.blocked_count(self.LOG), 10)
+        self.assertEqual(sc.blocked_count("nothing here"), 0)
+
+    def test_the_badge_count_must_cover_every_blocked_request(self):
+        run = {"ok": True, "page": {"attempts": 10, "loaded": 0, "errors": 10}}
+        self.assertEqual(sc.count_problems(run, 10), [])
+        self.assertTrue(sc.count_problems(run, 3))
+        self.assertTrue(sc.count_problems(run, 0))
+
+
 class VerdictTests(unittest.TestCase):
     def run_result(self, loaded, errors):
         return {"ok": True, "page": {"attempts": 10, "loaded": loaded, "errors": errors}}

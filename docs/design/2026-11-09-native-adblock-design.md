@@ -198,8 +198,22 @@ and say what it does ("Block ads and trackers" / "Sites can show ads and use tra
 description and the two site lists named to match); with it off, upstream's "Intrusive ads" wording stays,
 because then the setting only controls Chromium's abusive-ads filter. The new English strings have no
 translations yet, so other languages show them in English. The check above also reads the Settings page
-and fails on upstream's wording. Still to do: the local blocked-count badge; a look at the page info row
-in a desktop session (P2.23).
+and fails on upstream's wording.
+
+Blocked count (step 3): each blocked request is counted for its page (the page and all its frames) in
+`blocked_count.cc`, as data attached to the page. The count lives only in memory and goes away with the
+page: nothing is written to disk and nothing is sent, and no URL is kept or logged. The first blocked
+request also marks the page as having blocked ads, which shows Chromium's blocked-ads icon in the address
+bar (tooltip "Ads and trackers blocked"). Its bubble says how many ads and trackers were blocked on the
+page and has one checkbox, "Always allow ads and trackers on this site", which sets the per-site Ads
+setting and reloads the page. Upstream's "Learn more" link is hidden there while native blocking is on,
+because it explains Chromium's abusive-ads filter. With the feature off the icon and bubble are
+upstream's. The check above reads the page's count from the browser's verbose log
+(`--vmodule=blocked_count=1`, the number only) and fails if it is lower than the number of blocked ad
+requests: 10 blocked, count 10.
+
+Still to do: translations of the new strings; a look at the page info row, the icon and its bubble in a
+desktop session (P2.23), since the automated check runs headless and cannot see the address bar.
 
 ## 5. Where it plugs in
 
