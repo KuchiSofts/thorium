@@ -54,7 +54,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `██████░░░░░░░░░░░░░░` 38 of 130 tasks done (29%) · roadmap updated 2026-11-08
+**Overall:** `██████░░░░░░░░░░░░░░` 38 of 131 tasks done (29%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -65,7 +65,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
 | [P5 - Quality](ROADMAP.md#p5---quality) | `░░░░░░░░░░░░░░░░░░░░` | 0/12 | ⬜ Not started |
-| [Security (S)](ROADMAP.md#security-s) | `███████░░░░░░░░░░░░░` | 5/14 | 🔄 In progress |
+| [Security (S)](ROADMAP.md#security-s) | `███████░░░░░░░░░░░░░` | 5/15 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `██████████░░░░░░░░░░` | 4/8 | 🔄 In progress |
 | [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
@@ -210,6 +210,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **S.12** Content standards: written policy in `CONTRIBUTING.md`, plus an automatic `adult_content` check in `tools/audit` (added text and file names, `--strict`)
 - [x] **S.13** Inherited history cleaned: three inappropriate image files that upstream added in 2023 and later deleted were purged from every commit; the current tree is unchanged; they were verified absent from the M150 browser build
 - [ ] **S.14** Safe Browsing decision: without Google API keys the built-in Safe Browsing cannot query Google; choose between a key-free setup, another provider, or Google's service with the user's consent, and measure what it contacts
+- [ ] **S.15** Turn off the Google contacts a fresh profile makes without need: optimization guide hints (`optimizationguide-pa.googleapis.com`), Google sign-in checks (`accounts.google.com`) and the `www.google.com` requests, measured in `docs/security/NETWORK.md`
 
 **Quality & performance (Q)**
 
