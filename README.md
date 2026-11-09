@@ -54,13 +54,13 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `██████░░░░░░░░░░░░░░` 36 of 130 tasks done (28%) · roadmap updated 2026-11-08
+**Overall:** `██████░░░░░░░░░░░░░░` 37 of 130 tasks done (28%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
 | [P0 - Foundation](ROADMAP.md#p0---foundation) | `████████████████████` | 11/11 | ✅ Done |
 | [P1 - Build environment](ROADMAP.md#p1---build-environment) | `██████████████████░░` | 9/10 | 🔄 In progress |
-| [P2 - First release](ROADMAP.md#p2---first-release) | `███░░░░░░░░░░░░░░░░░` | 3/23 | 🔄 In progress |
+| [P2 - First release](ROADMAP.md#p2---first-release) | `███░░░░░░░░░░░░░░░░░` | 4/23 | 🔄 In progress |
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
@@ -74,11 +74,11 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 **What's next**
 
 - 🔄 **P1.9** Thoron build docs written from scratch and followed end-to-end
-- 🔄 **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
 - 🔄 **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`; the keyring entry stays `Chromium Safe Storage` (shared with Thorium, so imported passwords stay readable)
 - 🔄 **P2.6** Widevine not bundled; fetched by Chromium's component updater at runtime
 - 🔄 **P2.13** `tools/release/changelog.py`: release notes generated from commit prefixes, upstream merges (author-credited), the Chromium version diff and security fixes (CVE and severity), patch changes, and issues
 - 🔄 **P2.14** Version scheme for Thoron rebuilds of the same Chromium version (4-part numeric, Windows-installer compatible)
+- 🔄 **P2.21** Linux program and package names: `thoron` instead of `thorium` for the binary, the `.deb`/`.rpm` packages, the `.desktop` file and the icons; the developer test shell and the prebuilt `pak` tool are not packaged
 
 <details>
 <summary><b>Full task list</b> (generated from <a href="ROADMAP.md">ROADMAP.md</a>)</summary>
@@ -112,7 +112,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 **P2 - First release**
 
-- [ ] **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
+- [x] **P2.1** Branch `ks/M158`; rebase the upstream patch series from 156 to Chromium 158.0.8127.x
 - [ ] **P2.2** Audit all upstream changes since `de9a1bc6` with `tools/audit` (S.1)
 - [x] **P2.3** Identity patch, Windows: product name Thoron, `%LOCALAPPDATA%\Thoron`, `HKCU\Software\Thoron`, new app GUID in `chromium_install_modes.h`, ProgIDs, AppUserModelID
 - [ ] **P2.4** Identity patch, Linux: package `thoron-browser`, `.desktop` file, `~/.config/thoron`; the keyring entry stays `Chromium Safe Storage` (shared with Thorium, so imported passwords stay readable)
