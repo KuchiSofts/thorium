@@ -20,6 +20,9 @@ Each release lists:
   profile. The keyring entry stays `Chromium Safe Storage`, as in Thorium, so passwords in a copied profile
   stay readable. Upstream's developer test shell and prebuilt `pak` tool are not packaged. Not yet built on
   Linux.
+- `tools/release/package_audit.py` (ROADMAP **P2.6**): a package must contain the Thoron program and
+  no Widevine module, no file named after Thorium (licence and credit texts excepted) and none of the
+  upstream-only extras (Thorium updater marker, prebuilt pak tool, test shell).
 - Version scheme for Thoron builds (ROADMAP **P2.14**): Chromium's version with the last part widened to
   `patch x 100 + rebuild`, for example `158.0.8127.3000` and its rebuild `158.0.8127.3001`, so rebuilds of
   the same Chromium upgrade cleanly and a newer Chromium always wins. `tools/release/version.py` sets
