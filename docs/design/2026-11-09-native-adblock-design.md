@@ -224,6 +224,12 @@ said upstream's "Site shows intrusive or misleading ads", which reads as a warni
 row is only there because Thoron's blocker is on. It now says "Thoron blocks them unless you allow them on
 this site", which is true whether the row is on or off.
 
+Changed after the first proof measurement (section 9.1): the icon no longer has upstream's expanding
+label. Upstream shows it only on the rare site its abusive-ads filter acts on; with native blocking the
+icon shows on most pages, and animating the label on each load took about 2-3 s of extra browser and GPU
+CPU per page load in the measurement (and draws the eye for no reason). The icon, its tooltip and its
+accessible name ("Ads and trackers blocked") stay; the bubble is unchanged.
+
 Still to do: translations of the new strings. The bubble's checkbox and the page info toggle were read, not
 clicked (the setting they write is the one the check above covers).
 
@@ -233,7 +239,10 @@ clicked (the setting they write is the one the check above covers).
   read-only, so 10 profiles do not cost 10 engines.
 - **Request check:** a `URLLoaderThrottle` (or the network service's request hook) asks the engine
   for each subresource request: URL, top-level site, resource type, third-party flag. Blocked
-  requests are cancelled with `ERR_BLOCKED_BY_CLIENT`, as extensions do today.
+  requests are cancelled with `ERR_BLOCKED_BY_CLIENT`, as extensions do today. As built, a proxying
+  URLLoaderFactory sits in front of each page's, worker's and service worker's subresource factory, and
+  in front of the navigation factory of frames inside a page (only the frame's document is checked; a
+  top-level navigation never is).
 - **Redirect resources** (`$redirect=noop.js` and similar) come from a small bundled set of neutral
   stand-ins, the same idea uBlock Origin uses.
 - **CNAME uncloaking:** use Chromium's DNS results to also match the real host behind a tracker's
@@ -284,6 +293,41 @@ of typical news and recipe page structures with ad and tracker requests, served 
 | Browser CPU during load | lower than uBlock Origin alone |
 | Memory, 1 and 20 tabs | not more than uBlock Origin alone |
 | Breakage | the top-100 site list loads with no new breakage compared with uBlock Origin alone |
+
+### 9.1 First measurement (P5.17, 2026-11-10, offline part)
+
+`tools/qa/adblock_proof.py` loads three ad-heavy local test pages (news, recipe and blog structures: 48 ad and
+tracker requests in all, some added by the ad scripts themselves as real ones do, plus third-party libraries,
+fonts and images a page needs) in four configurations on fresh throwaway profiles: no blocker, uBlock Origin
+1.75 alone, the native engine alone, and both. It is fully offline: the real ad and tracker host names are sent
+to a local server, every other name fails, and each answer from those hosts is held back 40 ms to stand in for
+the network. Before measuring, each blocker must be seen blocking and the browser must be idle; the no-blocker
+run must receive every request, or the whole measurement is invalid. Results:
+`docs/perf/2026-11-10-native-adblock-proof.md` (9 loads per page, 3 memory runs).
+
+| Configuration | Through (of 48) | Load, ms | CPU, s per load | Memory 1 / 20 tabs, MB |
+|---|---|---|---|---|
+| no blocker | 48 | 533.9 | 0.497 | 344.4 / 809.9 |
+| uBlock Origin alone | 0 | 366.6 | 0.341 | 385.1 / 840.1 |
+| native alone | 0 | 345.7 | 0.317 | 356.7 / 753.7 |
+| native + uBlock Origin | 0 | 434.9 | 0.383 | 395.1 / 837.4 |
+
+- **Native alone** meets every target but one: it blocks as much as uBlock Origin (everything) with no
+  needed resource blocked, uses less CPU and less memory (29 MB less with 1 tab, 86 MB less with 20), and
+  loads 5.7 % faster, short of the 10 % target. Offline, both blockers stop the same requests before they
+  leave the browser, so the load difference is only each blocker's own overhead; whether the 10 % shows up
+  on a real connection is not measured yet.
+- **Native + uBlock Origin**, the planned shipping set-up (section 3), misses load time, CPU and 1-tab memory:
+  with both running, uBlock Origin still does its own network filtering (section 3: it "still sees requests
+  the native engine allowed"), so its cost stays and the native engine's is added. Its load times also varied the most (worst spread 118 %). The gain the design expects
+  needs uBlock Origin's network filtering turned off when the native engine is on, or uBlock Origin's role
+  limited to cosmetic filtering; that is a decision for P5.17 before anything is turned on by default.
+- Two faults were found and fixed by this measurement: ads in frames were not blocked (the frame's own
+  document is loaded as a navigation, which the engine did not see; it now checks the documents of frames
+  inside a page, never a top-level navigation, and a top-level visit to an ad host was checked to still load);
+  and the expanding label of the address bar icon (section 4.7).
+- Not covered yet: the top-100 breakage check, real-network load times, fuzzing, and a run on an idle PC (the
+  load times here vary by up to 58 % for native alone, more than the 10 % being measured).
 
 ## 10. Steps (roadmap P5.13-P5.18)
 

@@ -17,8 +17,14 @@ Each release lists:
   appears when something was blocked, and its bubble says how many ads and trackers were blocked on the page,
   with a checkbox to always allow them on that site. The count is kept only in memory with the page; nothing
   is stored or sent. Checked offline with `tools/qa/adblock_site_switch_check.py` (10 blocked, count 10) and
-  seen in a desktop window; the icon's label says "Ads and trackers blocked", not Chromium's "Ads blocked", and page info says
-  "Thoron blocks them unless you allow them on this site" instead of warning that the site shows intrusive ads.
+  seen in a desktop window. The icon has no expanding label (it would animate on most page loads and cost CPU);
+  its tooltip and accessible name say "Ads and trackers blocked", and page info says "Thoron blocks them unless
+  you allow them on this site" instead of warning that the site shows intrusive ads.
+- `tools/qa/adblock_proof.py` measures native ad blocking against uBlock Origin on ad-heavy local test pages,
+  fully offline (ROADMAP **P5.17**): requests that got through, needed resources blocked, load time, CPU and
+  memory. First results in `docs/perf/2026-11-10-native-adblock-proof.md`: the native engine alone blocks as
+  much as uBlock Origin with less CPU and memory and 5.7 % faster loads (target 10 %); native plus uBlock Origin
+  costs more than uBlock Origin alone.
 - While native ad blocking is on, page info and Settings call the Ads setting "Ads and trackers" and say what
   it does (ROADMAP **P5.16**); with it off, Chromium's wording stays.
 - Native ad blocking can be turned off per site (ROADMAP **P5.16**, off by default): it follows the browser's
@@ -207,6 +213,8 @@ Each release lists:
   licence evidence, and the upstream Sponsor button is gone; Alex313031 stays credited (ROADMAP **D.8**).
 
 ### Fixed
+- Native ad blocking (off by default) now blocks ads in frames: a frame's own document was loaded without
+  being checked. Only documents of frames inside a page are checked, never a page you open yourself.
 - `tools/build/rebase_report.py` now puts upstream's overlay files into its scratch index, as the real setup
   does before the series runs, so a patch that changes an overlay file is no longer reported as rejected;
   and it writes its temporary git objects to a scratch folder instead of the Chromium checkout.
