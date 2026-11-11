@@ -294,7 +294,8 @@ the previous engine and stays up (8 scenarios pass). Not done: a fuzz run of the
 - No new process gets more privilege; the engine runs where the request decision is made, without
   new IPC that a renderer could abuse to query browsing history of other sites.
 - Fuzz the list parser and the request matcher (Chromium's fuzzing setup) before it ships on by
-  default.
+  default. First part done 2026-11-11 with a mutation fuzzer of Thoron's own (9.3); the run with
+  Chromium's coverage-guided setup is still to do.
 
 ## 9. Proof that it is better (measured, not claimed)
 
@@ -425,6 +426,35 @@ Results: `docs/perf/2026-11-11-native-adblock-breakage.md`.
 - One thing learned on the way: starting the browser with `--user-agent` stops uBlock Origin from blocking
   anything on this build, so the tool sets the user agent per tab instead.
 
+### 9.3 Fuzzing the list reading (P5.17, 2026-11-11)
+
+The browser downloads filter lists and reads them in its own process. The engine is Rust, and in
+Chromium a Rust panic ends the process, so a list that makes the reading panic would close the browser.
+The lists come from a few hosts over HTTPS and are checked first (4.6), but the reading itself has to
+survive any text.
+
+- `fuzz_lists` is a build-machine tool in `components/thoron_adblock/` (not shipped). It takes real
+  lines of the bundled lists, changes about four in ten (cuts, repeats, splices of other lines, filter
+  operators, quotes, brackets, control characters and non-ASCII characters put in), and builds an engine
+  from each small list the way the browser does. Then it asks everything the browser asks: what to do
+  with requests of every type (WebSocket among them), the clean address, the policy for a document,
+  what a document needs, generic hide rules, and saving and loading the engine. It runs the very code
+  the browser runs: for that the engine's glue moved out of the bridge file into `engine_core.rs` and
+  `cosmetics.rs`, which the bridge now only wraps.
+- It also checks what the answers must always keep: a style sheet has one rule per line and nothing
+  that leaves its rule; a rule for the page-side runner is valid JSON without a raw `<`; a cleaned
+  address is the original with fewer parameters; a policy is plain text and asks for no reports; a
+  stand-in comes only with a block; an engine saved and loaded decides as before.
+- Result: two runs (2 and 8 minutes, two seeds), 832,376 lists and 26.6 million decisions: no abort,
+  no rule broken, no decision that differs after saving and loading. Before that, the two parsers that
+  are Thoron's own (procedural selectors, the `$removeparam` forms) took 18 million changed inputs on
+  their own without an abort.
+- What this is not: it changes text blindly, it does not watch which code a change reaches, so a
+  deeply hidden case can escape it. Chromium's own setup does watch (coverage-guided, with memory
+  checks). A target for it is the remaining part of this gate. The C++ side is not covered by either:
+  it refuses a list that is not valid text before the engine sees it (4.6).
+- After an abort the list that caused it is in `fuzz_lists_last.txt`; `fuzz_lists --replay` runs it again.
+
 ## 10. Steps (roadmap P5.13-P5.29)
 
 1. **P5.13 Spike (throwaway):** link `adblock-rust` into a 158 build, block with a hard-coded EasyList,
@@ -455,8 +485,9 @@ judgment: whatever makes the browser faster, better and smarter.
    was a guess made before anything was measured. The bar is: not worse than uBlock Origin on any
    measured axis (blocking, load time, CPU, memory, stand-ins), measured in turns. That is met: 6.1 %
    faster, 15 % less CPU, 38 to 76 MB less memory, the same blocking (9.1). What still holds it back is
-   correctness, not speed: no flag on the real-site run that is not explained, WebSocket connections
-   blocked (12.12), and the list parser fuzzed. It stays off by default until those are done.
+   correctness, not speed: no flag on the real-site run that is not explained (none is open), WebSocket
+   connections blocked (done, 12.12), and the list parser fuzzed (first part done, 9.3; the run with
+   Chromium's coverage-guided setup is left). It stays off by default until those are done.
 7. Scriptlets and stand-ins update with each Thoron build until signed updates exist (P5.23). They are
    code that runs inside every page; fetching them from anyone at run time without a signature would
    be the less safe choice, however fresh.
