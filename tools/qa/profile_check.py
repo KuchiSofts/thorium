@@ -240,7 +240,7 @@ def notes(before: dict) -> list[str]:
     return [f"{name}: tabs and tab groups not compared: this profile does not continue where it left off, "
             f"so a start opens a new tab page and the earlier tabs are not expected back"
             for name, p in before["profiles"].items()
-            if p.get("restores_session") is False and "tabs" in p.get("session", {})]
+            if p.get("restores_session") is False and p.get("session", {}).get("tabs")]
 
 
 def _compare_sessions(name: str, b: dict, a: dict, was_open: bool) -> list[str]:

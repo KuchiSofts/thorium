@@ -179,6 +179,12 @@ class ProfileTests(unittest.TestCase):
         after["profiles"]["Default"]["bookmarks"] = 0             # every other loss still counts
         self.assertEqual(pc.compare(before, after), ["Default: bookmarks 3 -> 0"])
 
+    def test_no_note_about_tabs_for_a_profile_that_had_none(self):
+        self.set_startup(5)
+        before = pc.snapshot(self.ud)
+        before["profiles"]["Default"]["session"] = {"windows": 0, "tabs": 0, "pinned": 0, "groups": []}
+        self.assertEqual(pc.notes(before), [])
+
     def test_tabs_are_compared_when_the_profile_continues_where_it_left_off(self):
         before = pc.snapshot(self.ud)
         after = json.loads(json.dumps(before))
