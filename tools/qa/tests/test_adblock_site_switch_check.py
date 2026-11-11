@@ -55,6 +55,11 @@ class CountTests(unittest.TestCase):
         self.assertTrue(sc.count_problems(run, 3))
         self.assertTrue(sc.count_problems(run, 0))
 
+    def test_requests_answered_with_a_stand_in_count_as_blocked(self):
+        run = {"ok": True, "page": {"attempts": 10, "loaded": 0, "errors": 2, "stand_ins": 8}}
+        self.assertEqual(sc.count_problems(run, 10), [])
+        self.assertTrue(sc.count_problems(run, 5))
+
 
 class VerdictTests(unittest.TestCase):
     def run_result(self, loaded, errors):

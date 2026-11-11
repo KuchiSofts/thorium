@@ -69,6 +69,13 @@ Component: uBlock Origin (bundled, unmodified, as a separate extension)
   Licence:   GPL-3.0
   Source:    https://github.com/gorhill/uBlock (exact release pinned by SHA-256 in the build)
 
+Component: uBlock Origin scriptlets and redirect resources (thoron_adblock_resources.json, a separate
+           data file read by native ad blocking, in development)
+  Copyright: Raymond Hill and contributors; some resources are based on other projects' code, as the
+             headers inside them say
+  Licence:   GPL-3.0 (unmodified, taken from the same pinned release at build time)
+  Source:    https://github.com/gorhill/uBlock (src/js/resources, src/web_accessible_resources)
+
 Component: pak tool (pak_src/ in upstream Thorium; not part of Thoron releases)
   Copyright: (c) 2018 myfreeer; (c) 2022 Alex313031
   Licence:   MIT, with parts under LGPL-2.1 (https://github.com/myfreeer/chrome-pak-customizer)
