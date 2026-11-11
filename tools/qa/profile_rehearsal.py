@@ -25,7 +25,9 @@ continue where it left off: any other profile opens a new tab page at a start, s
 not expected back. With --headless they are not checked either. In both cases the tool says so. A build
 that does not close when asked is stopped by force and does not count as a pass.
 
-It refuses to start while the browser of that profile is running, when --work is inside the profile,
+It refuses to start while the browser of that profile is running or when the profile was written a
+moment ago (a browser can still be writing for some seconds after its windows closed), when --work is
+inside the profile,
 inside a git repository or in a folder that looks cloud-synced (judged by its name: a best effort, the
 choice of a private local folder stays yours), or when the drive has too little room for the copy.
 
@@ -55,6 +57,7 @@ OFFLINE = ("--no-first-run", "--no-default-browser-check", "--disable-sync", "--
            "--host-resolver-rules=MAP * ~NOTFOUND", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
 START_TIMEOUT = 120    # seconds until the build must answer on its DevTools port
 CLOSE_TIMEOUT = 180    # seconds a build with a large profile may take to close
+QUIET_SECONDS = 15     # a profile written less than this ago may belong to a browser that is still closing
 CLOUD_NAMES = ("google drive", "googledrive", "my drive", "onedrive", "dropbox", "icloud")
 TABS_NOT_CHECKED = "tabs and tab groups were not checked: a browser without a window does not restore them"
 
@@ -83,15 +86,23 @@ def long_path(path: Path) -> str:
     return "\\\\?\\" + text if os.name == "nt" and not text.startswith("\\\\") else text
 
 
-def _size(folder: Path) -> int:
-    total = 0
+def _measure(folder: Path) -> tuple[int, float, str]:
+    """The bytes in a folder, and when and in which file it was last written (dates in the future aside)."""
+    total, newest, where, now = 0, 0.0, "", time.time()
     for parent, _, files in os.walk(long_path(folder)):
         for name in files:
             try:
-                total += os.lstat(os.path.join(parent, name)).st_size
+                info = os.lstat(os.path.join(parent, name))
             except OSError:
-                pass                        # the copy will say which file cannot be read
-    return total
+                continue                    # the copy will say which file cannot be read
+            total += info.st_size
+            if newest < info.st_mtime <= now:
+                newest, where = info.st_mtime, name
+    return total, newest, where
+
+
+def _size(folder: Path) -> int:
+    return _measure(folder)[0]
 
 
 def refusal(browser: Path, user_data: Path, work: Path) -> str | None:
@@ -115,7 +126,10 @@ def refusal(browser: Path, user_data: Path, work: Path) -> str | None:
         if any(name in folder.name.lower() for name in CLOUD_NAMES):
             return (f"the work folder looks cloud-synced ('{folder.name}'); a copy of a profile holds cookies "
                     f"and saved passwords: use a private folder on a local drive")
-    need = _size(user_data)
+    need, written, where = _measure(user_data)
+    if time.time() - written < QUIET_SECONDS:
+        return (f"the profile was written a moment ago ({where}), so its browser may still be closing; "
+                f"wait half a minute and run this again")
     if shutil.disk_usage(work).free < need + need // 10:
         return f"too little room on the drive of {work}: the copy needs {need / 2**30:.1f} GB"
     return None
