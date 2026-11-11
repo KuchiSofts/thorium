@@ -4,7 +4,7 @@ Status: approved by the owner on 2026-11-09 ("do as you recommend"), with the re
 Changed by the owner on 2026-11-11: the native blocker replaces uBlock Origin instead of working next to it
 (section 12, which overrides sections 2 and 3 where they differ).
 Extends the main design, section 10 ("Phase 2"), which already named this option. Roadmap: P5.2 (decided),
-steps P5.13-P5.27.
+steps P5.13-P5.28.
 
 ## 1. Why
 
@@ -425,7 +425,7 @@ Results: `docs/perf/2026-11-11-native-adblock-breakage.md`.
 - One thing learned on the way: starting the browser with `--user-agent` stops uBlock Origin from blocking
   anything on this build, so the tool sets the user agent per tab instead.
 
-## 10. Steps (roadmap P5.13-P5.27)
+## 10. Steps (roadmap P5.13-P5.28)
 
 1. **P5.13 Spike (throwaway):** link `adblock-rust` into a 158 build, block with a hard-coded EasyList,
    measure. Decides go or no-go.
@@ -435,7 +435,7 @@ Results: `docs/perf/2026-11-11-native-adblock-breakage.md`.
 4. **P5.16 UI:** per-site switch in page info and Settings; a blocked-count badge (local only).
 5. **P5.17 Proof:** the measurements of section 9; fuzzing; on by default only when all targets pass.
 6. **P5.18 Later:** CNAME uncloaking.
-7. **P5.19-P5.27:** the native blocker takes over the rest of uBlock Origin's work (section 12.8).
+7. **P5.19-P5.28:** the native blocker takes over the rest of uBlock Origin's work (section 12.8).
 
 ## 11. Decisions (approved 2026-11-09)
 
@@ -463,6 +463,7 @@ smart. This replaces the hybrid of section 3 and decision 1 of section 11.
 | Generic cosmetic filtering (`##.ad-banner`) | the page reports the classes and ids it uses; the engine answers with the selectors to hide | done (P5.21) |
 | Procedural cosmetic filters (`:has-text()`, `:upward()`), `$removeparam`, `$csp` | a small page-side runner; a clean address (an internal redirect for documents); a policy on the document's response | done (P5.22, section 12.9) |
 | A redirected request checked again at each hop | a watcher on every request; an interceptor on every navigation | done (P5.25, section 12.10) |
+| The scripts workers and service workers are started from | the request proxy sits in front of those loaders too | done (P5.27, section 12.11) |
 | `$urlskip`, `$replace`, `$header`, `$uritransform`, `$permissions`, `:shadow()` | see 12.9 | P5.26 |
 | List updates | 4.6 | done |
 | Scriptlet and resource updates | 12.4 | P5.23 |
@@ -641,6 +642,13 @@ Added with P5.25 (redirects):
   to keep a navigation going in circles: an address is cleaned once per navigation.
 - Both decide with the engine on the UI thread, by the document that asked, as the request proxy does.
 
+Added with P5.27 (worker scripts):
+- The scripts workers and service workers start from are judged like any other request. Whether ads are
+  allowed is read for the page of the document that starts a worker, and for a service worker's own site
+  (it has no page). A service worker's script is its code for every later visit, so blocking an import
+  there matters more than blocking one request: it keeps a third party's code out of the site's service
+  worker.
+
 ### 12.8 Steps
 
 - **P5.19** resources and stand-ins.
@@ -650,7 +658,8 @@ Added with P5.25 (redirects):
 - **P5.23** signed resource updates (with the updater, P3).
 - **P5.24** the hand-over from uBlock Origin (new profiles; the notice when both run).
 - **P5.25** a redirected request is checked again at each hop (found while building P5.22; done, 12.10).
-- **P5.27** the kinds of request that do not pass the request proxy at all (12.10).
+- **P5.27** the kinds of request that did not pass the request proxy at all (done, 12.11).
+- **P5.28** preloads announced by early hints, which Chromium offers to nobody (12.11).
 - **P5.26** the filter syntax still missing after P5.22 (section 12.9).
 - **P5.18** stays CNAME uncloaking. **P5.17**'s targets now compare the native blocker alone with
   uBlock Origin alone.
@@ -801,9 +810,50 @@ Checked (2026-11-11):
 Not covered:
 - A page controlled by a service worker that answers the navigation itself: its request is cleaned on
   the way out, but the address bar keeps the address as it was.
-- Requests that do not pass the request proxy at all, and so are neither blocked nor watched: the main
-  script of a worker and of a service worker (same site as the page by the web's own rules), prefetches,
-  preloads announced by early hints, downloads (P5.27).
+- Requests that did not pass the request proxy at all: see 12.11 (P5.27).
+
+### 12.11 Requests outside the request proxy (P5.27, 2026-11-11)
+
+The request proxy sat in front of what a document, a worker and a service worker load once they run.
+Chromium fetches some things through loaders of their own. Each kind, and what is done about it:
+
+| Kind of request | What it is | Now |
+|---|---|---|
+| The script a worker or shared worker starts from | same site as the page by the web's own rules, so only a rule for a path can match | checked (new) |
+| The scripts a service worker starts from and imports | an import may come from another site: how push-advertising networks get onto a site | checked (new) |
+| `<link rel="prefetch">` | a page asks the browser to fetch something ahead of time | was checked already: it goes through the document's own loader |
+| Pages fetched ahead of a visit (speculation rules) | a page's own request, made early | left out on purpose: a page's own request is never blocked, and its address is cleaned when the page is visited |
+| Preloads announced by early hints | what a server names before its page arrives | not reachable: Chromium offers these requests neither to the browser layer nor to extensions, so uBlock Origin does not see them either (P5.28) |
+| Downloads | a file the person asked for | left out on purpose |
+| DevTools' own requests | | left out on purpose |
+
+- A redirect of a worker's script is watched like any other request's (12.10).
+- On "new": that these scripts were not checked before is read from the code (the proxy returned at once
+  for their loaders); the check was not run against the build before. That prefetches were covered
+  already follows from the check: the prefetch is stopped although the loader for pages fetched ahead is
+  still left out.
+- An early-hint preload of a tracker's script gives the tracker one request per page load. The script
+  itself does not run: when the page asks for it, that request is blocked.
+
+Checked (2026-11-11):
+- `tools/qa/adblock_worker_check.py`, offline, on throwaway profiles, with a page on 127.0.0.1 (a service
+  worker needs a trustworthy address). A worker and a shared worker whose script has a path the lists
+  block on every site (the first plain rule of that kind in the bundled lists) are not fetched and do
+  not start; the site's own service worker registers, and the script it imports from an ad host is not
+  fetched; a prefetch of a script on the ad host is not made; a plain worker and a module worker that
+  imports another file start. With blocking off, or ads allowed on the site, all of it is fetched and
+  runs.
+- The earlier checks pass on the same build: redirects, syntax, cosmetic rules, the per-site switch,
+  list updates; 154 patches apply. The timing measurement was not repeated: for a page without workers
+  nothing changes.
+- Real sites (`docs/perf/2026-11-11-native-adblock-breakage-p527.md`): 95 of the 99 could be compared;
+  the two known flags are unchanged. One new flag is **open**: digicert.com showed 1,676 characters of
+  text with the native blocker against 3,782 with uBlock Origin, with the same nine requests blocked,
+  on both loads; every earlier run had 3,782 for both. It could not be loaded again: minutes later the
+  site answered both blockers with an empty page (its protection against automated visits now refuses
+  this machine). So it is not explained. It may be this step (a worker's script that is now judged), or
+  the site, which was tightening its protection at that very time. It has to be loaded again, from an
+  address the site has not seen so often, before native blocking is switched on.
 
 ## 13. Credits
 
