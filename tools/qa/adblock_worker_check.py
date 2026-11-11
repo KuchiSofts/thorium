@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
-"""Native ad blocking, the scripts workers start from and prefetches, checked offline (ROADMAP P5.27).
+"""Native ad blocking, the scripts workers start from, prefetches and WebSockets, checked offline
+(ROADMAP P5.27, P5.29).
 
 Some requests are not made by a page's document the usual way: the script a worker or a shared worker is
 started from, the scripts a service worker is started from and imports (it may import them from another
-site, which is how push-advertising networks get onto a site), and what a page asks the browser to fetch
-ahead of time (`<link rel="prefetch">`). This check serves a page from a local server on 127.0.0.1 (a
-service worker needs a trustworthy address; host-resolver rules send the ad host there too and make every
-other name fail) that starts each of them:
+site, which is how push-advertising networks get onto a site), what a page asks the browser to fetch
+ahead of time (`<link rel="prefetch">`), and WebSocket connections, which are not requests for a file at
+all. This check serves a page from a local server on 127.0.0.1 (a service worker needs a trustworthy
+address; host-resolver rules send the ad host there too and make every other name fail) that starts each
+of them:
 
     a worker and a shared worker whose script has a path the lists block on every site (the first plain
         rule of that kind in the bundled lists): neither script is fetched, and neither worker starts
     a service worker of the site whose script imports one from an ad host: the import is not fetched,
         and the service worker is still registered
     a prefetch of a script on the ad host: not fetched
+    a WebSocket to the ad host: not opened, and the server never hears of it
+    a WebSocket to the site itself: opens, in every mode (the server answers the handshake)
     a plain worker, and a module worker that imports another file: both start, in every mode
 
 in three modes: control (native blocking off: everything is fetched and runs), native, and site-off (ads
@@ -23,6 +27,8 @@ allowed on the site: as control).
 Exit status 0 only when every mode passes.
 """
 import argparse
+import base64
+import hashlib
 import http.server
 import json
 import re
@@ -51,6 +57,12 @@ RESULT_TIMEOUT_S = 60
 REPORT_AFTER_MS = 5000
 
 
+def websocket_accept(key: str) -> str:
+    """The Sec-WebSocket-Accept value that answers a handshake's Sec-WebSocket-Key (RFC 6455)."""
+    digest = hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")).digest()
+    return base64.b64encode(digest).decode("ascii")
+
+
 def blocked_path(lists_text: str) -> str | None:
     """The first rule that is only a script's path: the lists block it on every site."""
     for line in lists_text.splitlines():
@@ -70,7 +82,14 @@ def page_html(path: str) -> str:
     return ('<!doctype html><html><head><meta charset="utf-8"><title>Thoron worker check</title>'
             f'<link rel="prefetch" href="http://{AD_HOST}/prefetch.js" as="script"></head><body><p>workers</p>'
             "<script>const out = {plainWorker: false, moduleWorker: false, registered: false, "
-            "blockedWorker: 'silent', blockedShared: 'silent'};"
+            "blockedWorker: 'silent', blockedShared: 'silent', plainSocket: 'silent', adSocket: 'silent'};"
+            "const watch = (name, socket) => {"
+            "socket.onopen = () => { out[name] = 'open'; socket.close(); };"
+            "socket.onerror = () => { if (out[name] !== 'open') { out[name] = 'failed'; } }; };"
+            "try { watch('plainSocket', new WebSocket('ws://' + location.host + '/plain-socket')); }"
+            " catch (e) { out.plainSocket = 'failed'; }"
+            f"try {{ watch('adSocket', new WebSocket('ws://{AD_HOST}/ad-socket')); }}"
+            " catch (e) { out.adSocket = 'failed'; }"
             "const plain = new Worker('/plain-worker.js');"
             "plain.onmessage = () => { out.plainWorker = true; };"
             "const module = new Worker('/module-worker.js', {type: 'module'});"
@@ -102,6 +121,13 @@ def problems(mode: str, path: str, result: dict | None, seen: dict) -> list[str]
         out.append("the module worker did not start, or did not get the file it imports")
     if not result.get("registered"):
         out.append("the site's own service worker was not registered")
+    if result.get("plainSocket") != "open":
+        out.append(f"the plain WebSocket to the site itself did not open ({result.get('plainSocket')})")
+    heard, state = "/ad-socket" in seen.get("ad", []), result.get("adSocket")
+    if on and (heard or state == "open"):
+        out.append(f"the WebSocket to the ad host was opened (the server heard of it: {heard}, socket: {state})")
+    if not on and (not heard or state != "open"):
+        out.append(f"the WebSocket to the ad host did not open {off} (the server heard of it: {heard}, socket: {state})")
     asked = seen.get("page", {}).get(path, [])
     for kind, flag, what in (("kind=worker", "blockedWorker", "worker"), ("kind=shared", "blockedShared", "shared worker")):
         fetched, state = kind in asked, result.get(flag)
@@ -152,13 +178,35 @@ class PageServer:
                     server.result = data
                 self._send(200, "text/plain", b"ok")
 
+            def _open_socket(self):
+                """Answers a WebSocket handshake, then waits until the page closes the connection."""
+                self.send_response(101, "Switching Protocols")
+                self.send_header("Upgrade", "websocket")
+                self.send_header("Connection", "Upgrade")
+                self.send_header("Sec-WebSocket-Accept", websocket_accept(self.headers.get("Sec-WebSocket-Key", "")))
+                self.end_headers()
+                self.close_connection = True
+                self.connection.settimeout(10)
+                try:
+                    while self.rfile.read(1):
+                        pass
+                except OSError:
+                    pass
+
             def do_GET(self):
                 url = urllib.parse.urlsplit(self.path)
                 host = (self.headers.get("Host") or "").split(":")[0]
                 script, html = "text/javascript", "text/html; charset=utf-8"
+                socket = (self.headers.get("Upgrade") or "").lower() == "websocket"
                 if host == AD_HOST:
                     server.ad.add(url.path)
-                    self._send(200, script, b"self.adScript = true;")
+                    if socket:
+                        self._open_socket()
+                    else:
+                        self._send(200, script, b"self.adScript = true;")
+                elif host == SITE and socket:
+                    server.page.setdefault(url.path, []).append(url.query)
+                    self._open_socket()
                 elif host != SITE:
                     self._send(404, "text/plain", b"not found")
                 elif url.path == "/warm.html":
