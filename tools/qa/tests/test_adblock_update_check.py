@@ -49,6 +49,18 @@ class ScenarioTests(unittest.TestCase):
         self.assertEqual(served["easylist"], f"||ads.example^\n{uc.PROBE_RULE}\n")
         self.assertEqual(served["ublock-filters"], "||ub.example^\n")
 
+    def test_interrupted_serves_a_valid_easylist_that_takes_long_to_read(self):
+        served = uc.served_lists(self.bundled, "interrupted")
+        lines = served["easylist"].splitlines()
+        self.assertIn(uc.PROBE_RULE, lines)
+        self.assertGreaterEqual(len(lines), uc.FILLER_RULES)
+        self.assertLess(len(served["easylist"].encode()), 20 * 1024 * 1024)   # the browser's size limit
+        self.assertNotIn("@@", served["easylist"])
+        self.assertEqual(served["ublock-filters"], self.bundled["ublock-filters"])
+
+    def test_after_an_interrupted_update_a_good_update_is_on_offer(self):
+        self.assertEqual(uc.served_lists(self.bundled, "after-interrupt"), uc.served_lists(self.bundled, "good"))
+
     def test_restart_serves_nothing(self):
         self.assertEqual(uc.served_lists(self.bundled, "restart"), {})
 
@@ -83,6 +95,25 @@ class VerdictTests(unittest.TestCase):
         self.assertEqual(uc.problems("restart", self.state("updated"), probe_blocked=True, list_requests=0), [])
         self.assertTrue(uc.problems("restart", self.state("updated"), probe_blocked=True, list_requests=8))
         self.assertTrue(uc.problems("restart", self.state("updated"), probe_blocked=False, list_requests=0))
+
+    def interrupted(self):
+        return {"version": "1", "engine": False, "lists": {}, "last_check": 1.0, "result": uc.INTERRUPTED + "\n"}
+
+    def test_interrupted_update_must_leave_its_record(self):
+        self.assertEqual(uc.problems("interrupted", self.interrupted(), probe_blocked=False, list_requests=8), [])
+        # the update finished before the browser was stopped: nothing was tested
+        self.assertTrue(uc.problems("interrupted", self.state("updated"), probe_blocked=False, list_requests=8))
+        self.assertTrue(uc.problems("interrupted", self.interrupted(), probe_blocked=False, list_requests=0))
+
+    def test_after_an_interrupted_update_nothing_is_downloaded_and_the_old_engine_stays(self):
+        ok = uc.problems("after-interrupt", self.interrupted(), probe_blocked=False, list_requests=0, alive=True)
+        self.assertEqual(ok, [])
+        self.assertTrue(uc.problems("after-interrupt", self.interrupted(), probe_blocked=False, list_requests=8,
+                                    alive=True))
+        self.assertTrue(uc.problems("after-interrupt", self.state("updated"), probe_blocked=True, list_requests=8,
+                                    alive=True))
+        self.assertTrue(uc.problems("after-interrupt", self.interrupted(), probe_blocked=False, list_requests=0,
+                                    alive=False))
 
     def test_no_state_file_is_a_failure(self):
         self.assertTrue(uc.problems("good", None, probe_blocked=True, list_requests=8))

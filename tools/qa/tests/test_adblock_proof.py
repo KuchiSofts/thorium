@@ -87,6 +87,29 @@ class ServerTests(unittest.TestCase):
                 get(s.port, "cdn.jsdelivr.net", "/page/recipe?r=x")
 
 
+class StandInTests(unittest.TestCase):
+    def test_page_scripts_report_how_they_ended(self):
+        html = ap.page_html("news", "run7", 4321)
+        self.assertIn("__ok('chartbeat')", html)
+        self.assertIn("__er('chartbeat')", html)
+        self.assertLess(html.index("window.__ok"), html.index("<script src="))   # before any script loads
+        self.assertIn("ok: window.__okl", html)
+
+    def test_a_real_ad_script_marks_itself(self):
+        with ap.ProofServer(remote_delay_ms=0) as s:
+            _, body = get(s.port, "static.chartbeat.com", "/js/chartbeat.js?r=a")
+            self.assertIn(b'window.__real || []).push("chartbeat")', body)
+
+    def test_stand_ins_are_scripts_that_loaded_without_reaching_the_server(self):
+        result = {"ok": ["jquery", "chartbeat", "gpt"], "er": ["taboola"], "real": ["jquery"]}
+        self.assertEqual(ap.stand_ins(result, hits={"jquery"}), ["chartbeat", "gpt"])
+        self.assertEqual(ap.stand_ins({}, hits=set()), [])
+        # a script the server answered is never a stand-in, even when its marker is missing
+        self.assertEqual(ap.stand_ins({"ok": ["gpt"], "real": []}, hits={"gpt"}), [])
+        # only scripts are judged this way
+        self.assertEqual(ap.stand_ins({"ok": ["ytimg", "nonsense"], "real": []}, hits=set()), [])
+
+
 class CountTests(unittest.TestCase):
     def test_no_test_host_is_one_the_browser_forces_to_https(self):
         preloaded = ("google-analytics.com", "facebook.com", "facebook.net", "bing.com", "cloudflare.com",
@@ -120,7 +143,7 @@ class VerdictTests(unittest.TestCase):
         v = ap.verdict(self.mode(2, 80.0, 0.20, 300.0, 900.0), self.mode(2, 100.0, 0.30, 400.0, 1000.0))
         self.assertTrue(all(t["met"] for t in v))
         self.assertEqual([t["target"] for t in v], ["blocking", "load time", "cpu", "memory, 1 tab",
-                                                    "memory, 20 tabs", "breakage (test pages)"])
+                                                    "memory, 20 tabs", "breakage (test pages)", "stand-ins"])
 
     def test_load_time_needs_ten_percent(self):
         v = {t["target"]: t["met"] for t in
@@ -136,6 +159,13 @@ class VerdictTests(unittest.TestCase):
         self.assertFalse(v["memory, 1 tab"])
         self.assertTrue(v["memory, 20 tabs"])
         self.assertFalse(v["breakage (test pages)"])
+
+    def test_fewer_stand_ins_than_ublock_origin_fail(self):
+        ubo = dict(self.mode(2, 100.0, 0.30, 400.0, 1000.0), stand_ins=5)
+        fewer = dict(self.mode(2, 80.0, 0.20, 300.0, 900.0), stand_ins=3)
+        same = dict(self.mode(2, 80.0, 0.20, 300.0, 900.0), stand_ins=5)
+        self.assertFalse({t["target"]: t["met"] for t in ap.verdict(fewer, ubo)}["stand-ins"])
+        self.assertTrue({t["target"]: t["met"] for t in ap.verdict(same, ubo)}["stand-ins"])
 
     def test_an_invalid_run_meets_nothing(self):
         bad = dict(self.mode(2, 80.0, 0.20, 300.0, 900.0), valid=False)

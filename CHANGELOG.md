@@ -22,9 +22,14 @@ Each release lists:
   you allow them on this site" instead of warning that the site shows intrusive ads.
 - `tools/qa/adblock_proof.py` measures native ad blocking against uBlock Origin on ad-heavy local test pages,
   fully offline (ROADMAP **P5.17**): requests that got through, needed resources blocked, load time, CPU and
-  memory. First results in `docs/perf/2026-11-10-native-adblock-proof.md`: the native engine alone blocks as
-  much as uBlock Origin with less CPU and memory and 5.7 % faster loads (target 10 %); native plus uBlock Origin
-  costs more than uBlock Origin alone.
+  memory. Results in `docs/perf/2026-11-11-native-adblock-proof.md` (pages loaded in turn, 15 timed loads):
+  the native engine alone blocks as much as uBlock Origin, loads 5.8 % faster (target 10 %, not met), and uses
+  8.5 % less CPU and 36 to 121 MB less memory.
+- `tools/qa/adblock_breakage.py` loads 99 of the top real sites of the Tranco ranking with uBlock Origin and
+  with the native engine and flags sites that do worse with the native engine (ROADMAP **P5.17**). First
+  results in `docs/perf/2026-11-11-native-adblock-breakage.md`: all 97 comparable sites loaded, none lost
+  text or threw more script errors; 4 were flagged for first-party tracking requests, two of which uBlock
+  Origin answers with a stand-in the native engine does not have yet.
 - While native ad blocking is on, page info and Settings call the Ads setting "Ads and trackers" and say what
   it does (ROADMAP **P5.16**); with it off, Chromium's wording stays.
 - Native ad blocking can be turned off per site (ROADMAP **P5.16**, off by default): it follows the browser's
@@ -180,6 +185,11 @@ Each release lists:
   from the SVG logo using only the standard library and a headless browser.
 
 ### Changed
+- Decided by the owner (2026-11-11): the ad blocker built into the browser is to replace uBlock Origin
+  instead of working next to it, and must keep updating both its filter lists and its scripts. The plan is
+  in `docs/design/2026-11-09-native-adblock-design.md`, section 12 (ROADMAP **P5.19** to **P5.24**). Nothing
+  changes for people yet: native blocking is still off by default, and an installed uBlock Origin and its
+  settings are never touched.
 - Windows program file renamed to `thoron.exe` and the installer to `thoron_<variant>_mini_installer.exe` (ROADMAP **P2.20**). The installer no longer ships Thorium-named files (`thor_ver`, Thorium icons, content shell entries), and Thoron no longer shares Thorium's `App Paths\thorium.exe` entry, so either browser can be uninstalled without affecting the other. `tools/migrate/exe_rename.py` moves an install made before the rename over: it gives `App Paths\thorium.exe` back to Thorium, fixes shortcuts and registry values the installer did not, and moves the leftovers into a backup it can restore.
 - Work order: Windows first. The Linux build tasks (ROADMAP **P1.2**, **P1.5**) are deferred by the
   owner's decision; Ubuntu remains a target platform (design §16).
@@ -220,6 +230,11 @@ Each release lists:
   and it writes its temporary git objects to a scratch folder instead of the Chromium checkout.
 
 ### Security
+- Native ad blocking (off by default): a list update is now put on record before the new lists are read.
+  Reading runs inside the browser, and a list that made the parser abort would have closed the browser 2
+  minutes after every start for as long as the list host served it. Now the next attempt is 4 days away
+  and the previous engine stays in use. Tested by killing the browser in the middle of an update
+  (`tools/qa/adblock_update_check.py`, 8 scenarios).
 - Flags that weaken security (`disable-web-security`, `allow-file-access-from-files`, `disable-encryption`,
   `allow-insecure-downloads`, the password store choice) now start with a plain warning in `chrome://flags`,
   and Chromium's unsupported-flag bar is back for `--extensions-on-chrome-urls`, `--enable-blink-features`,

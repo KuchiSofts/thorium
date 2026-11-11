@@ -17,6 +17,11 @@ every other host fail.
                whole update is refused, as the new engine would let known ads through
     restart    the "good" profile starts again with no list server: the saved engine blocks the probe
                from the start, and no list is downloaded (the next check is not due)
+    interrupted      easylist is valid but very long, and the browser is killed while it reads the new
+                     lists, as a list that crashed the parser would do: the check must already be on record
+    after-interrupt  that profile starts again with a good update on offer: nothing is downloaded (or the
+                     same crash would repeat at every start), the previous engine is in use, the browser
+                     stays up
 
     py -3 -I tools/qa/adblock_update_check.py --browser <out>\\thoron.exe --work <scratch dir>
 Exit status 0 only when every scenario passes.
@@ -38,7 +43,9 @@ MARKER = "! thoron-list: "
 PROBE_HOST = "update-probe.test"
 PROBE_RULE = f"||{PROBE_HOST}^"
 STORE_DIR = "Thoron Adblock"
-SCENARIOS = ("good", "shrunk", "allow-all", "web-page", "unblocks")
+SCENARIOS = ("good", "shrunk", "allow-all", "web-page", "unblocks", "interrupted")
+INTERRUPTED = "interrupted:"   # how the state's result starts while new lists are being read (list_store.cc)
+FILLER_RULES = 400_000         # enough extra rules that reading the lists takes seconds
 # Words of the browser's probe requests (list_store.cc): "unblocks" drops every rule holding one.
 PROBE_WORDS = ("googlesyndication", "adsbygoogle", "doubleclick", "gpt.js", "amazon-adsystem", "apstag",
                "google-analytics", "analytics.js", "facebook.net", "fbevents", "ads-twitter", "uwt.js")
@@ -80,8 +87,11 @@ def served_lists(bundled: dict[str, str], scenario: str) -> dict[str, str]:
         return {}
     served = dict(bundled)
     easylist = bundled["easylist"].rstrip("\n")
-    if scenario == "good":
+    if scenario in ("good", "after-interrupt"):
         served["easylist"] = f"{easylist}\n{PROBE_RULE}\n"
+    elif scenario == "interrupted":
+        filler = "\n".join(f"||f{i}.filler.test^" for i in range(FILLER_RULES))
+        served["easylist"] = f"{easylist}\n{PROBE_RULE}\n{filler}\n"
     elif scenario == "shrunk":
         served["easylist"] = f"{PROBE_RULE}\n"
     elif scenario == "allow-all":
@@ -105,7 +115,8 @@ def probe_blocked(seen: list[int], made: int, last: int = LAST_ATTEMPTS) -> bool
     return not [n for n in seen if n >= made - last]
 
 
-def problems(scenario: str, state: dict | None, probe_blocked: bool, list_requests: int) -> list[str]:
+def problems(scenario: str, state: dict | None, probe_blocked: bool, list_requests: int,
+             alive: bool = True) -> list[str]:
     if not isinstance(state, dict):
         return ["no state file: the update check did not run"]
     note = (((state.get("lists") or {}).get("easylist")) or {}).get("note", "")
@@ -132,6 +143,22 @@ def problems(scenario: str, state: dict | None, probe_blocked: bool, list_reques
             out.append(f"{list_requests} list downloads on restart, though no check was due")
         if not probe_blocked:
             out.append("the saved engine was not used: the probe is not blocked")
+    elif scenario == "interrupted":
+        if not state.get("result", "").startswith(INTERRUPTED):
+            out.append("the browser was not stopped while it read the new lists, or the check was not on "
+                       f"record yet: {state.get('result', '')[:80]!r}")
+        if not list_requests:
+            out.append("no list was downloaded")
+    elif scenario == "after-interrupt":
+        if not alive:
+            out.append("the browser did not stay up")
+        if list_requests:
+            out.append(f"{list_requests} list downloads right after an interrupted update: a list that "
+                       "crashes the parser would crash the browser again at every start")
+        if not state.get("result", "").startswith(INTERRUPTED):
+            out.append("the record of the interrupted check is gone")
+        if probe_blocked:
+            out.append("the probe is blocked: lists from the interrupted update were used")
     else:
         raise ValueError(scenario)
     return out
@@ -235,9 +262,16 @@ def run_scenario(browser: Path, profile: Path, bundled: dict[str, str], scenario
     with ListServer(served_lists(bundled, scenario)) as server:
         before = _read_state(profile)
         proc = _launch(browser, profile, server.port)
+        alive = True
         try:
-            if scenario == "restart":
+            if scenario in ("restart", "after-interrupt"):
                 time.sleep(RESTART_S)
+                alive = proc.poll() is None
+            elif scenario == "interrupted":
+                # stop the browser the moment the check is on record: it is reading the new lists then
+                deadline = time.monotonic() + timeout_s
+                while time.monotonic() < deadline and _read_state(profile) in (None, before):
+                    time.sleep(0.02)
             else:
                 deadline = time.monotonic() + timeout_s
                 while time.monotonic() < deadline and _read_state(profile) in (None, before):
@@ -247,8 +281,8 @@ def run_scenario(browser: Path, profile: Path, bundled: dict[str, str], scenario
             _stop(proc)
         state = _read_state(profile)
         blocked = probe_blocked(server.probes, server.made)
-        found = problems(scenario, state, blocked, server.list_requests)
-        return {"scenario": scenario, "passed": not found, "problems": found,
+        found = problems(scenario, state, blocked, server.list_requests, alive)
+        return {"scenario": scenario, "passed": not found, "problems": found, "alive": alive,
                 "probe_attempts": server.made, "probes_seen": len(server.probes), "probe_blocked": blocked,
                 "list_requests": server.list_requests,
                 "result": (state or {}).get("result", "")}
@@ -266,6 +300,8 @@ def run_all(browser: Path, work: Path, lists_file: Path) -> list[dict]:
             results.append(run_scenario(browser, profile, bundled, scenario))
             if scenario == "good":
                 results.append(run_scenario(browser, profile, bundled, "restart"))
+            if scenario == "interrupted":
+                results.append(run_scenario(browser, profile, bundled, "after-interrupt"))
         finally:
             shutil.rmtree(profile, ignore_errors=True)
     return results

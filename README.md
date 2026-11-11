@@ -6,7 +6,7 @@
 
 **A fast, secure, Thorium-based browser for Windows 11 and Ubuntu.**
 
-[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-33%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
+[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-31%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
 
 [Why Thoron](#why-thoron) · [Features](#features) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits)
 
@@ -44,7 +44,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 |---|---|---|
 | **Smart updater** | Small delta downloads for installed **and** portable copies, staged in the background, applied on relaunch, with one-step rollback. Full installers stay available. | [P3](ROADMAP.md#p3---updater-v1--import) · [P4](ROADMAP.md#p4---updater-v2) |
 | **Import from your browser** | Brings over **open tabs and tab groups** (names, colours, pinned tabs), bookmarks, history, passwords, settings and extensions from Thorium, Chrome, Edge, Brave, Vivaldi, Opera and later Firefox. Your old browser is never modified. | [P3](ROADMAP.md#p3---updater-v1--import) |
-| **Built-in ad blocking** | The genuine, unmodified uBlock Origin, pinned and signature-verified, kept up to date. | [P5](ROADMAP.md#p5---quality) |
+| **Built-in ad blocking** | Today: the genuine, unmodified uBlock Origin, pinned and signature-verified. Being built: a blocker inside the browser itself that reads the same lists and replaces it (off until it measures better). | [P5](ROADMAP.md#p5---quality) |
 | **Protected portable mode** | Saved passwords and cookies in the portable version are encrypted with your passphrase, so they work on any PC and stay safe if the folder is lost. | [P4](ROADMAP.md#p4---updater-v2) |
 | **Right build, automatically** | The installer picks the fastest build your CPU supports (AVX2, SSE4 or ARM64). | [P4](ROADMAP.md#p4---updater-v2) |
 | **Measured performance** | Every release is benchmarked (Speedometer, JetStream, MotionMark, startup, memory, idle CPU). A regression blocks the release. | [Q track](ROADMAP.md#quality--performance-q) |
@@ -54,7 +54,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `███████░░░░░░░░░░░░░` 45 of 138 tasks done (33%) · roadmap updated 2026-11-08
+**Overall:** `██████░░░░░░░░░░░░░░` 45 of 144 tasks done (31%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -64,7 +64,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `████░░░░░░░░░░░░░░░░` | 4/18 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `███░░░░░░░░░░░░░░░░░` | 4/24 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `███████████░░░░░░░░░` | 8/15 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `██████████░░░░░░░░░░` | 4/8 | 🔄 In progress |
@@ -198,7 +198,13 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **P5.15** Native ad blocking, lists: compiled lists bundled in each release, safe background updates, validation that never falls back to "allow everything"
 - [ ] **P5.16** Native ad blocking, UI: per-site switch in page info and Settings; local blocked-count badge
 - [ ] **P5.17** Native ad blocking, proof: the measurements in the design's section 9 (blocking, speed, CPU, memory, breakage) and fuzzing; on by default only when all pass
-- [ ] **P5.18** Native ad blocking, later: CNAME uncloaking; native cosmetic filtering if it proves better than uBlock Origin's
+- [ ] **P5.18** Native ad blocking, later: CNAME uncloaking
+- [ ] **P5.19** Native ad blocking, resources and stand-ins: uBlock Origin's scriptlets and redirect resources taken from the pinned package at build time; a blocked request with a `$redirect` or `redirect-rule` filter is answered with the harmless stand-in instead of an error
+- [ ] **P5.20** Native ad blocking, scriptlets and site-specific cosmetic filtering: sent to the renderer with the document and applied at document start; trusted scriptlets only from uBlock Origin's own lists
+- [ ] **P5.21** Native ad blocking, generic cosmetic filtering: the page reports its classes and ids, the engine answers with the selectors to hide
+- [ ] **P5.22** Native ad blocking, the rest of the syntax: procedural cosmetic filters, `$removeparam`, `$csp`
+- [ ] **P5.23** Native ad blocking, signed updates of scriptlets and resources between releases
+- [ ] **P5.24** Native ad blocking, hand-over from uBlock Origin: new profiles no longer get the built-in uBlock Origin once native blocking is on by default; a one-time notice when both run; existing profiles untouched
 
 **Security (S)**
 

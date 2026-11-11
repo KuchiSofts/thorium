@@ -18,8 +18,10 @@ is held back --remote-delay ms to stand in for a network round trip (local answe
 the load times show the shape of the gain, not what a person sees on a real connection.
 
 Measured per configuration: ad and tracker requests that reached the server, needed resources that
-did not, page load time (navigation start to the load event; median of --runs loads per page, summed
-over the pages), CPU time of the whole browser per page load, and private memory with 1 and 20 tabs.
+did not, blocked scripts that were answered with a harmless stand-in (the page sees them load, the
+server never sees them), page load time (navigation start to the load event; median of --runs loads per page, taken
+page after page in turn after --warm unmeasured rounds, and summed over the pages), CPU time of the
+whole browser per page load, and private memory with 1 and 20 tabs.
 `native` and `native+ubo` are then compared with `ubo` against the design's targets. The breakage
 target on real sites is not covered here.
     py -3 -I tools/qa/adblock_proof.py --browser <out>\\thoron.exe --extension <unpacked uBO>
@@ -125,8 +127,9 @@ def url(rid: str, run: str) -> str:
 
 def _tag(rid: str, run: str) -> str:
     r, u = BY_ID[rid], url(rid, run)
-    if r["kind"] == "script":
-        return f'<script src="{u}"{"" if r.get("sync") else " async"}></script>'
+    if r["kind"] == "script":   # the page notes whether it loaded or failed (stand_ins())
+        return (f'<script src="{u}"{"" if r.get("sync") else " async"} onload="__ok(\'{rid}\')" '
+                f'onerror="__er(\'{rid}\')"></script>')
     if r["kind"] == "css":
         return f'<link rel="stylesheet" href="{u}">'
     if r["kind"] == "img":
@@ -144,12 +147,15 @@ def page_html(page: str, run: str, port: int) -> str:
                    f'<img src="/static/photo{n}.gif?r={run}" alt="" width="320" height="180">'
                    for n in range(FIRST_PARTY_IMAGES))
     return (f'<!doctype html><html><head><meta charset="utf-8"><title>{page}</title>'
+            "<script>window.__okl = []; window.__erl = []; window.__real = [];"
+            "window.__ok = (i) => __okl.push(i); window.__er = (i) => __erl.push(i);</script>"
             f'<link rel="stylesheet" href="/static/site.css?r={run}">{head}'
             f'<script src="/static/app.js?r={run}"></script></head><body><h1>{page}</h1>{text}{body}'
             "<script>addEventListener('load', () => setTimeout(() => {"
             "const n = performance.getEntriesByType('navigation')[0];"
             f"fetch('/result', {{method: 'POST', keepalive: true, body: JSON.stringify({{run: {json.dumps(run)}, "
-            "load: n.loadEventStart, dcl: n.domContentLoadedEventStart})});}, 0));</script></body></html>")
+            "load: n.loadEventStart, dcl: n.domContentLoadedEventStart, "
+            "ok: window.__okl, er: window.__erl, real: window.__real})});}, 0));</script></body></html>")
 
 
 # The readiness page: asks for one ad script again and again until it stays blocked.
@@ -277,7 +283,7 @@ class ProofServer:
                 if delay:
                     time.sleep(delay)
                 if r["kind"] == "script":
-                    js = "window.__ad = 1;"
+                    js = f"(window.__real = window.__real || []).push({json.dumps(r['id'])});window.__ad = 1;"
                     for child in r.get("children", []):
                         c, cu = BY_ID[child], json.dumps(url(child, run))
                         if c["kind"] == "img":
@@ -321,6 +327,14 @@ def count(page: str, hits: set[str]) -> dict:
     return {"possible": len(ads), "reached": sum(1 for i in ads if i in hits),
             "reached_ids": sorted(i for i in ads if i in hits),
             "needed_missing": sorted(i for i in want if BY_ID[i]["group"] == "needed" and i not in hits)}
+
+
+def stand_ins(result: dict, hits: set[str]) -> list[str]:
+    """The scripts of one page load that a blocker answered with a harmless stand-in: the page saw them
+    load, but they never reached the server and did not run the real script."""
+    real = set(result.get("real") or [])
+    return sorted(i for i in set(result.get("ok") or [])
+                  if i not in real and i not in hits and BY_ID.get(i, {}).get("kind") == "script")
 
 
 def _launch(browser: Path, profile: Path, port: int, mode: str, extension: Path | None) -> subprocess.Popen:
@@ -395,23 +409,31 @@ def _load(server: ProofServer, port: int, page: str, run: str, keep: bool = Fals
 
 
 def measure_mode(browser: Path, work: Path, mode: str, extension: Path | None, runs: int, memory_runs: int,
-                 remote_delay_ms: int) -> dict:
+                 remote_delay_ms: int, warm: int = 3) -> dict:
     out = {"valid": False, "pages": {}}
     name, mode = mode, mode.replace("+", "-")   # run ids go into URLs, where a plus means a space
     with ProofServer(remote_delay_ms) as server:
         proc, profile, port = _start(browser, work, server, name, extension)
         try:
-            for page in PAGES:   # one unmeasured load of each page first
-                _load(server, port, page, f"{mode}-{page}-warm")
+            for w in range(warm):   # unmeasured rounds first: caches and the blocker's own warm-up
+                for page in PAGES:
+                    _load(server, port, page, f"{mode}-{page}-warm{w}")
             _settle(proc)
             before = bench.total(bench._processes(), proc.pid, "cpu")
-            loads = {page: [_load(server, port, page, f"{mode}-{page}-{i}") for i in range(runs)] for page in PAGES}
+            loads = {page: [] for page in PAGES}
+            for i in range(runs):   # page after page in turn, so a slow moment does not fall on one page only
+                for page in PAGES:
+                    loads[page].append(_load(server, port, page, f"{mode}-{page}-{i}"))
             after = bench.total(bench._processes(), proc.pid, "cpu")
         finally:
             bench._stop(proc, profile)
         for page in PAGES:
-            hits = set().union(*(server.hits.get(f"{mode}-{page}-{i}", set()) for i in range(runs)))
-            out["pages"][page] = {**count(page, hits), "load_ms": bench.summarise(loads[page])}
+            per_run = [server.hits.get(f"{mode}-{page}-{i}", set()) for i in range(runs)]
+            hits = set().union(*per_run)
+            stood_in = set().union(*(stand_ins(server.results.get(f"{mode}-{page}-{i}", {}), per_run[i])
+                                     for i in range(runs)))
+            out["pages"][page] = {**count(page, hits), "stand_ins": sorted(stood_in),
+                                  "load_ms": bench.summarise(loads[page])}
         memory = {1: [], 20: []}
         for n in range(memory_runs):
             proc, profile, port = _start(browser, work, server, name, extension)
@@ -430,6 +452,7 @@ def measure_mode(browser: Path, work: Path, mode: str, extension: Path | None, r
     out.update({
         "possible": sum(p["possible"] for p in pages), "reached": sum(p["reached"] for p in pages),
         "needed_missing": sum(len(p["needed_missing"]) for p in pages),
+        "stand_ins": sum(len(p["stand_ins"]) for p in pages),
         "load_ms": round(sum(p["load_ms"]["median"] for p in pages), 1),
         "load_spread_pct": max(p["load_ms"]["spread_pct"] for p in pages),
         "cpu_s_per_load": round((after - before) / (runs * len(PAGES)), 3),
@@ -460,6 +483,8 @@ def verdict(candidate: dict, ubo: dict) -> list[dict]:
             c["memory_mb_20"] <= u["memory_mb_20"]),
         row("breakage (test pages)", "no needed resource newly blocked", c["needed_missing"], u["needed_missing"],
             c["needed_missing"] <= u["needed_missing"]),
+        row("stand-ins", "no fewer blocked scripts answered with a harmless stand-in", c.get("stand_ins", 0),
+            u.get("stand_ins", 0), c.get("stand_ins", 0) >= u.get("stand_ins", 0)),
     ]
 
 
@@ -468,13 +493,15 @@ def to_markdown(results: dict) -> str:
              "Generated by `tools/qa/adblock_proof.py`: three ad-heavy local test pages, fully offline, throwaway",
              f"profiles. Load time is the median of {results['runs']} loads per page, summed over the pages; every",
              f"answer from a mapped host is held back {results['remote_delay_ms']} ms to stand in for the network.", "",
-             "| Configuration | Ads and trackers through | Needed resources blocked | Load, ms (worst spread) |"
-             " CPU, s per load | Memory 1 tab, MB | Memory 20 tabs, MB |", "|---|---|---|---|---|---|---|"]
+             "| Configuration | Ads and trackers through | Needed resources blocked | Stand-ins served |"
+             " Load, ms (worst spread) | CPU, s per load | Memory 1 tab, MB | Memory 20 tabs, MB |",
+             "|---|---|---|---|---|---|---|---|"]
     for name, m in results["modes"].items():
         if not m.get("valid"):
-            lines.append(f"| {name} | invalid: {m.get('error', 'no result')} | | | | | |")
+            lines.append(f"| {name} | invalid: {m.get('error', 'no result')} | | | | | | |")
             continue
-        lines.append(f"| {name} | {m['reached']} of {m['possible']} | {m['needed_missing']} | {m['load_ms']} "
+        lines.append(f"| {name} | {m['reached']} of {m['possible']} | {m['needed_missing']} | "
+                     f"{m.get('stand_ins', 0)} | {m['load_ms']} "
                      f"({m['load_spread_pct']} %) | {m['cpu_s_per_load']} | {m['memory_mb_1']} | {m['memory_mb_20']} |")
     for name, rows in results["verdicts"].items():
         lines += ["", f"## {name} against uBlock Origin alone", "", "| Target | Rule | Value | uBlock Origin | Met |",
@@ -489,7 +516,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--browser", required=True, type=Path)
     parser.add_argument("--extension", required=True, type=Path, help="unpacked uBlock Origin")
     parser.add_argument("--work", required=True, type=Path, help="scratch folder for the throwaway profiles")
-    parser.add_argument("--runs", type=int, default=7)
+    parser.add_argument("--runs", type=int, default=15)
+    parser.add_argument("--warm", type=int, default=3, help="unmeasured rounds of all pages before the measured ones")
     parser.add_argument("--memory-runs", type=int, default=3)
     parser.add_argument("--remote-delay", type=int, default=40, help="ms added to every mapped host's answer")
     parser.add_argument("--modes", default=",".join(MODES))
@@ -500,7 +528,8 @@ def main(argv: list[str]) -> int:
     modes = {}
     for mode in [m for m in MODES if m in a.modes.split(",")]:
         try:
-            modes[mode] = measure_mode(a.browser, a.work, mode, a.extension, a.runs, a.memory_runs, a.remote_delay)
+            modes[mode] = measure_mode(a.browser, a.work, mode, a.extension, a.runs, a.memory_runs, a.remote_delay,
+                                       a.warm)
         except (bench.BenchError, OSError, RuntimeError, ValueError) as e:
             modes[mode] = {"valid": False, "error": str(e)}
         print(mode, json.dumps({k: v for k, v in modes[mode].items() if k != "pages"}), flush=True)
@@ -514,7 +543,8 @@ def main(argv: list[str]) -> int:
             m.setdefault("error", "the control run is invalid")
             m["valid"] = False
     ubo = modes.get("ubo", {"valid": False})
-    results = {"browser_version": version, "runs": a.runs, "remote_delay_ms": a.remote_delay, "modes": modes,
+    results = {"browser_version": version, "runs": a.runs, "warm_rounds": a.warm,
+               "remote_delay_ms": a.remote_delay, "modes": modes,
                "verdicts": {k: verdict(modes[k], ubo) for k in ("native", "native+ubo")
                             if modes.get(k, {}).get("valid") and ubo.get("valid")}}
     a.out.parent.mkdir(parents=True, exist_ok=True)
