@@ -389,6 +389,13 @@ Results: `docs/perf/2026-11-11-native-adblock-breakage.md`.
 - After stand-ins were added (P5.19, section 12.2) the four flagged sites were loaded again: apple.com and
   cnn.com are no longer flagged. vk.com (a CSP report address) and applovin.com (an ad script) still
   differ; applovin.com also serves the two set-ups pages of different length, so it is a weak comparison.
+- With scriptlets and hide rules in (P5.20, P5.21) the 99 sites were loaded again, since those are the
+  changes most likely to break a page (`docs/perf/2026-11-11-native-adblock-breakage-p521.md`): 96 could be
+  compared, all 96 load with the native blocker, none is flagged for lost text or script errors, and the
+  only two flags are the same two tracking requests on vk.com and applovin.com. One caution when reading
+  the text counts: uBlock Origin does not hide elements in a headless browser on this build (P2.18), the
+  native blocker does, so a page can show a little less text with it (ibm.com: 12 % less) because ad and
+  promotion blocks are hidden. Clicking through pages is still not covered.
 - One thing learned on the way: starting the browser with `--user-agent` stops uBlock Origin from blocking
   anything on this build, so the tool sets the user agent per tab instead.
 
@@ -425,9 +432,9 @@ smart. This replaces the hybrid of section 3 and decision 1 of section 11.
 |---|---|---|
 | Network blocking, frames included | the engine and request proxy (4.3-4.6) | done |
 | Stand-ins (`$redirect`, `redirect-rule`): a blocked script or image is answered with a harmless copy, so the page does not break | resources from the pinned uBlock Origin package; the proxy answers with the stand-in | done (P5.19) |
-| Scriptlets (`##+js(...)`): small scripts that defuse ad and anti-blocker code inside the page | the same resources, run at document start | P5.20 |
-| Cosmetic filtering for one site (`example.com##.ad`) | a style sheet sent with the document | P5.20 |
-| Generic cosmetic filtering (`##.ad-banner`) | the page reports the classes and ids it uses; the engine answers with the selectors to hide | P5.21 |
+| Scriptlets (`##+js(...)`): small scripts that defuse ad and anti-blocker code inside the page | the same resources, run at document start | done (P5.20) |
+| Cosmetic filtering for one site (`example.com##.ad`) | a style sheet sent with the document | done (P5.20) |
+| Generic cosmetic filtering (`##.ad-banner`) | the page reports the classes and ids it uses; the engine answers with the selectors to hide | done (P5.21) |
 | Procedural cosmetic filters (`:has-text()`, `:upward()`), `$removeparam`, `$csp` | a small page-side interpreter; an internal redirect; a header on the document | P5.22 |
 | List updates | 4.6 | done |
 | Scriptlet and resource updates | 12.4 | P5.23 |
@@ -474,6 +481,58 @@ network would have marked a real answer (same-site, CORS or opaque), and nothing
 - Scriptlets run in the page's own world, as uBlock Origin's do. They are the same code, so a site cannot
   tell Thoron's blocker from uBlock Origin by them.
 
+As built (P5.20, 2026-11-11):
+- Browser: one observer per WebContents (attached with Chromium's other universal observers, only while
+  the feature is on). At `ReadyToCommitNavigation` of an http(s) document, in the page or in a frame, it
+  reads the per-site switch for the page, asks the engine, and sends a style sheet and a script on the
+  frame's channel-associated `DocumentAgent` interface. Nothing is sent for error pages, same-document
+  navigations, other schemes, or a site where the person allowed ads.
+- Renderer: a frame agent keeps what arrived for the document that commits next, and applies it when the
+  embedder runs its document-start scripts: the style sheet as a user style sheet (the page's own styles
+  cannot take it back), the script in the page's world. A document the browser sent nothing for gets
+  nothing; what was sent for an earlier navigation never carries over.
+- The script: the site's scriptlets inside one function with a shared `scriptletGlobals`, as uBlock Origin
+  runs them, so their helper functions stay out of the page's global scope.
+- The style sheet: one `selector{display:none!important}` rule per line. A selector that holds a brace, an
+  open comment or a control character is left out, so a list can hide elements but never add other CSS
+  to a page (adblock-rust is built without its optional CSS validation).
+- Besides a site's own rules the engine returns the generic rules that cannot be looked up by class or
+  id (uBlock Origin's "highly generic" set): 546 selectors, about 22 KB, for every document that has no
+  `generichide` exception. Rules that can be looked up by class or id are P5.21.
+- Checked with `tools/qa/adblock_cosmetic_check.py`, which picks a site from the bundled lists that has
+  both a simple scriptlet rule and a simple hide rule and serves a page under its name from a local
+  server: with blocking on, the scriptlet ran before the page's first script and the element is hidden,
+  in the page and inside a frame; with blocking off, or ads allowed on that site, nothing is touched.
+  17 engine tests cover the rest (trust per list, the selector check, the wrapper).
+- Cost: the measurement of 9.1 was repeated with stand-ins, scriptlets and hide rules in
+  (`docs/perf/2026-11-11-native-adblock-proof-p520.md`): the native blocker loads the test pages 7.6 %
+  faster than uBlock Origin (306.9 against 332.3 ms; 5.8 % before), with 28 % less CPU per load and 80 to
+  90 MB less memory. The added work does not show; the 10 % load target is still not met.
+- Known differences from uBlock Origin: 22 of its scriptlets ask for an isolated world and run in the
+  page's world here; `war:` arguments (a scriptlet answering a fetch with one of the extension's files)
+  resolve to nothing; frames that never navigate (`about:blank`, `srcdoc`) get nothing; procedural
+  filters are not applied yet (P5.22).
+
+Generic hide rules as built (P5.21, 2026-11-11). The lists hold about 13,000 rules of the form
+`##.ad-banner` or `###ad-top`. Sending them all to every page would cost every page; instead:
+- The frame agent walks its document and collects the class names and ids it has not reported yet: when
+  the DOM is ready, at load, and 1, 3, 7 and 15 seconds after load for content the page adds late. It
+  sends them to the browser (at most 4,000 names per question, 40,000 per document, names up to 128
+  characters) and inserts the style sheet that comes back as a user style sheet.
+- The browser answers through a per-frame `DocumentHost` interface. It decides by the address the asking
+  frame has committed and the page it is in, never by anything the frame says about itself: the site's
+  exceptions are applied, a `generichide` exception or ads allowed on the site means no answer, and a
+  question with more than 8,000 names is not answered.
+- A rule stays in force once inserted, so elements that arrive later with an already reported class are
+  hidden at once. What is missed: a class name that first appears more than 15 seconds after load. A
+  mutation observer would catch those and is left for later, if the breakage and blocking checks ask for it.
+- Checked with `tools/qa/adblock_cosmetic_check.py`: an element with a generic rule's class that is there
+  from the start and one the page adds a second after load are both hidden, in the page and in a frame,
+  and neither is with blocking off or ads allowed on the site.
+- Cost: none that the measurement shows. With generic rules in, the test pages load in 306.8 ms (306.9
+  before), 6.5 % faster than uBlock Origin (328.2 ms), with 15 % less CPU per load and 45 to 101 MB less
+  memory (`docs/perf/2026-11-11-native-adblock-proof-p521.md`).
+
 ### 12.4 Updates
 
 - Lists: as today (4.6): every 4 days, from the list hosts, each list checked, never a fallback to
@@ -510,7 +569,10 @@ network would have marked a real answer (same-site, CORS or opaque), and nothing
 - A list update can choose which of the installed scriptlets runs on which site, with which arguments.
   The lists have the same power in uBlock Origin. The checks of 4.6 and the trust rule limit it, and the
   list hosts are reached over HTTPS only.
-- A renderer receives only what its own document needs and cannot ask the browser about other sites.
+- A renderer receives only what its own document needs and cannot ask the browser about other sites. The
+  one question it can ask (generic hide rules for class names and ids) is answered by the address the
+  frame has committed, is bounded in size, and its answer holds only public list rules, nothing about
+  the person or other pages.
 - The build runs the package's scriptlet modules once with Node.js to read them. Importing them only
   registers functions, and the package is the pinned one.
 - Licence: uBlock Origin's scriptlets and resources are GPL-3.0. They ship unmodified in their own data
