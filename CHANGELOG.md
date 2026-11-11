@@ -31,7 +31,13 @@ Each release lists:
   address with a parameter they take out leads to the clean address; for a page you open, the address bar
   shows the clean address after a redirect too. A site that insists on its parameter still loads. Checked
   offline with `tools/qa/adblock_redirect_check.py`. The extra look costs nothing that the measurement
-  shows: two runs gave 10.2 % and 8.6 % faster page loads than uBlock Origin on the test pages.
+  shows: 6.1 % faster page loads than uBlock Origin on the test pages, measured in turns (6.4 % on the
+  build before).
+- `tools/qa/adblock_proof.py --turns N` measures the configurations in turns instead of one after the
+  other (ROADMAP **P5.17**). On a machine that is also used for other things, the old order gave the same
+  build 10.2 % in one run and 8.6 % in the next. In turns: the native blocker loads the test pages 6.1 %
+  faster than uBlock Origin, with 15 % less CPU and 38 to 76 MB less memory. The 10 % load target is not
+  met.
 - Native ad blocking (off by default) now runs uBlock Origin's scriptlets and hides page elements (ROADMAP
   **P5.20**): the small scripts that defuse ad and anti-blocker code run before any page script, and a
   site's hide rules arrive with the document, in the page and in its frames. Only uBlock Origin's own lists

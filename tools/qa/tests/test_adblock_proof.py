@@ -172,6 +172,37 @@ class VerdictTests(unittest.TestCase):
         self.assertFalse(any(t["met"] for t in ap.verdict(bad, self.mode(2, 100.0, 0.30, 400.0, 1000.0))))
 
 
+class TurnTests(unittest.TestCase):
+    def test_the_measured_loads_are_split_into_turns_of_nearly_equal_size(self):
+        self.assertEqual(ap.turn_sizes(15, 3), [5, 5, 5])
+        self.assertEqual(ap.turn_sizes(16, 3), [6, 5, 5])
+        self.assertEqual(ap.turn_sizes(5, 5), [1, 1, 1, 1, 1])
+        self.assertEqual(ap.turn_sizes(15, 1), [15])
+        self.assertEqual(sum(ap.turn_sizes(17, 4)), 17)
+
+    def test_more_turns_than_loads_or_none_is_an_error(self):
+        for runs, turns in ((3, 4), (5, 0), (5, -1)):
+            with self.assertRaises(ValueError):
+                ap.turn_sizes(runs, turns)
+
+    def test_every_turn_starts_with_another_configuration(self):
+        modes = ["control", "ubo", "native"]
+        self.assertEqual(ap.turn_order(modes, 0), ["control", "ubo", "native"])
+        self.assertEqual(ap.turn_order(modes, 1), ["ubo", "native", "control"])
+        self.assertEqual(ap.turn_order(modes, 2), ["native", "control", "ubo"])
+        self.assertEqual(ap.turn_order(modes, 3), ["control", "ubo", "native"])
+        self.assertEqual(ap.turn_order(["ubo"], 5), ["ubo"])
+
+    def test_cpu_of_a_turn_is_the_growth_of_one_browser_between_two_looks(self):
+        before = [{"pid": 1, "ppid": 0, "cpu": 10.0, "ws": 0}, {"pid": 2, "ppid": 1, "cpu": 4.0, "ws": 0},
+                  {"pid": 9, "ppid": 0, "cpu": 100.0, "ws": 0}]
+        after = [{"pid": 1, "ppid": 0, "cpu": 11.0, "ws": 0}, {"pid": 2, "ppid": 1, "cpu": 6.5, "ws": 0},
+                 {"pid": 3, "ppid": 1, "cpu": 0.5, "ws": 0}, {"pid": 9, "ppid": 0, "cpu": 150.0, "ws": 0}]
+        # the browser's own tree only; a child that started in between counts with all it used
+        self.assertAlmostEqual(ap.cpu_between(before, after, 1), 4.0)
+        self.assertAlmostEqual(ap.cpu_between(before, after, 9), 50.0)
+
+
 class ReportTests(unittest.TestCase):
     def test_markdown_names_every_mode_and_target_and_uses_only_short_dashes(self):
         m = {"valid": True, "reached": 2, "possible": 40, "needed_missing": 0, "load_ms": 80.0,
@@ -185,6 +216,15 @@ class ReportTests(unittest.TestCase):
         self.assertIn("load time", md)
         for dash in (chr(0x2013), chr(0x2014)):
             self.assertNotIn(dash, md)
+        self.assertNotIn("in turns", md)
+
+    def test_markdown_says_when_the_configurations_were_measured_in_turns(self):
+        m = {"valid": True, "reached": 2, "possible": 40, "needed_missing": 0, "load_ms": 80.0,
+             "load_spread_pct": 4.0, "cpu_s_per_load": 0.2, "memory_mb_1": 300.0, "memory_mb_20": 900.0}
+        results = {"browser_version": "158.0.0.0", "runs": 15, "remote_delay_ms": 40, "turns": 3,
+                   "modes": {"ubo": dict(m), "native": dict(m)}, "verdicts": {"native": ap.verdict(m, m)}}
+        md = ap.to_markdown(results)
+        self.assertIn("in 3 turns", md)
 
 
 if __name__ == "__main__":

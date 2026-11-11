@@ -24,6 +24,12 @@ page after page in turn after --warm unmeasured rounds, and summed over the page
 whole browser per page load, and private memory with 1 and 20 tabs.
 `native` and `native+ubo` are then compared with `ubo` against the design's targets. The breakage
 target on real sites is not covered here.
+
+By default each configuration is measured from start to end before the next. On a machine that is also
+used for other things that is not a fair comparison: if it gets busier half way, only the later
+configurations pay. With --turns N all browsers are started first and the measured loads are taken in N
+turns, one configuration after the other in each turn (a different one first each time), with the CPU
+of each turn counted on its own. Memory is still measured per configuration, on fresh profiles.
     py -3 -I tools/qa/adblock_proof.py --browser <out>\\thoron.exe --extension <unpacked uBO>
         --work J:\\thoron-build\\proof --out docs/perf/<name>.json --md docs/perf/<name>.md
 Exit status 0 when every configuration ran and gave valid numbers (whether or not the targets are met).
@@ -408,46 +414,64 @@ def _load(server: ProofServer, port: int, page: str, run: str, keep: bool = Fals
     return float(server.results[run]["load"])
 
 
-def measure_mode(browser: Path, work: Path, mode: str, extension: Path | None, runs: int, memory_runs: int,
-                 remote_delay_ms: int, warm: int = 3) -> dict:
-    out = {"valid": False, "pages": {}}
-    name, mode = mode, mode.replace("+", "-")   # run ids go into URLs, where a plus means a space
-    with ProofServer(remote_delay_ms) as server:
+def turn_sizes(runs: int, turns: int) -> list[int]:
+    """How many of the `runs` measured rounds each of the `turns` gets (the first ones one more)."""
+    if turns < 1 or turns > runs:
+        raise ValueError(f"{turns} turns cannot be made of {runs} runs")
+    return [runs // turns + (1 if t < runs % turns else 0) for t in range(turns)]
+
+
+def turn_order(modes: list[str], turn: int) -> list[str]:
+    """The configurations in the order of one turn: each turn starts with another one."""
+    k = turn % len(modes)
+    return modes[k:] + modes[:k]
+
+
+def cpu_between(before: list[dict], after: list[dict], root: int) -> float:
+    """CPU seconds the browser `root` (its whole process tree) used between two looks at the processes."""
+    return bench.total(after, root, "cpu") - bench.total(before, root, "cpu")
+
+
+def _run_id(name: str) -> str:
+    return name.replace("+", "-")   # run ids go into URLs, where a plus means a space
+
+
+def _warm(server: ProofServer, port: int, mode: str, warm: int) -> None:
+    for w in range(warm):   # unmeasured rounds first: caches and the blocker's own warm-up
+        for page in PAGES:
+            _load(server, port, page, f"{mode}-{page}-warm{w}")
+
+
+def _memory(browser: Path, work: Path, server: ProofServer, name: str, extension: Path | None,
+            memory_runs: int) -> dict:
+    """Private memory with 1 and with 20 tabs, each time in a browser started for it."""
+    mode, memory = _run_id(name), {1: [], 20: []}
+    for n in range(memory_runs):
         proc, profile, port = _start(browser, work, server, name, extension)
         try:
-            for w in range(warm):   # unmeasured rounds first: caches and the blocker's own warm-up
-                for page in PAGES:
-                    _load(server, port, page, f"{mode}-{page}-warm{w}")
-            _settle(proc)
-            before = bench.total(bench._processes(), proc.pid, "cpu")
-            loads = {page: [] for page in PAGES}
-            for i in range(runs):   # page after page in turn, so a slow moment does not fall on one page only
-                for page in PAGES:
-                    loads[page].append(_load(server, port, page, f"{mode}-{page}-{i}"))
-            after = bench.total(bench._processes(), proc.pid, "cpu")
+            names = list(PAGES)
+            _load(server, port, names[0], f"{mode}-mem{n}-0", keep=True)
+            time.sleep(15)
+            memory[1].append(bench.total(bench._processes(), proc.pid, "ws") / 2**20)
+            for t in range(1, 20):
+                _load(server, port, names[t % len(names)], f"{mode}-mem{n}-{t}", keep=True)
+            time.sleep(20)
+            memory[20].append(bench.total(bench._processes(), proc.pid, "ws") / 2**20)
         finally:
             bench._stop(proc, profile)
-        for page in PAGES:
-            per_run = [server.hits.get(f"{mode}-{page}-{i}", set()) for i in range(runs)]
-            hits = set().union(*per_run)
-            stood_in = set().union(*(stand_ins(server.results.get(f"{mode}-{page}-{i}", {}), per_run[i])
-                                     for i in range(runs)))
-            out["pages"][page] = {**count(page, hits), "stand_ins": sorted(stood_in),
-                                  "load_ms": bench.summarise(loads[page])}
-        memory = {1: [], 20: []}
-        for n in range(memory_runs):
-            proc, profile, port = _start(browser, work, server, name, extension)
-            try:
-                names = list(PAGES)
-                _load(server, port, names[0], f"{mode}-mem{n}-0", keep=True)
-                time.sleep(15)
-                memory[1].append(bench.total(bench._processes(), proc.pid, "ws") / 2**20)
-                for t in range(1, 20):
-                    _load(server, port, names[t % len(names)], f"{mode}-mem{n}-{t}", keep=True)
-                time.sleep(20)
-                memory[20].append(bench.total(bench._processes(), proc.pid, "ws") / 2**20)
-            finally:
-                bench._stop(proc, profile)
+    return memory
+
+
+def _result(server: ProofServer, name: str, runs: int, loads: dict, cpu_s: float, memory: dict) -> dict:
+    """What one configuration's measured loads come to."""
+    mode, out = _run_id(name), {"valid": False, "pages": {}}
+    for page in PAGES:
+        per_run = [server.hits.get(f"{mode}-{page}-{i}", set()) for i in range(runs)]
+        hits = set().union(*per_run)
+        stood_in = set().union(*(stand_ins(server.results.get(f"{mode}-{page}-{i}", {}), per_run[i])
+                                 for i in range(runs)))
+        out["pages"][page] = {**count(page, hits), "stand_ins": sorted(stood_in),
+                              "load_ms": bench.summarise(loads[page])}
     pages = out["pages"].values()
     out.update({
         "possible": sum(p["possible"] for p in pages), "reached": sum(p["reached"] for p in pages),
@@ -455,7 +479,7 @@ def measure_mode(browser: Path, work: Path, mode: str, extension: Path | None, r
         "stand_ins": sum(len(p["stand_ins"]) for p in pages),
         "load_ms": round(sum(p["load_ms"]["median"] for p in pages), 1),
         "load_spread_pct": max(p["load_ms"]["spread_pct"] for p in pages),
-        "cpu_s_per_load": round((after - before) / (runs * len(PAGES)), 3),
+        "cpu_s_per_load": round(cpu_s / (runs * len(PAGES)), 3),
         "memory_mb_1": bench.summarise(memory[1])["median"], "memory_mb_20": bench.summarise(memory[20])["median"],
         "memory_values": {str(k): [round(v, 1) for v in vals] for k, vals in memory.items()},
     })
@@ -463,6 +487,75 @@ def measure_mode(browser: Path, work: Path, mode: str, extension: Path | None, r
     if name == "control" and (out["reached"] != out["possible"] or out["needed_missing"]):
         missing = sorted(i for p in PAGES for i in expected(p) if i not in server.hits.get(f"{mode}-{p}-0", set()))
         out.update(valid=False, error=f"without a blocker these requests did not arrive: {', '.join(missing)}")
+    return out
+
+
+def measure_mode(browser: Path, work: Path, mode: str, extension: Path | None, runs: int, memory_runs: int,
+                 remote_delay_ms: int, warm: int = 3) -> dict:
+    name, mode = mode, _run_id(mode)
+    with ProofServer(remote_delay_ms) as server:
+        proc, profile, port = _start(browser, work, server, name, extension)
+        try:
+            _warm(server, port, mode, warm)
+            _settle(proc)
+            before = bench._processes()
+            loads = {page: [] for page in PAGES}
+            for i in range(runs):   # page after page in turn, so a slow moment does not fall on one page only
+                for page in PAGES:
+                    loads[page].append(_load(server, port, page, f"{mode}-{page}-{i}"))
+            cpu_s = cpu_between(before, bench._processes(), proc.pid)
+        finally:
+            bench._stop(proc, profile)
+        memory = _memory(browser, work, server, name, extension, memory_runs)
+        return _result(server, name, runs, loads, cpu_s, memory)
+
+
+def measure_in_turns(browser: Path, work: Path, names: list[str], extension: Path | None, runs: int,
+                     memory_runs: int, remote_delay_ms: int, warm: int = 3, turns: int = 3) -> dict:
+    """Every configuration of `names`, with the measured loads taken in turns (see the module's text).
+    Returns the result per configuration; one that could not be measured is {"valid": False, "error": ...},
+    and if a browser fails during the turns, all are."""
+    sizes = turn_sizes(runs, turns)
+    out: dict = {}
+    with ProofServer(remote_delay_ms) as server:
+        browsers: dict = {}
+        try:
+            for name in names:
+                try:
+                    browsers[name] = _start(browser, work, server, name, extension)
+                    _warm(server, browsers[name][2], _run_id(name), warm)
+                except (bench.BenchError, OSError, RuntimeError, ValueError) as e:
+                    out[name] = {"valid": False, "error": str(e)}
+            measured = [name for name in names if name in browsers]
+            for name in measured:
+                _settle(browsers[name][0])
+            loads = {name: {page: [] for page in PAGES} for name in measured}
+            cpu_s = {name: 0.0 for name in measured}
+            done = {name: 0 for name in measured}
+            look = bench._processes()
+            for turn, size in enumerate(sizes):
+                for name in turn_order(measured, turn):
+                    proc, _, port = browsers[name]
+                    for i in range(done[name], done[name] + size):
+                        for page in PAGES:
+                            loads[name][page].append(_load(server, port, page, f"{_run_id(name)}-{page}-{i}"))
+                    done[name] += size
+                    # one look at the processes ends this configuration's turn and starts the next one's
+                    before, look = look, bench._processes()
+                    cpu_s[name] += cpu_between(before, look, proc.pid)
+        except (bench.BenchError, OSError, RuntimeError, ValueError) as e:
+            for name in names:
+                out.setdefault(name, {"valid": False, "error": f"the turns were not finished: {e}"})
+            return out
+        finally:
+            for proc, profile, _ in browsers.values():
+                bench._stop(proc, profile)
+        for name in measured:
+            try:
+                memory = _memory(browser, work, server, name, extension, memory_runs)
+                out[name] = _result(server, name, runs, loads[name], cpu_s[name], memory)
+            except (bench.BenchError, OSError, RuntimeError, ValueError) as e:
+                out[name] = {"valid": False, "error": str(e)}
     return out
 
 
@@ -492,7 +585,10 @@ def to_markdown(results: dict) -> str:
     lines = [f"# Native ad blocking: proof measurements ({results.get('browser_version', 'unknown version')})", "",
              "Generated by `tools/qa/adblock_proof.py`: three ad-heavy local test pages, fully offline, throwaway",
              f"profiles. Load time is the median of {results['runs']} loads per page, summed over the pages; every",
-             f"answer from a mapped host is held back {results['remote_delay_ms']} ms to stand in for the network.", "",
+             f"answer from a mapped host is held back {results['remote_delay_ms']} ms to stand in for the network.",
+             *([f"The configurations were measured in {results['turns']} turns, one after the other in each turn, "
+                "so a machine that", "gets busier or calmer during the run touches all of them alike."]
+               if results.get("turns", 1) > 1 else []), "",
              "| Configuration | Ads and trackers through | Needed resources blocked | Stand-ins served |"
              " Load, ms (worst spread) | CPU, s per load | Memory 1 tab, MB | Memory 20 tabs, MB |",
              "|---|---|---|---|---|---|---|---|"]
@@ -519,6 +615,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--runs", type=int, default=15)
     parser.add_argument("--warm", type=int, default=3, help="unmeasured rounds of all pages before the measured ones")
     parser.add_argument("--memory-runs", type=int, default=3)
+    parser.add_argument("--turns", type=int, default=1,
+                        help="take the measured loads of the configurations in this many turns (default 1: "
+                             "each configuration from start to end before the next)")
     parser.add_argument("--remote-delay", type=int, default=40, help="ms added to every mapped host's answer")
     parser.add_argument("--modes", default=",".join(MODES))
     parser.add_argument("--out", required=True, type=Path)
@@ -526,12 +625,18 @@ def main(argv: list[str]) -> int:
     a = parser.parse_args(argv)
     a.work.mkdir(parents=True, exist_ok=True)
     modes = {}
-    for mode in [m for m in MODES if m in a.modes.split(",")]:
-        try:
-            modes[mode] = measure_mode(a.browser, a.work, mode, a.extension, a.runs, a.memory_runs, a.remote_delay,
-                                       a.warm)
-        except (bench.BenchError, OSError, RuntimeError, ValueError) as e:
-            modes[mode] = {"valid": False, "error": str(e)}
+    wanted = [m for m in MODES if m in a.modes.split(",")]
+    if a.turns > 1:
+        modes = measure_in_turns(a.browser, a.work, wanted, a.extension, a.runs, a.memory_runs, a.remote_delay,
+                                 a.warm, a.turns)
+        modes = {mode: modes[mode] for mode in wanted}
+    for mode in wanted:
+        if a.turns <= 1:
+            try:
+                modes[mode] = measure_mode(a.browser, a.work, mode, a.extension, a.runs, a.memory_runs,
+                                           a.remote_delay, a.warm)
+            except (bench.BenchError, OSError, RuntimeError, ValueError) as e:
+                modes[mode] = {"valid": False, "error": str(e)}
         print(mode, json.dumps({k: v for k, v in modes[mode].items() if k != "pages"}), flush=True)
     version = ""
     try:
@@ -543,7 +648,7 @@ def main(argv: list[str]) -> int:
             m.setdefault("error", "the control run is invalid")
             m["valid"] = False
     ubo = modes.get("ubo", {"valid": False})
-    results = {"browser_version": version, "runs": a.runs, "warm_rounds": a.warm,
+    results = {"browser_version": version, "runs": a.runs, "warm_rounds": a.warm, "turns": max(a.turns, 1),
                "remote_delay_ms": a.remote_delay, "modes": modes,
                "verdicts": {k: verdict(modes[k], ubo) for k in ("native", "native+ubo")
                             if modes.get(k, {}).get("valid") and ubo.get("valid")}}
