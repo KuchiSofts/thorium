@@ -13,6 +13,17 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Native ad blocking (off by default) now runs uBlock Origin's scriptlets and hides page elements (ROADMAP
+  **P5.20**): the small scripts that defuse ad and anti-blocker code run before any page script, and a
+  site's hide rules arrive with the document, in the page and in its frames. Only uBlock Origin's own lists
+  may use the powerful ("trusted") scriptlets, and a hide rule that could add other CSS to a page is left
+  out. Nothing is injected on a site where ads are allowed. Checked offline with
+  `tools/qa/adblock_cosmetic_check.py`.
+- Native ad blocking hides what the generic rules of the lists ask for (`##.ad-banner`; ROADMAP **P5.21**):
+  a page tells the browser which class names and ids it uses, a few times while it builds, and gets back
+  only the rules that apply to it, with the site's exceptions respected. Measured with all of this in
+  (`docs/perf/`): 6.5 % faster page loads than uBlock Origin on the test pages, 15 % less CPU, 45 to 101 MB
+  less memory, and no new breakage flagged on 96 real sites.
 - Native ad blocking (off by default) answers blocked requests with harmless stand-ins where the filter lists
   ask for it (`$redirect`, `redirect-rule`), as uBlock Origin does: an empty script instead of an analytics
   script, a 1x1 image instead of a tracking pixel, so pages that expect them keep working (ROADMAP **P5.19**).
