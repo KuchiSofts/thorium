@@ -365,6 +365,25 @@ is the owner's call; a measurement on a real connection is still open. These num
 native blocker does cosmetic filtering and scriptlets (section 12), which will add work; the measurement
 is repeated when they are in.
 
+Measured in turns (2026-11-11, evening). The tool used to measure one configuration from start to end
+before the next. On a desktop that is also used for other things that is not a fair comparison: if the
+machine gets busier half way, only the later configurations pay, and the same build gave the native
+blocker 10.2 % in one run and 8.6 % in the next. `tools/qa/adblock_proof.py --turns N` now starts all
+browsers first and takes the measured loads in N turns, one configuration after the other in each turn
+(a different one first each time), counting each turn's CPU on its own. With three turns, on the build
+with everything up to P5.25 (`docs/perf/2026-11-11-native-adblock-proof-turns.md`):
+
+| | Control | uBlock Origin | Native |
+|---|---|---|---|
+| Ads and trackers through (of 48) | 48 | 0 | 0 |
+| Load, ms | 471.9 | 348.6 | 327.5 |
+| CPU, s per load | 0.339 | 0.354 | 0.300 |
+| Memory, 1 / 20 tabs, MB | 352.9 / 822.6 | 393.1 / 846.2 | 354.7 / 770.3 |
+
+The native blocker loads the test pages 6.1 % faster than uBlock Origin, with 15 % less CPU and 38 to
+76 MB less memory. That agrees with the quiet morning runs (6.5 %, 15 %) and not with the 10.2 % of the
+afternoon. The 10 % load target is not met. Later comparisons should use `--turns`.
+
 ### 9.2 Breakage on popular sites (P5.17, 2026-11-11)
 
 `tools/qa/adblock_breakage.py` loads real sites: 99 of the first 100 domains of the Tranco research ranking
@@ -768,9 +787,10 @@ Checked (2026-11-11):
 - Cost. Two runs on this build (`docs/perf/2026-11-11-native-adblock-proof-p525.md`, `...-p525-run2.md`):
   the test pages load 10.2 % and 8.6 % faster than with uBlock Origin (306.1 against 340.8 ms, 325.3
   against 355.8 ms), with 30 % and 27 % less CPU and 25 to 109 MB less memory. The builds before measured
-  6.5 % and 6.4 %. The two runs differ from each other as much as the builds do, so the honest reading
-  is: the watcher on every request shows no cost, and whether the 10 % target is met is not settled (one
-  run says yes, one says no). That needs the configurations measured in turns on a quiet machine (P5.17).
+  6.5 % and 6.4 %. The two runs differ from each other as much as the builds do, so they could not say
+  whether the 10 % target is met. Measured in turns the same evening (9.1), the answer is 6.1 % faster
+  with 15 % less CPU: the watcher on every request shows no cost, and the target is not met. The 10.2 %
+  was the luck of the order the configurations ran in.
 - Real sites (`docs/perf/2026-11-11-native-adblock-breakage-p525.md`): 97 of the 99 could be compared.
   The two known flags are unchanged (vk.com, applovin.com: one tracking request each). baidu.com is
   flagged for less text (189 against 305 characters), which looked like this change, since that site
