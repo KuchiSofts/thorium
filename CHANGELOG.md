@@ -13,6 +13,12 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Native ad blocking (off by default) answers blocked requests with harmless stand-ins where the filter lists
+  ask for it (`$redirect`, `redirect-rule`), as uBlock Origin does: an empty script instead of an analytics
+  script, a 1x1 image instead of a tracking pixel, so pages that expect them keep working (ROADMAP **P5.19**).
+  The stand-ins and uBlock Origin's scriptlets come from the pinned uBlock Origin release at build time and
+  ship as `thoron_adblock_resources.json`. On the test pages the native blocker serves the same 12 stand-ins
+  as uBlock Origin.
 - Native ad blocking shows what it did on a page (ROADMAP **P5.16**, off by default): an address bar icon
   appears when something was blocked, and its bubble says how many ads and trackers were blocked on the page,
   with a checkbox to always allow them on that site. The count is kept only in memory with the page; nothing

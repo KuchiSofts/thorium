@@ -67,9 +67,10 @@ def blocked_count(log: str) -> int:
 
 
 def count_problems(run: dict, count: int) -> list[str]:
-    errors = ((run or {}).get("page") or {}).get("errors", 0)
-    if count < errors:
-        return [f"the page counted {count} blocked requests, but {errors} ad requests were blocked"]
+    page = (run or {}).get("page") or {}
+    blocked = page.get("errors", 0) + page.get("stand_ins", 0)   # ended with an error, or answered with a stand-in
+    if count < blocked:
+        return [f"the page counted {count} blocked requests, but {blocked} ad requests were blocked"]
     return []
 
 

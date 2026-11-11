@@ -99,6 +99,11 @@ author publishes no licence; those patches need the author's permission, or a re
 - **uBlock Origin**: Raymond Hill ([@gorhill](https://github.com/gorhill)) and contributors,
   GPL-3.0. Thoron bundles the **unmodified** official release as a separate extension
   (https://github.com/gorhill/uBlock).
+- **uBlock Origin's scriptlets and redirect resources** (native ad blocking, in development): Raymond Hill
+  and contributors, GPL-3.0. The build takes them unmodified from the same pinned uBlock Origin release
+  (`js/resources/`, `web_accessible_resources/`) and ships them as a separate data file,
+  `thoron_adblock_resources.json`, which the native blocker reads. Each keeps its own header; some stand-ins
+  are based on other projects' code, as their headers say (for example Mozilla's web compatibility shims).
 - **pak tool**: [@myfreeer](https://github.com/myfreeer)'s
   [chrome-pak-customizer](https://github.com/myfreeer/chrome-pak-customizer), with changes by
   Alex313031. It is MIT, with LGPL-2.1 parts (`pak_src/` in the upstream repository). Thoron does not

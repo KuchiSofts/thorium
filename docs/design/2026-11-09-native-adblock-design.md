@@ -386,6 +386,9 @@ Results: `docs/perf/2026-11-11-native-adblock-breakage.md`.
   uBlock Origin answers with a stand-in does not count as blocked.
 - Limits: home pages only, no sign-in, no clicking, one location, headless. It finds pages that fail to
   load, not a menu that stops working. Flags are leads to check by hand.
+- After stand-ins were added (P5.19, section 12.2) the four flagged sites were loaded again: apple.com and
+  cnn.com are no longer flagged. vk.com (a CSP report address) and applovin.com (an ad script) still
+  differ; applovin.com also serves the two set-ups pages of different length, so it is a weak comparison.
 - One thing learned on the way: starting the browser with `--user-agent` stops uBlock Origin from blocking
   anything on this build, so the tool sets the user agent per tab instead.
 
@@ -421,7 +424,7 @@ smart. This replaces the hybrid of section 3 and decision 1 of section 11.
 | uBlock Origin does | Native piece | Step |
 |---|---|---|
 | Network blocking, frames included | the engine and request proxy (4.3-4.6) | done |
-| Stand-ins (`$redirect`, `redirect-rule`): a blocked script or image is answered with a harmless copy, so the page does not break | resources from the pinned uBlock Origin package; the proxy answers with the stand-in | P5.19 |
+| Stand-ins (`$redirect`, `redirect-rule`): a blocked script or image is answered with a harmless copy, so the page does not break | resources from the pinned uBlock Origin package; the proxy answers with the stand-in | done (P5.19) |
 | Scriptlets (`##+js(...)`): small scripts that defuse ad and anti-blocker code inside the page | the same resources, run at document start | P5.20 |
 | Cosmetic filtering for one site (`example.com##.ad`) | a style sheet sent with the document | P5.20 |
 | Generic cosmetic filtering (`##.ad-banner`) | the page reports the classes and ids it uses; the engine answers with the selectors to hide | P5.21 |
@@ -444,6 +447,19 @@ Trust: uBlock Origin marks 34 of them as needing trust (they can set cookies, cl
 responses) and lets only its own lists use them. Thoron keeps that rule: those resources carry a permission
 bit, and only the lists whose id starts with `ublock-` are parsed with it. EasyList, EasyPrivacy and the
 malware list cannot use them.
+
+Stand-ins as built (P5.19, 2026-11-11): the engine's answer for a request is now "allow", "block", or
+"block and answer with this stand-in". For the last one the request proxy sends the page a finished 200
+response holding the stand-in (an empty script, a 1x1 image, an empty document for a frame), marked as the
+network would have marked a real answer (same-site, CORS or opaque), and nothing reaches the network. A
+`redirect-rule` filter only supplies its stand-in when another filter blocks the request. Checked:
+- 16 engine tests, among them the stand-in rules, a list that is not allowed trusted scriptlets, and a
+  saved engine that keeps its rules' trust but needs its resources given again;
+- on the offline test pages (`tools/qa/adblock_proof.py`, which now tells a stand-in from a real load and
+  from a block) the native engine answers the same 12 blocked scripts with stand-ins as uBlock Origin,
+  with nothing let through and nothing needed blocked;
+- the page's blocked count includes requests answered with a stand-in
+  (`tools/qa/adblock_site_switch_check.py`: 10 stand-ins, count 10).
 
 ### 12.3 In the page
 
