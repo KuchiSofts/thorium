@@ -1,8 +1,10 @@
 # Native ad blocking in Thoron (design, for the owner's approval)
 
 Status: approved by the owner on 2026-11-09 ("do as you recommend"), with the recommendations in section 11.
+Changed by the owner on 2026-11-11: the native blocker replaces uBlock Origin instead of working next to it
+(section 12, which overrides sections 2 and 3 where they differ).
 Extends the main design, section 10 ("Phase 2"), which already named this option. Roadmap: P5.2 (decided),
-steps P5.13-P5.18.
+steps P5.13-P5.24.
 
 ## 1. Why
 
@@ -30,8 +32,9 @@ limits:
 - G5. Per-site switch ("block ads on this site": on/off) in the page info bubble, kept across updates.
 
 **Non-goals**
-- Replacing uBlock Origin. uBlock Origin stays for what it does best: hiding page elements
-  (cosmetic filtering), scriptlets, the element picker and its own settings.
+- ~~Replacing uBlock Origin.~~ Withdrawn on 2026-11-11: the native blocker takes over cosmetic
+  filtering and scriptlets too (section 12). What stays true: nobody's installed uBlock Origin or its
+  settings are touched.
 - Our own filter lists. We use the community lists and credit them.
 
 **Anti-goals (would make this a failure even if it works)**
@@ -40,7 +43,10 @@ limits:
 - Losing anyone's uBlock Origin settings or custom filters.
 - Weakening the sandbox or security releases (security releases always ship first, design G2).
 
-## 3. The hybrid
+## 3. The hybrid (replaced by section 12 on 2026-11-11)
+
+Kept as the record of the first plan. The measurements in 9.1 showed that both blockers together cost
+more than uBlock Origin alone, and the owner chose one built-in blocker.
 
 ```
 page request ──> [native engine: network filters] ──blocked──> cancelled in the browser
@@ -233,6 +239,15 @@ accessible name ("Ads and trackers blocked") stay; the bubble is unchanged.
 Still to do: translations of the new strings. The bubble's checkbox and the page info toggle were read, not
 clicked (the setting they write is the one the check above covers).
 
+Crash record (added 2026-11-11). Reading a list runs the Rust parser inside the browser process, and in
+Chromium a Rust panic ends the process. The check was only put on record after the new lists had been
+read, so a list that made the parser abort would have ended the browser 2 minutes after every start, for
+as long as the list host served it. Now the check is recorded first, with the result "interrupted", and
+the final result replaces it; after an abort the next attempt is 4 days away and the previous engine stays
+in use. `tools/qa/adblock_update_check.py` tests it by serving a valid but very long list and killing the
+browser the moment the record appears: the record is there, and the next start downloads nothing, keeps
+the previous engine and stays up (8 scenarios pass). Not done: a fuzz run of the parser itself (P5.17).
+
 ## 5. Where it plugs in
 
 - **Engine host:** one engine per browser (not per profile), built from the compiled lists, shared
@@ -329,7 +344,52 @@ run must receive every request, or the whole measurement is invalid. Results:
 - Not covered yet: the top-100 breakage check, real-network load times, fuzzing, and a run on an idle PC (the
   load times here vary by up to 58 % for native alone, more than the 10 % being measured).
 
-## 10. Steps (roadmap P5.13-P5.18)
+Second measurement (2026-11-11), with a fairer method: the pages are loaded in turn instead of one page
+many times in a row, after 3 unmeasured rounds, 15 timed loads per page
+(`docs/perf/2026-11-11-native-adblock-proof.md`). The first run had measured some configurations while
+they were still warming up; its load time for "native + uBlock Origin" (434.9 ms) came from slow first
+loads and should not be relied on. Its memory figure for that set-up stands (about 10 MB more than uBlock
+Origin alone, the size of the engine).
+
+| Configuration | Through (of 48) | Load, ms | CPU, s per load | Memory 1 / 20 tabs, MB |
+|---|---|---|---|---|
+| no blocker | 48 | 474.6 | 0.341 | 354.1 / 831.4 |
+| uBlock Origin alone | 0 | 343.4 | 0.316 | 380.9 / 859.2 |
+| native alone | 0 | 323.4 | 0.289 | 344.8 / 738.1 |
+
+Native alone against uBlock Origin alone: the same blocking, 5.8 % faster loads (per page 4 % to 8 %), 8.5 %
+less CPU, 36 MB less memory with 1 tab and 121 MB less with 20. The load-time target of 10 % is not met
+on these pages, twice now with the same result. Both blockers stop the same requests here, so what is
+left to gain is only each blocker's own overhead, about 7 ms per page. Whether the target is the right one
+is the owner's call; a measurement on a real connection is still open. These numbers are from before the
+native blocker does cosmetic filtering and scriptlets (section 12), which will add work; the measurement
+is repeated when they are in.
+
+### 9.2 Breakage on popular sites (P5.17, 2026-11-11)
+
+`tools/qa/adblock_breakage.py` loads real sites: 99 of the first 100 domains of the Tranco research ranking
+(list Y895G, 2026-11-10) whose home page is a real page on the same site (`tools/qa/sites/`; one is left out
+because the repository's content rules do not allow its name). Each is loaded with
+uBlock Origin alone, the native engine alone, and both, in throwaway profiles. A site is flagged when a
+configuration does worse than uBlock Origin alone (did not load, a first-party request blocked that uBlock
+Origin let through, clearly more script errors, clearly less text), and only if a second load repeats it.
+Results: `docs/perf/2026-11-11-native-adblock-breakage.md`.
+
+- 97 sites could be compared (2 did not load with uBlock Origin either). With the native engine alone all
+  97 loaded; none lost text and none threw more script errors.
+- 4 sites were flagged, all for first-party tracking requests: apple.com (Adobe Analytics), cnn.com (the
+  Adobe Launch tag script), vk.com (a CSP report address), applovin.com (an ad script). On apple.com and
+  cnn.com uBlock Origin does not let these through either: its lists answer them with a harmless stand-in
+  (`redirect=1x1.gif`, `redirect-rule=noopjs`), which the native engine could not do yet and blocked
+  outright. That is the first piece of section 12.
+- The native engine blocked more requests in all (831 against 716), partly for the same reason: a request
+  uBlock Origin answers with a stand-in does not count as blocked.
+- Limits: home pages only, no sign-in, no clicking, one location, headless. It finds pages that fail to
+  load, not a menu that stops working. Flags are leads to check by hand.
+- One thing learned on the way: starting the browser with `--user-agent` stops uBlock Origin from blocking
+  anything on this build, so the tool sets the user agent per tab instead.
+
+## 10. Steps (roadmap P5.13-P5.24)
 
 1. **P5.13 Spike (throwaway):** link `adblock-rust` into a 158 build, block with a hard-coded EasyList,
    measure. Decides go or no-go.
@@ -338,7 +398,8 @@ run must receive every request, or the whole measurement is invalid. Results:
 3. **P5.15 Lists:** bundled compiled lists in each release, safe background updates, validation.
 4. **P5.16 UI:** per-site switch in page info and Settings; a blocked-count badge (local only).
 5. **P5.17 Proof:** the measurements of section 9; fuzzing; on by default only when all targets pass.
-6. **P5.18 Later:** CNAME uncloaking; native cosmetic filtering if it proves better than uBlock's.
+6. **P5.18 Later:** CNAME uncloaking.
+7. **P5.19-P5.24:** the native blocker takes over the rest of uBlock Origin's work (section 12.8).
 
 ## 11. Decisions (approved 2026-11-09)
 
@@ -348,7 +409,110 @@ run must receive every request, or the whole measurement is invalid. Results:
 4. Native blocking on by default for everyone once section 9's targets pass (with the per-site switch
    to turn it off).
 
-## 12. Credits
+## 12. Native only (the owner's decision, 2026-11-11)
+
+Section 9.1 ended with a question: what should uBlock Origin do when the native engine is on, since both
+together cost more than uBlock Origin alone? The owner's answer: skip uBlock Origin. Ad blocking is to be
+built into the browser, it must still be able to update its scripts and block lists, and it should be
+smart. This replaces the hybrid of section 3 and decision 1 of section 11.
+
+### 12.1 What the native blocker takes over
+
+| uBlock Origin does | Native piece | Step |
+|---|---|---|
+| Network blocking, frames included | the engine and request proxy (4.3-4.6) | done |
+| Stand-ins (`$redirect`, `redirect-rule`): a blocked script or image is answered with a harmless copy, so the page does not break | resources from the pinned uBlock Origin package; the proxy answers with the stand-in | P5.19 |
+| Scriptlets (`##+js(...)`): small scripts that defuse ad and anti-blocker code inside the page | the same resources, run at document start | P5.20 |
+| Cosmetic filtering for one site (`example.com##.ad`) | a style sheet sent with the document | P5.20 |
+| Generic cosmetic filtering (`##.ad-banner`) | the page reports the classes and ids it uses; the engine answers with the selectors to hide | P5.21 |
+| Procedural cosmetic filters (`:has-text()`, `:upward()`), `$removeparam`, `$csp` | a small page-side interpreter; an internal redirect; a header on the document | P5.22 |
+| List updates | 4.6 | done |
+| Scriptlet and resource updates | 12.4 | P5.23 |
+| Per-site switch, blocked count | 4.7 | done |
+| Element picker, custom filters | 12.6 | later |
+
+### 12.2 Resources: scriptlets and stand-ins
+
+Source: the pinned, SHA-256-checked uBlock Origin package the build already downloads, the same one the
+lists come from, so lists and scriptlets always match. A build step (`extract_resources.py`, which runs
+`assemble_resources.mjs` with the build's own Node.js) unpacks the scriptlet modules and the redirect
+resources and writes them as `thoron_adblock_resources.json` next to the browser. For uBlock Origin 1.75.0
+that is 98 scriptlets, 53 helper functions and 47 redirect resources. The engine loads the file at start;
+the saved engine does not hold resources.
+
+Trust: uBlock Origin marks 34 of them as needing trust (they can set cookies, click elements or rewrite
+responses) and lets only its own lists use them. Thoron keeps that rule: those resources carry a permission
+bit, and only the lists whose id starts with `ublock-` are parsed with it. EasyList, EasyPrivacy and the
+malware list cannot use them.
+
+### 12.3 In the page
+
+- When a document's navigation is ready to commit, the browser asks the engine what that document needs
+  (its hide selectors, its scriptlets, its exceptions) and sends it to the renderer on a channel-associated
+  interface, the way Chromium's own subresource filter activates a document. The renderer adds the style
+  sheet and runs the script at document start, before any page script.
+- Nothing is injected on a site where the person turned blocking off, on `chrome://` pages or on
+  extension pages.
+- Generic hiding: a small script in an isolated world collects class names and ids as the page builds
+  (in batches) and asks the browser for the matching selectors.
+- Scriptlets run in the page's own world, as uBlock Origin's do. They are the same code, so a site cannot
+  tell Thoron's blocker from uBlock Origin by them.
+
+### 12.4 Updates
+
+- Lists: as today (4.6): every 4 days, from the list hosts, each list checked, never a fallback to
+  "allow everything".
+- Scriptlets and resources are code that runs inside every page, so they are never fetched from a list
+  host or any other third party while the browser runs. They ship with each Thoron release, built from
+  the pinned package. Once the updater exists (P3) they can also arrive between releases as a small data
+  update: built by Thoron's release process from a newer pinned uBlock Origin, signed with the release
+  key, checked before use, with the shipped copy as the fallback.
+- A filter that names a scriptlet the installed resources do not have is ignored, as in uBlock Origin.
+
+### 12.5 uBlock Origin itself
+
+- Existing profiles: nothing is removed or changed. A profile that has uBlock Origin keeps it, with its
+  settings and custom filters.
+- New profiles: once native blocking is on by default, the built-in uBlock Origin is no longer installed
+  into new profiles. Open: the owner confirms this when the default changes; until then nothing changes.
+- A person who runs both gets double filtering. Settings will say so, once, with a button to turn one of
+  them off. Nothing is turned off silently.
+
+### 12.6 Smart, beyond parity (in order of value)
+
+1. CNAME uncloaking (P5.18): match the real host behind a first-party alias, which no extension can do
+   on Chromium.
+2. A short "what was blocked on this page" list in the bubble, kept in memory only.
+3. Custom filters and an element picker in Settings.
+4. A one-click "this site is broken" that turns blocking off for the site and keeps the reason on the PC.
+
+### 12.7 Security review of the change
+
+- Scriptlets are the sensitive part: code injected into pages. Their source is pinned by SHA-256 and
+  converted at build time; nothing is fetched from third parties at run time; updates must be signed; and
+  the powerful scriptlets are limited to uBlock Origin's own lists.
+- A list update can choose which of the installed scriptlets runs on which site, with which arguments.
+  The lists have the same power in uBlock Origin. The checks of 4.6 and the trust rule limit it, and the
+  list hosts are reached over HTTPS only.
+- A renderer receives only what its own document needs and cannot ask the browser about other sites.
+- The build runs the package's scriptlet modules once with Node.js to read them. Importing them only
+  registers functions, and the package is the pinned one.
+- Licence: uBlock Origin's scriptlets and resources are GPL-3.0. They ship unmodified in their own data
+  file, with their licence and source named in `CREDITS.md` and `NOTICE`, as the bundled uBlock Origin
+  package already is. To be confirmed in the licence inventory (L.1).
+
+### 12.8 Steps
+
+- **P5.19** resources and stand-ins.
+- **P5.20** scriptlets and site-specific cosmetic filtering.
+- **P5.21** generic cosmetic filtering.
+- **P5.22** procedural filters, `$removeparam`, `$csp`.
+- **P5.23** signed resource updates (with the updater, P3).
+- **P5.24** the hand-over from uBlock Origin (new profiles; the notice when both run).
+- **P5.18** stays CNAME uncloaking. **P5.17**'s targets now compare the native blocker alone with
+  uBlock Origin alone.
+
+## 13. Credits
 
 `adblock-rust` is by Brave Software and contributors (MPL-2.0). The filter lists are by their
 maintainers (EasyList authors, Raymond Hill and the uBlock Origin contributors, Peter Lowe, the
