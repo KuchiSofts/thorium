@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Thoron icon study "Vortex Radiant": the ring with a glowing core. (c) 2026 KuchiSofts, CC BY 4.0 -->
+  <defs>
+    <linearGradient id="blade0" gradientUnits="userSpaceOnUse" x1="367" y1="48" x2="381" y2="456">
+      <stop offset="0" stop-color="#F2559E"/>
+      <stop offset="1" stop-color="#D8307D"/>
+    </linearGradient>
+    <linearGradient id="blade1" gradientUnits="userSpaceOnUse" x1="381" y1="456" x2="20" y2="264">
+      <stop offset="0" stop-color="#915AF0"/>
+      <stop offset="1" stop-color="#7034D5"/>
+    </linearGradient>
+    <linearGradient id="blade2" gradientUnits="userSpaceOnUse" x1="20" y1="264" x2="367" y2="48">
+      <stop offset="0" stop-color="#5573F7"/>
+      <stop offset="1" stop-color="#304FDC"/>
+    </linearGradient>
+    <linearGradient id="core" gradientUnits="userSpaceOnUse" x1="190" y1="180" x2="322" y2="340">
+      <stop offset="0" stop-color="#7B2FF7"/>
+      <stop offset="1" stop-color="#F72F8E"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="230" fill="#FFFFFF"/>
+  <path fill="url(#blade0)" d="M193.0 146.9 A200 200 0 0 1 366.8 47.6 A236 236 0 0 1 381.1 456.1 A200 200 0 0 0 382.0 256.0 A126 126 0 0 0 193.0 146.9 Z"/>
+  <path fill="url(#blade1)" d="M382.0 256.0 A200 200 0 0 1 381.1 456.1 A236 236 0 0 1 20.1 264.2 A200 200 0 0 0 193.0 365.1 A126 126 0 0 0 382.0 256.0 Z"/>
+  <path fill="url(#blade2)" d="M193.0 365.1 A200 200 0 0 1 20.1 264.2 A236 236 0 0 1 366.8 47.6 A200 200 0 0 0 193.0 146.9 A126 126 0 0 0 193.0 365.1 Z"/>
+  <circle cx="256" cy="256" r="126" fill="#FFFFFF"/>
+  <circle cx="256" cy="256" r="98" fill="url(#core)"/>
+</svg>
