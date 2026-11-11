@@ -1,0 +1,56 @@
+Origin: ungoogled-chromium
+Author: ungoogled-chromium
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/components/webui/flags/flags_state.cc b/components/webui/flags/flags_state.cc
+index 7cdbff36d7abfebea41256e9f42867f39c0ee69d..94a5aad8e9b754a89f8063fac585625fc58de9b7 100644
+--- a/components/webui/flags/flags_state.cc
++++ b/components/webui/flags/flags_state.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2015 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -28,6 +28,7 @@
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/values.h"
+ #include "build/build_config.h"
++#include "chrome/browser/unexpire_flags.h"
+ #include "components/variations/field_trial_config/field_trial_util.h"
+ #include "components/variations/variations_associated_data.h"
+ #include "components/variations/variations_switches.h"
+@@ -703,14 +704,19 @@ void FlagsState::GetFlagFeatureEntries(
+   int current_platform = GetCurrentPlatform();
+ 
+   for (const FeatureEntry& entry : feature_entries_) {
++    std::string desc = entry.visible_description;
+     if (skip_feature_entry.Run(entry)) {
+-      continue;
++      if (flags::IsFlagExpired(flags_storage, entry.internal_name)) {
++        desc.insert(0, "!!! NOTE: THIS FLAG IS EXPIRED AND MAY STOP FUNCTIONING OR BE REMOVED SOON !!! ");
++      } else {
++        continue;
++      }
+     }
+ 
+     base::DictValue data;
+     data.Set("internal_name", entry.internal_name);
+     data.Set("name", entry.visible_name);
+-    data.Set("description", entry.visible_description);
++    data.Set("description", desc);
+ 
+     base::ListValue supported_platforms;
+     AddOsStrings(entry.supported_platforms, &supported_platforms);
+@@ -1122,7 +1128,9 @@ bool FlagsState::IsSupportedFeature(const FlagsStorage* storage,
+       continue;
+     }
+     if (delegate_ && delegate_->ShouldExcludeFlag(storage, entry)) {
+-      continue;
++      if (!flags::IsFlagExpired(storage, entry.internal_name)) {
++        continue;
++      }
+     }
+     return true;
+   }

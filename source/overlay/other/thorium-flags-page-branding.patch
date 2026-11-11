@@ -1,0 +1,65 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/components/webui/flags/resources/app.css b/components/webui/flags/resources/app.css
+index 1e42b9bb58eff585b8da61fc36a882f759fad49e..bfb59bcced0d5230da8276b5edfb622c1134df01 100644
+--- a/components/webui/flags/resources/app.css
++++ b/components/webui/flags/resources/app.css
+@@ -70,6 +70,20 @@
+   }
+ }
+ 
++.logo {
++  width: 48px;
++  height: 48px;
++  float: left;
++  background-repeat: no-repeat;
++  background-position: center;
++  line-height: 48px;
++  margin-right: 12px;
++}
++
++.logo2 {
++  line-height: 48px;
++}
++
+ a {
+   color: var(--link-color);
+   font-size: .8125rem;
+@@ -304,7 +318,7 @@ cr-tabs {
+   box-sizing: border-box;
+   left: 0;
+   opacity: 0;
+-  padding: 16px;
++  padding: 2px;
+   position: fixed;
+   transform: translateY(300px);
+   transition: all 225ms var(--ease-in-out);
+diff --git a/components/webui/flags/resources/app.html.ts b/components/webui/flags/resources/app.html.ts
+index 9e16b140a9b1a10f875969c51beaee1de3c860fa..fb9d2d7aa1ef39f116b496ab1be4088e79919217 100644
+--- a/components/webui/flags/resources/app.html.ts
++++ b/components/webui/flags/resources/app.html.ts
+@@ -1,4 +1,4 @@
+-// Copyright 2024 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -75,10 +75,13 @@ export function getHtml(this: AppElement) {
+ <div id="body-container">
+   <div id="flagsTemplate">
+     <div class="flex-container">
+-      <div class="flex">
++      <div class="flex logo2">
++        <div class="logo">
++          <img width="48" height="48" title="Hazard Icon" alt="hazard.svg" src="chrome://resources/images/hazard.svg">
++        </div>
+         <h1 class="section-header-title">$i18n{heading}</h1>
+       </div>
+-      <span id="version" class="flex">$i18n{version}</span>
++      <span title="Thorium Version" id="version" class="flex">$i18n{version}</span>
+     </div>
+     <div class="blurb-container">
+       <span class="blurb-warning">$i18n{page-warning}</span>

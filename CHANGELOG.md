@@ -1,384 +1,101 @@
 # Changelog
 
-All notable changes to Thoron are documented in this file. The format is based on
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-
-Each release lists:
-- the Chromium version and its security fixes;
-- Thoron changes;
-- upstream Thorium changes, credited to their authors;
-- fixed and known issues;
-- artifact checksums.
+All notable changes to Thoron are listed here, one line per change.
+Thoron versions are `0.MINOR.PATCH`; the first release is 0.1.1. Each release names the Chromium version it is built on.
+Explanations live in the design docs under `docs/design/`.
 
 ## [Unreleased]
 
 ### Added
-- A switch for native ad blocking on `chrome://flags`: "Built-in ad blocking"
-  (`#thoron-native-adblock`). It turns the feature on or off without a command line, so it can be tried in
-  the browser you use every day. It stays off unless turned on; with uBlock Origin on as well both do the
-  same work, so turn one of them off (ROADMAP **P5.16**).
-- The first build with a Thoron version of its own: `158.0.8127.3000` (Chromium 158.0.8127.30, build 0 of
-  Thoron on it; ROADMAP **P2.14**). The About page shows it with "Based on Chromium 158.0.8127.30" below,
-  and `chrome://version`, `chrome://flags` and the file properties of `thoron.exe` show it too.
-- `tools/qa/profile_rehearsal.py`: the rehearsal before an update, in one command (ROADMAP **Q.7**). It
-  copies a closed browser's `User Data` to a new private folder, opens the copy with the new build fully
-  offline, closes it the normal way, compares the copy before and after with `profile_check.py`, and
-  deletes the copy whatever happened. The real folder is only read. It refuses a running browser, a work
-  folder inside the profile, in a git repository or in a folder whose name looks cloud-synced, and a drive
-  with too little room. A build that has to be stopped by force does not count as a pass.
-  `docs/build/WINDOWS.md` ("Upgrading") uses it. Tried with a 158 build on throwaway profiles: five open
-  tabs came back 1:1.
-- `tools/qa/profile_check.py` records whether a profile continues where it left off. For a profile that
-  does not, a start opens a new tab page, so its tabs are no longer compared (that reported a loss which
-  was none), and the check and the rehearsal say that they left them out.
-- `tools/qa/profile_rehearsal.py` does not copy a profile that was written a moment ago: a browser can
-  still be writing for some seconds after its windows closed, and a temporary file that vanishes under a
-  backup stops it (as it should). `docs/build/WINDOWS.md` now says to wait half a minute after closing.
-- Native ad blocking (off by default) understands the rest of the common filter syntax (ROADMAP **P5.22**):
-  - procedural hide rules (`:has-text()`, `:upward()`, `:xpath()`, `:matches-css()` and others) and the
-    rules that restyle or remove (`:style()`, `:remove()`, `:remove-attr()`, `:remove-class()`): the engine
-    splits them into CSS and tasks, and a small runner of Thoron's own carries the tasks out in an isolated
-    world, out of the page's reach. All but two of the bundled lists' hide rules are understood;
-  - `$removeparam`: tracking parameters the lists name are taken out of an address before the request is
-    sent. For a page you open, the address bar shows the clean address;
-  - `$csp`: a page gets the content security policy the lists ask for, on top of its own. A rule whose
-    policy would make pages send reports to someone is refused.
-  Checked offline with `tools/qa/adblock_syntax_check.py`, a test page for each kind of rule. Measured with
-  it in: 6.4 % faster page loads than uBlock Origin on the test pages (6.5 % before), and no new breakage
-  flagged on 97 real sites. Not covered yet: the rarer syntax listed in ROADMAP **P5.26**.
-- Native ad blocking (off by default) looks at every redirect again (ROADMAP **P5.25**). A request the
-  lists allow could be redirected by its server to an ad host, or to an address with a tracking parameter,
-  and was followed as it was. Now a redirect to something the lists block is stopped, and a redirect to an
-  address with a parameter they take out leads to the clean address; for a page you open, the address bar
-  shows the clean address after a redirect too. A site that insists on its parameter still loads. Checked
-  offline with `tools/qa/adblock_redirect_check.py`. The extra look costs nothing that the measurement
-  shows: 6.1 % faster page loads than uBlock Origin on the test pages, measured in turns (6.4 % on the
-  build before).
-- A fuzzer for the reading of filter lists (ROADMAP **P5.17**): `fuzz_lists`, a build-machine tool, feeds
-  changed copies of real list lines to the engine and to the code around it and asks everything the
-  browser asks. A list that made the reading stop would close the browser, so it has to survive any
-  text. 832,376 changed lists and 26.6 million decisions: no abort, no broken rule. A run with Chromium's
-  coverage-guided fuzzing setup is still to do.
-- Native ad blocking (off by default) does not open a WebSocket to an address the lists block (ROADMAP
-  **P5.29**). A WebSocket is not a request for a file, so the blocker never saw it, and ad scripts use
-  sockets for what they may not fetch. Every other WebSocket opens as before. Checked offline with
-  `tools/qa/adblock_worker_check.py`, whose server answers a real handshake, and on 96 real sites.
-- Native ad blocking (off by default) also checks the scripts that workers, shared workers and service
-  workers start from, and the scripts a service worker imports (ROADMAP **P5.27**). A service worker may
-  import a script from another site, which is how push-advertising networks get onto a site; that import
-  is now stopped when the lists block it, and the site's own service worker still works. Checked offline
-  with `tools/qa/adblock_worker_check.py`. One site of the 99 real sites (digicert.com) was flagged for
-  showing less text on that run; it turned out to be the site's own protection against automated visits,
-  and on the next run it gave both blockers the same page again.
-- `tools/qa/adblock_proof.py --turns N` measures the configurations in turns instead of one after the
-  other (ROADMAP **P5.17**). On a machine that is also used for other things, the old order gave the same
-  build 10.2 % in one run and 8.6 % in the next. In turns: the native blocker loads the test pages 6.1 %
-  faster than uBlock Origin, with 15 % less CPU and 38 to 76 MB less memory. The 10 % load target is not
-  met.
-- Native ad blocking (off by default) now runs uBlock Origin's scriptlets and hides page elements (ROADMAP
-  **P5.20**): the small scripts that defuse ad and anti-blocker code run before any page script, and a
-  site's hide rules arrive with the document, in the page and in its frames. Only uBlock Origin's own lists
-  may use the powerful ("trusted") scriptlets, and a hide rule that could add other CSS to a page is left
-  out. Nothing is injected on a site where ads are allowed. Checked offline with
-  `tools/qa/adblock_cosmetic_check.py`.
-- Native ad blocking hides what the generic rules of the lists ask for (`##.ad-banner`; ROADMAP **P5.21**):
-  a page tells the browser which class names and ids it uses, a few times while it builds, and gets back
-  only the rules that apply to it, with the site's exceptions respected. Measured with all of this in
-  (`docs/perf/`): 6.5 % faster page loads than uBlock Origin on the test pages, 15 % less CPU, 45 to 101 MB
-  less memory, and no new breakage flagged on 96 real sites.
-- Native ad blocking (off by default) answers blocked requests with harmless stand-ins where the filter lists
-  ask for it (`$redirect`, `redirect-rule`), as uBlock Origin does: an empty script instead of an analytics
-  script, a 1x1 image instead of a tracking pixel, so pages that expect them keep working (ROADMAP **P5.19**).
-  The stand-ins and uBlock Origin's scriptlets come from the pinned uBlock Origin release at build time and
-  ship as `thoron_adblock_resources.json`. On the test pages the native blocker serves the same 12 stand-ins
-  as uBlock Origin.
-- Native ad blocking shows what it did on a page (ROADMAP **P5.16**, off by default): an address bar icon
-  appears when something was blocked, and its bubble says how many ads and trackers were blocked on the page,
-  with a checkbox to always allow them on that site. The count is kept only in memory with the page; nothing
-  is stored or sent. Checked offline with `tools/qa/adblock_site_switch_check.py` (10 blocked, count 10) and
-  seen in a desktop window. The icon has no expanding label (it would animate on most page loads and cost CPU);
-  its tooltip and accessible name say "Ads and trackers blocked", and page info says "Thoron blocks them unless
-  you allow them on this site" instead of warning that the site shows intrusive ads.
-- `tools/qa/adblock_proof.py` measures native ad blocking against uBlock Origin on ad-heavy local test pages,
-  fully offline (ROADMAP **P5.17**): requests that got through, needed resources blocked, load time, CPU and
-  memory. Results in `docs/perf/2026-11-11-native-adblock-proof.md` (pages loaded in turn, 15 timed loads):
-  the native engine alone blocks as much as uBlock Origin, loads 5.8 % faster (target 10 %, not met), and uses
-  8.5 % less CPU and 36 to 121 MB less memory.
-- `tools/qa/adblock_breakage.py` loads 99 of the top real sites of the Tranco ranking with uBlock Origin and
-  with the native engine and flags sites that do worse with the native engine (ROADMAP **P5.17**). First
-  results in `docs/perf/2026-11-11-native-adblock-breakage.md`: all 97 comparable sites loaded, none lost
-  text or threw more script errors; 4 were flagged for first-party tracking requests, two of which uBlock
-  Origin answers with a stand-in the native engine does not have yet.
-- While native ad blocking is on, page info and Settings call the Ads setting "Ads and trackers" and say what
-  it does (ROADMAP **P5.16**); with it off, Chromium's wording stays.
-- Native ad blocking can be turned off per site (ROADMAP **P5.16**, off by default): it follows the browser's
-  per-site "Ads" setting in page info and Settings, so allowing ads on a site, or everywhere, turns it off
-  there. The choice is kept with the profile's other site settings. Checked offline with
-  `tools/qa/adblock_site_switch_check.py`.
-- Native ad blocking keeps its filter lists current (ROADMAP **P5.15**, off by default): at most every 4 days,
-  from the addresses uBlock Origin uses, over HTTPS without cookies. A list that is too large, not a list,
-  shrinks by more than half or allows every request keeps its previous copy, and an update that would stop
-  blocking known ads is refused whole. Checked offline with `tools/qa/adblock_update_check.py`.
-- Native ad blocking ships a pre-compiled engine (ROADMAP **P5.15**, step 1): each build compiles the bundled
-  filter lists into a saved engine and checks that it loads again; the browser loads it at start instead of
-  parsing the lists, and falls back to the lists if it is missing or broken. Both files are in the installer.
-- Native ad blocking connected to page loading (ROADMAP **P5.14**, off by default): Thoron's built-in
-  engine sits first in front of every page's requests and ends blocked ones before they leave the browser.
-  On the local ad test page it blocked all 10 ad requests on its own (uBlock Origin: 9 of 10).
-- Native ad blocking, first step (ROADMAP **P5.14**): `adblock-rust` 0.13.3 and its crates are vendored with
-  Chromium's own tooling (`tools/build/rust_crates.py`), and the engine component builds in the 158 tree with
-  its tests passing. Not yet connected to page loading.
-- Native ad blocking spike (ROADMAP **P5.13**): `adblock-rust` with the lists Thoron ships loads in 5 ms,
-  uses 9.7 MB and checks a request in about 5 µs (uBlock Origin's extension process: 110.8 MB). Verdict: go.
-- Design for native ad blocking (`docs/design/2026-11-09-native-adblock-design.md`, approved): a built-in
-  filter engine (`adblock-rust`, MPL-2.0) blocks ads and trackers before requests leave the browser, faster than
-  an extension and independent of Manifest V2; uBlock Origin stays for cosmetic filtering. Steps P5.13-P5.18.
-- `tools/qa/netlog_hosts.py` and `docs/security/NETWORK.md` (ROADMAP **S.10**): the outside hosts a fresh
-  profile contacts on its own, with why and what Thoron does about each; first measurement on Thoron 156.
-- `tools/qa/bench.py` (ROADMAP **Q.1**): offline benchmarks (start-up time, private memory with 1 and 20
-  tabs, idle CPU) on throwaway profiles and local pages only, with median and spread per measure.
-- Thoron wordmark (logo and name) and the Thoron logo replace Thorium's wordmark and mascot on
-  `chrome://version` (ROADMAP **B.3**); `tools/branding/wordmark.py` builds the wordmark from the logo SVG.
-- About page (ROADMAP **P2.5**): below the version it says which Chromium version the build is based on,
-  shows the disclaimer ("Thoron is an independent browser by KuchiSofts, based on Thorium by Alex313031 and
-  Chromium by The Chromium Authors...") and links to the release notes.
-- Patch series rebased to Chromium 158.0.8127.30 (ROADMAP **P2.1**), starting from upstream's newer 156.0.8078.80 patches after an audit of the upstream changes. All 146 patches apply exactly; 25 were ported by hand to 158's code. Global Privacy Control now uses Chromium's own implementation instead of the Cromite patch, Android-only patches are not carried over, and two small Thoron patches fix the 158 build (FFmpeg duplicate sources, a Rust compiler flag). Every decision is recorded in `docs/build/M158_REBASE.md`.
-- Linux identity in code (ROADMAP **P2.4**, **P2.21**): the program `thoron`, the package `thoron-browser`
-  installed in `/opt/kuchisofts/thoron`, its own desktop file and app ID, and the profile folder
-  `~/.config/thoron`, so Thoron installs next to upstream `thorium-browser` and never reads or changes its
-  profile. The keyring entry stays `Chromium Safe Storage`, as in Thorium, so passwords in a copied profile
-  stay readable. Upstream's developer test shell and prebuilt `pak` tool are not packaged. Not yet built on
-  Linux.
-- Every patch in the 158 series now names its origin, author and licence at the top (ROADMAP **S.7**),
-  written from the audited licence research; `tools/legal/patch_headers.py lint` rejects a patch without
-  them, or one whose licence differs from the research.
-- `tools/release/release.py` (ROADMAP **P2.12**): one command checks a build (release args, version,
-  installer contents) before packaging, names the files `thoron-<version>-<variant>-...`, writes `SHA256SUMS`,
-  BUILDINFO and the release notes, signs with minisign when a key is given, and publishes only as a draft,
-  never without a signature.
-- `tools/release/changelog.py` (ROADMAP **P2.13**): release notes from git and local files, in the
-  design's order: Chromium change and its security fixes, Thoron changes grouped by commit prefix, upstream
-  Thorium commits credited by author, patch changes, fixed issues, downloads with SHA-256, credits.
-- `tools/release/package_audit.py` (ROADMAP **P2.6**): a package must contain the Thoron program and
-  no Widevine module, no file named after Thorium (licence and credit texts excepted) and none of the
-  upstream-only extras (Thorium updater marker, prebuilt pak tool, test shell).
-- Version scheme for Thoron builds (ROADMAP **P2.14**): Chromium's version with the last part widened to
-  `patch x 100 + rebuild`, for example `158.0.8127.3000` and its rebuild `158.0.8127.3001`, so rebuilds of
-  the same Chromium upgrade cleanly and a newer Chromium always wins. `tools/release/version.py` sets
-  and checks it.
-- Release build configuration reviewed for privacy (ROADMAP **P2.17**): `tools/build/release_args.py`
-  builds the release `args.gn` from upstream's and turns off Google's RLZ promotion-tracking library and the
-  DRM storage ID that upstream enabled, never bundles Widevine and refuses Google API keys. Every choice
-  and its reason is in `docs/build/RELEASE_ARGS.md`.
-- Licence inventory regenerated for the Chromium 158 series (ROADMAP **L.1**): 157 patches, 0 unknown,
-  6 that still need the author's permission or a rewrite (was 8). The policy templates patch was rewritten
-  without the unlicensed code, and the two new upstream patches were researched (both Thorium,
-  BSD-3-Clause). Details in `docs/legal/PATCH_ORIGINS.md`.
-- First reproduced Linux build: Chromium 156.0.8078.28 with the upstream M156 AVX2 configuration
-  (no bundled Widevine) in a dedicated Ubuntu 24.04 WSL2 distro, built in about 2 hours 37 minutes.
-  It passes the smoke test with the sandbox proven (renderers under seccomp-BPF in their own PID
-  namespace) and launches under WSLg (ROADMAP **P1.2**, **P1.5**, **P1.7**). Guide: `docs/build/LINUX.md`;
-  measured times for both OSes in `docs/build/BUILD_BUDGET.md` (ROADMAP **P1.10**).
-- Thoron's own identity on Windows (ROADMAP **P2.3**, done first on M156): `tools/build/thoron_identity.py`
-  applies the name Thoron (UI strings and translations, without touching URLs, paths or
-  identifiers), its own install and profile folder `%LOCALAPPDATA%\Thoron`, registry key, app ID,
-  ProgIDs, `thoron` link scheme, Active Setup GUID, COM class IDs and sandbox SID prefix, the
-  Radiant Core icons, and `BRANDING`. The About page and copyright credit The Chromium Authors,
-  Alex313031 and KuchiSofts, and lines that name Alex313031 are never renamed. Translations follow
-  the rename: the tool recomputes each renamed message's ID with GRIT and updates the translation
-  files, so no language loses a translation. It is anchored and idempotent, so it re-applies after
-  every rebase. Thoron installs and runs next to Thorium with its own folder, registry key and
-  ProgIDs (Thorium's files, registry key and ProgIDs verified unchanged). Until the program file
-  is renamed (ROADMAP **P2.20**), one Windows entry keyed by `thorium.exe` is shared: installing
-  Thoron points `App Paths\thorium.exe` at Thoron, and uninstalling Thoron would remove Thorium's
-  `App Paths` and Open-with entries.
-- `tools/migrate/import_profile.py`: brings a Thorium profile into Thoron by a verified copy (never a
-  move; every file checked by SHA-256; refuses if either browser runs or Thoron already has a
-  profile). A real Thorium profile came out 1:1 in Thoron (ROADMAP **P3.14**, command-line version).
-- Windows Start-menu tile icons (70 and 150 px) and `export_icons.py --sizes`.
-- Windows 11 build guide `docs/build/WINDOWS.md` (toolchain, Defender, depot_tools, Chromium source)
-  and `tools/build/win_env.ps1`, which prepares one PowerShell window for building: build folder,
-  temporary files off the system drive, pinned depot_tools, Visual Studio 2026, and a build-only git
-  config that keeps the user's own config and hooks. `gn gen` succeeds on stock Chromium 156 with
-  this toolchain (ROADMAP **P1.1**). The upstream M156 overlay and patch series apply to Chromium
-  156.0.8078.28 with 0 rejects (ROADMAP **P1.3**); `pipeline.py apply --log` keeps the full log.
-- First reproduced Windows build: Chromium 156.0.8078.28 with the upstream M156 AVX2 configuration,
-  without bundled Widevine. It builds in 2 hours 35 minutes, writes a `BUILDINFO.json` free of
-  personal paths, and passes the smoke test (JS, WebGL, H.264, HEVC, AV1, JPEG XL, no crashes)
-  (ROADMAP **P1.4**). Measured times and a draft release-build plan are in
-  `docs/build/BUILD_BUDGET.md` (ROADMAP **P1.10**, in progress).
-- `tools/build/rebase_report.py`: applies a patch series to a temporary git index of a newer Chromium,
-  never touching the checkout, and reports each patch as applied, fuzz, already applied, rejected or
-  missing. First report: `docs/build/M158_REBASE_REPORT.md` (upstream M156 series on Chromium
-  158.0.8127.30: 95 apply, 21 need a refresh, 33 need a rebase) (ROADMAP **P1.8**, **P2.1**).
-- `tools/build/mv2_check.py`: offline ad-blocking check that runs the browser with and without an
-  extension (fresh profiles, sandbox on) and measures network blocking and cosmetic filtering. It
-  found that Thorium's default apps install uBlock Origin from the Web Store into every new profile;
-  Thoron will not (ROADMAP **P2.16**).
-- `tools/qa/profile_check.py`: checks that a new version keeps a profile 1:1 on what it measures:
-  windows, tabs, pinned tabs and tab groups (from the session file), the number of saved passwords,
-  bookmarks, enabled extensions, cookies and their encryption scheme. It never decrypts or prints a
-  secret, refuses a running browser or a wrong folder, records anything unreadable as unreadable
-  (never as zero), and reports a new version that wrote no session. History, autofill and site data
-  are not checked yet. A real Thorium 150 profile, opened offline by the M156 build, came out 1:1.
-  It is now a release gate (ROADMAP **Q.7**).
-- Manifest V2 verdict for Chromium 158 (ROADMAP **P1.8**, design §10.1): Manifest V2 itself still
-  works with upstream's patch (a minimal blocking extension blocks every request), but uBlock Origin
-  1.75.4 hangs at start-up because `chrome.storage.managed.get` never answers on the 158 test build.
-  Follow-up: ROADMAP **P2.18**. The 158 test build took 3.3 hours with 10 jobs.
-- Patch licence inventory: `tools/legal/patch_licenses.py` and the generated `docs/legal/PATCH_LICENSES.md`
-  for all 152 upstream M156 patches (ROADMAP **L.1**). All 152 are now researched: every patch's
-  added code was compared with 13 credited projects, its copyright lines and Thorium's older patch
-  notes (method: `docs/legal/PATCH_ORIGINS.md`, findings: `tools/legal/patch_origins.tsv`). Result:
-  0 unknown; `GPC.patch` and `enable-android-devtools-frontend.patch` come from Cromite (GPL-3.0);
-  no GPL-2.0-only code; 8 patches use code from authors who publish no licence and need their
-  permission or a rewrite before a release. `CREDITS.md` and `NOTICE` list the confirmed licences
-  and the newly found contributors (icepie, not-lucky, qcasey, tomByrer, win32ss).
-- `tools/build/pipeline.py`: build preflight (free space, cloud-synced or spaced paths, Backblaze-backed
-  drives, WSL memory), an upstream setup wrapper that stops on any rejected patch, and a `buildinfo` entry point.
-- `tools/build/smoke.py`: smoke-tests a build with a fresh throwaway profile; fails on crashes, a bad
-  exit code, an empty result (the page script did not run), or any capability (JS, WebGL, H.264, HEVC,
-  AV1, JPEG XL) not reported true. On Windows it also proves the sandbox is in force by reading the
-  security token of every renderer of the running browser (it must be below Medium integrity) and
-  rejecting any child process started with `--no-sandbox`. On Linux it reads `/proc`: every renderer
-  must run under a seccomp-BPF filter and in its own PID namespace (ROADMAP **P1.7**).
-- `tools/build/wslconfig.py`: raises WSL memory and swap only for a Linux build (swap file on the build
-  drive) and restores the original `.wslconfig` byte for byte. It never overwrites a backup, refuses a
-  second raise before a restore, and restores only from its own backup of that file. It never restarts
-  WSL itself; the owner approves every `wsl --shutdown`.
-- `tools/build/buildinfo.py`: writes `BUILDINFO.json` for every build (Chromium version, Thoron and
-  upstream commits, depot_tools revision, GN args and their digest, toolchain, timing). Every string,
-  at any depth and GN args included, has build-root paths made relative and user-folder paths
-  redacted, and the file is not written if a user-folder path survives anywhere (ROADMAP **P1.6**).
-- Approved Thoron design for Windows 11 and Ubuntu, x64 and ARM64 (`docs/design/`).
-- Audit toolkit for upstream merges and release verification (`tools/audit`): `audit_diff`,
-  `crx_id`, `compare_release`.
-- Docs and privacy linter enforcing the definition of done (`tools/docs/check_docs.py`).
-- Contributor credits generator (`tools/credits/contributors.py`).
-- `CREDITS.md` and `NOTICE` with full upstream credits and per-component licences.
-- Thoron `README.md`, a detailed `ROADMAP.md`, `SECURITY.md` (private reporting, coordinated disclosure)
-  and `CONTRIBUTING.md`.
-- Thoron logo "Radiant Core", chosen by the owner from three original concepts, with a single-colour
-  variant (`branding/thoron/`, CC BY 4.0).
-- Icon asset pipeline (`tools/branding`): PNG sizes 16-512 and a multi-size Windows `.ico` generated
-  from the SVG logo using only the standard library and a headless browser.
+
+- **Ad blocking:** built-in `adblock-rust` engine ends ad and tracker requests before they leave the browser.
+- **Ad blocking:** off by default; "Built-in ad blocking" on `chrome://flags/#thoron-native-adblock` turns it on or off.
+- **Ad blocking:** ships a pre-compiled engine of the bundled filter lists and falls back to the lists if it is broken.
+- **Ad blocking:** updates its filter lists at most every 4 days over HTTPS without cookies and refuses a bad update.
+- **Ad blocking:** follows the per-site "Ads" setting, shown as "Ads and trackers" while the blocker is on.
+- **Ad blocking:** address bar icon and bubble count the ads and trackers blocked on a page; nothing is stored or sent.
+- **Ad blocking:** runs uBlock Origin's scriptlets before any page script and answers blocked requests with stand-ins.
+- **Ad blocking:** hides page elements by specific, generic and procedural rules and supports `$removeparam` and `$csp`.
+- **Ad blocking:** rechecks every redirect, stops blocked targets and strips the tracking parameters the lists name.
+- **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
+- **UI:** About page names the Chromium version the build is based on, shows the disclaimer and links to release notes.
+- **Brand:** the UI, all translations and `chrome://version` carry the Thoron name, logo and wordmark.
+- **Brand:** icon pipeline builds every PNG size, the `.ico` and the tile icons from the logo SVG (CC BY 4.0).
+- **Privacy:** release build settings turn off Google's RLZ tracking and the DRM storage ID and take no API keys.
+- **Privacy:** `docs/security/NETWORK.md` lists the hosts a fresh profile contacts and what Thoron does about each.
+- **Security:** `tools/audit` checks upstream merges and releases with `audit_diff`, `crx_id` and `compare_release`.
+- **Install:** Thoron installs next to Thorium on Windows with its own folder, profile, registry key and app ID.
+- **Install:** Linux identity is in code (program `thoron`, package `thoron-browser`, own profile); not yet built.
+- **Install:** `import_profile.py` brings a Thorium profile into Thoron by a verified copy, never a move.
+- **Build:** patch series is rebased to Chromium 158.0.8127.30; Global Privacy Control uses Chromium's own code.
+- **Build:** reproduces upstream's Chromium 156.0.8078.28 build on Windows and Linux, without bundled Widevine.
+- **Build:** Manifest V2 extensions still work on Chromium 158.
+- **Build:** the browser's patch series is in `source/` as an overlay on a pinned upstream commit, with a tree hash.
+- **Build:** `source_tree.py` exports, verifies and rebuilds that tree; files that may not be published are withheld.
+- **Build:** `pipeline.py` preflights a build and stops on a rejected patch; `BUILDINFO.json` keeps no personal paths.
+- **Build:** `smoke.py` tests a build on a throwaway profile and proves that the renderer sandbox is in force.
+- **Build:** `wslconfig.py` raises WSL memory and swap for a Linux build and restores the original file byte for byte.
+- **Build:** `rebase_report.py` reports how a patch series applies to a newer Chromium without touching the checkout.
+- **Legal:** every patch names its origin, author and licence; `patch_headers.py lint` rejects one that does not.
+- **Legal:** patch licence inventory covers every patch: none unknown, 6 need the author's permission or a rewrite.
+- **Legal:** `CREDITS.md` and `NOTICE` carry upstream credits and per-component licences; a tool lists contributors.
+- **Release tools:** `release.py` checks, names, checksums and signs a build and publishes only as a signed draft.
+- **Release tools:** `changelog.py` writes release notes from git and local files and credits upstream authors.
+- **Release tools:** `package_audit.py` rejects a package with Widevine, Thorium-named files or upstream-only extras.
+- **Release tools:** `version.py` sets build numbers: Chromium's version with the last part as `patch x 100 + rebuild`.
+- **QA tools:** `profile_check.py` and `profile_rehearsal.py` verify on a copy that an update keeps a profile 1:1.
+- **QA tools:** `bench.py` measures start-up time, memory and idle CPU offline on throwaway profiles.
+- **QA tools:** `adblock_proof.py`, `adblock_breakage.py` and `mv2_check.py` compare blocking with uBlock Origin.
+- **QA tools:** offline checks cover filter syntax, redirects, workers, hide rules, the site switch and list updates.
+- **QA tools:** `fuzz_lists` feeds changed filter list lines to the engine to check that list reading survives any text.
+- **Docs:** README, `ROADMAP.md`, `SECURITY.md` and `CONTRIBUTING.md` describe Thoron; designs live in `docs/design/`.
+- **Docs:** build guides cover Windows 11 and Linux with measured build times; `win_env.ps1` prepares a build window.
+- **Docs:** `check_docs.py` checks the docs for broken links, house style and private data.
+- **Docs:** release program: Thoron versions from 0.1.1, GitHub releases, self-update, one installer, first run.
 
 ### Changed
-- New Thoron icon, "Vortex": a ring of three turning blades in one hue (violet in three depths) around a
-  violet core. It sits in the family of the round emblems of Chromium-based browsers and is drawn its own
-  way, with curved blades and Thoron's own violet. The owner chose it from three candidates of one shape
-  (`branding/thoron/concepts/2026-11-11/`). It replaces "Radiant Core". All sizes, the Windows `.ico` and
-  the wordmarks are regenerated from it (`branding/thoron/`).
-- Decided by the owner (2026-11-11): the ad blocker built into the browser is to replace uBlock Origin
-  instead of working next to it, and must keep updating both its filter lists and its scripts. The plan is
-  in `docs/design/2026-11-09-native-adblock-design.md`, section 12 (ROADMAP **P5.19** to **P5.24**). Nothing
-  changes for people yet: native blocking is still off by default, and an installed uBlock Origin and its
-  settings are never touched.
-- Windows program file renamed to `thoron.exe` and the installer to `thoron_<variant>_mini_installer.exe` (ROADMAP **P2.20**). The installer no longer ships Thorium-named files (`thor_ver`, Thorium icons, content shell entries), and Thoron no longer shares Thorium's `App Paths\thorium.exe` entry, so either browser can be uninstalled without affecting the other. `tools/migrate/exe_rename.py` moves an install made before the rename over: it gives `App Paths\thorium.exe` back to Thorium, fixes shortcuts and registry values the installer did not, and moves the leftovers into a backup it can restore.
-- Work order: Windows first. The Linux build tasks (ROADMAP **P1.2**, **P1.5**) are deferred by the
-  owner's decision; Ubuntu remains a target platform (design §16).
-- New README with the Thoron logo, badges and quick navigation. Its roadmap section (overall
-  progress, per-phase progress bars, what's next and the full task list) is generated from
-  `ROADMAP.md` by `tools/docs/roadmap_progress.py`, and `check_docs` fails if it is out of date.
-- `check_docs` now validates heading anchors in links, which fixed 10 links broken by the dash cleanup.
-- House style: long dashes replaced by a plain "-" across all our docs, code and assets. `check_docs` now enforces this rule.
-- Repository renamed from `KuchiSofts/thorium` to `KuchiSofts/thoron` (old links redirect), with a Thoron description and topics. Detaching from the Thorium fork network has been requested (ROADMAP **D.6**). The design document is now `docs/design/2026-11-07-thoron-design.md`.
-- The original Thorium README moved to `docs/upstream/THORIUM_README.md`, unchanged except for relative
-  links (including a fix for a pre-existing broken link).
 
-- More credits:
-  - patch sources RobRich999 (Chromium_Clang), StaZhu, Hibbiki, qcasey, Muril-o and FydeOS;
-  - hezhizheng's thorium-win-upgrade;
-  - Alex313031 as co-author of the pak tool.
-
-  `NOTICE` gained a catch-all line covering every other patch source pending the licence inventory.
-- `NOTICE` patent wording corrected; it now states that no patent licence is granted.
-- README and `SECURITY.md` now separate what is in place today from what is planned. Windows
-  download verification now includes the signature step.
-- The design document's background section was rewritten as neutral, linked, verifiable
-  observations about upstream.
-
-### Removed
-- Thorium's hidden `chrome://eggs` and `chrome://robot` pages (ROADMAP **S.11**): they only showed pictures,
-  yet were allowed to make network requests. `chrome://authors`, which credits the Thorium authors, stays.
-- The old copy of the upstream Thorium M138 tree that the repository still carried (about 1,500 files:
-  sources, logos, build scripts, submodules and old docs). Thoron's builds never used it; they use the
-  pinned, audited upstream source. Thorium's M138 `PATCHES.md` and README stay in `docs/upstream/` as
-  licence evidence, and the upstream Sponsor button is gone; Alex313031 stays credited (ROADMAP **D.8**).
+- **Ad blocking:** the built-in blocker is to replace uBlock Origin; an installed uBlock Origin is never touched.
+- **Brand:** new icon "Vortex", three turning violet blades around a core, replaces "Radiant Core" everywhere.
+- **Install:** the Windows program file is now `thoron.exe` and the installer `thoron_<variant>_mini_installer.exe`.
+- **Install:** Thoron no longer shares Thorium's `App Paths` entry; `exe_rename.py` moves an older install over.
+- **Build:** work order is Windows first; the Linux build tasks are deferred and Ubuntu stays a target platform.
+- **Legal:** more patch sources and tools are credited, and `NOTICE` states that no patent licence is granted.
+- **Repository:** renamed to `KuchiSofts/thoron` (old links redirect); the Thorium README moves to `docs/upstream/`.
+- **Docs:** the new README has the logo, badges and a roadmap section generated from `ROADMAP.md`.
+- **Docs:** house style allows only the plain hyphen; `check_docs` enforces it and validates heading anchors in links.
+- **Docs:** README and `SECURITY.md` separate what is in place from what is planned; the design background is neutral.
+- **Docs:** this changelog is now one line per change; the roadmap opens with the road to Thoron 0.1.1.
+- **Repository:** merged branches are gone and delete themselves; `main` cannot be force-pushed or deleted.
 
 ### Fixed
-- Native ad blocking (off by default) now blocks ads in frames: a frame's own document was loaded without
-  being checked. Only documents of frames inside a page are checked, never a page you open yourself.
-- `tools/build/rebase_report.py` now puts upstream's overlay files into its scratch index, as the real setup
-  does before the series runs, so a patch that changes an overlay file is no longer reported as rejected;
-  and it writes its temporary git objects to a scratch folder instead of the Chromium checkout.
+
+- **Ad blocking:** ads in frames are blocked; a frame's own document was loaded without being checked.
+- **Build:** two small patches fix the Chromium 158 build (FFmpeg duplicate sources, a Rust compiler flag).
+- **Build:** `rebase_report.py` no longer reports a patch that changes an upstream overlay file as rejected.
+- **QA tools:** `profile_check.py` no longer reports lost tabs for a profile that does not continue where it left off.
+- **Docs:** links broken by the house style cleanup work again.
+
+### Removed
+
+- **UI:** Thorium's hidden `chrome://eggs` and `chrome://robot` pages are gone; `chrome://authors` stays.
+- **Install:** the installer no longer ships Thorium-named files or content shell entries.
+- **Build:** Android-only patches are not carried over to the Chromium 158 series.
+- **Repository:** the unused copy of the upstream Thorium M138 tree and the Sponsor button are gone; credits stay.
 
 ### Security
-- Privacy of the repository: no file of ours describes one particular PC any more. Example paths use
-  `C:\thoron-build` (set `THORON_BUILD_ROOT` for another folder; the WSL swap file follows it), the build
-  budget names the class of its reference machine instead of the model, and the network notes no longer
-  name programs that were installed on the test PC. The docs linter (`tools/docs/check_docs.py --private`)
-  now also reports a path on a drive other than C: and an exact CPU or GPU model, and scans scripts and
-  every doc folder of ours (ROADMAP **P0.3**).
-- Native ad blocking (off by default): a list update is now put on record before the new lists are read.
-  Reading runs inside the browser, and a list that made the parser abort would have closed the browser 2
-  minutes after every start for as long as the list host served it. Now the next attempt is 4 days away
-  and the previous engine stays in use. Tested by killing the browser in the middle of an update
-  (`tools/qa/adblock_update_check.py`, 8 scenarios).
-- Flags that weaken security (`disable-web-security`, `allow-file-access-from-files`, `disable-encryption`,
-  `allow-insecure-downloads`, the password store choice) now start with a plain warning in `chrome://flags`,
-  and Chromium's unsupported-flag bar is back for `--extensions-on-chrome-urls`, `--enable-blink-features`,
-  `--disable-blink-features` and `--enable-unsafe-webgpu` (ROADMAP **S.4**). Every flag still works and all
-  stay off by default.
-- `chrome://authors` (the Thorium credits page) now uses Chromium's default WebUI security policy
-  instead of allowing inline scripts, and may no longer make network requests (ROADMAP **S.3**). The page
-  and its credits are unchanged.
-- Thoron reads extra command-line flags only from its own file on Windows (`%APPDATA%\Thoron\thoron-flags.conf`
-  or `thoron-flags.conf` next to `thoron.exe`). The upstream patch read Thorium's file, so switches meant for
-  Thorium, unsafe ones included, would have applied to Thoron. On Linux the file is
-  `~/.config/thoron/thoron-flags.conf`.
-- `.gitignore` now excludes every browser-profile file type (passwords, cookies, sessions, history,
-  keys) whose names cannot be mistaken for source folders, on top of the privacy checks that block
-  such data at commit and push time.
-- Removed `infra/hangout_services/bin/hangout_services_1.4.1.pem`, an upstream private signing key for
-  the (already removed) hangout_services package. It was referenced nowhere; a published private key
-  lets anyone sign packages under that extension's identity.
-- Proprietary and unverifiable binaries removed from the repository (ROADMAP **L.6**):
-  - Google's Widevine CDM for Windows, macOS, Linux and ChromeOS (13 files plus signatures and
-    import libraries, one of them a patched copy). Its licence forbids redistribution; Chromium's
-    component updater still downloads it from Google when a site needs it;
-  - Adobe Flash Player (`infra/libpepflashplayer.so`), proprietary and end-of-life since 2020;
-  - the Linux portable launchers `THORIUM-PORTABLE` and `THORIUM-SHELL`, compiled with `shc`, which
-    embeds the script encrypted so it cannot be checked against its source (the `.sh` scripts stay),
-    and the unexplained `infra/APPIMAGE/files/outc`;
-  - prebuilt tools and packages: `cgpt`, the `pak` tool binaries (its source stays in `pak_src/`),
-    a `vdpau-va-driver` package and an unused `hangout_services` CRX.
-- `tools/audit/binary_policy.py` now fails on any prebuilt executable, library, package or archive
-  without an allowlisted SHA-256, licence and source, and always on proprietary blobs.
-- Inherited git history cleaned: three inappropriate image files that upstream added in 2023 and
-  later deleted were purged from every commit (current files unchanged; verified absent from the
-  M150 browser build). Commit IDs changed as a result.
-- Content standards added to `CONTRIBUTING.md`; `tools/audit` gains an `adult_content` check on added
-  text and file names (ROADMAP **S.12**).
-- Every upstream change is now audited before merging (`tools/audit`, ROADMAP **S.1**).
-- `audit_diff` hardened against crafted diffs. It now:
-  - reads files by blob and parses hunks by their declared line counts;
-  - splits text on `\n` only;
-  - ignores the user's git diff settings;
-  - reports submodule and `.gitmodules` changes, type changes, executables disguised as images,
-    SVG content, and upload hosts (by owner or bucket);
-  - recognises more Windows and Linux download-and-run and persistence forms.
 
-  The changes come with 14 regression tests.
-- `crx_id` verifies CRX3 RSA signatures (standard library only) and supports `--expect <id>`.
-- `compare_release` no longer reports an install with injected executables as identical; it also
-  gains `--strict`.
-- `check_docs`:
-  - detects lowercase, Git-Bash, WSL and macOS user paths;
-  - reads private lists that have a byte-order mark or are UTF-16;
-  - scans our `.py`, `.svg` and `.html` files too;
-  - checks reference-style, nested-badge and HTML links with exact case, inside the repository, and
-    not git-ignored;
-  - defaults to the repository root.
-- The contributors generator writes atomically and never truncates `CREDITS.md`.
-- `.gitignore` excludes Python bytecode caches produced by the tools.
+- **Ad blocking:** a list update is recorded before it is read, so a bad list cannot close the browser at every start.
+- **Ad blocking:** only uBlock Origin's own lists may use trusted scriptlets; report-sending `$csp` rules are refused.
+- **Privacy:** docs name no machine details and use `C:\thoron-build` in examples; `check_docs --private` enforces it.
+- **Privacy:** `.gitignore` excludes browser-profile file types (passwords, cookies, sessions, history, keys).
+- **Security:** flags that weaken security start with a warning on `chrome://flags`; the unsupported-flag bar is back.
+- **Security:** `chrome://authors` uses Chromium's default WebUI security policy and makes no network requests.
+- **Security:** extra command-line flags are read only from Thoron's own `thoron-flags.conf`, never from Thorium's file.
+- **Security:** every upstream change is audited before merging; `audit_diff` is hardened against crafted diffs.
+- **Security:** `crx_id` verifies CRX3 RSA signatures; `compare_release` catches an install with injected executables.
+- **Security:** `binary_policy.py` fails on any prebuilt binary without an allowlisted SHA-256, licence and source.
+- **Repository:** proprietary and unverifiable binaries are removed (Widevine CDM, Flash Player, prebuilt tools).
+- **Repository:** an upstream private signing key for the hangout_services package is removed.
+- **Repository:** inappropriate upstream images are purged from git history; an `adult_content` check guards additions.
+- **Docs:** `check_docs` detects more user path forms, scans `.py`, `.svg` and `.html` files and checks more link forms.

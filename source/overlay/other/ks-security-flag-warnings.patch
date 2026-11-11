@@ -1,0 +1,46 @@
+Thoron: warn again when a switch that weakens security is used.
+
+Thorium had silenced Chromium's "unsupported
+command-line flag" bar for --extensions-on-chrome-urls, --enable-blink-features, --disable-blink-features
+and --enable-unsafe-webgpu; Thoron shows it again, as Chromium does. The switches still work. (The flag
+descriptions with plain warnings are edited by Thoron's identity step, because they live in an upstream
+overlay file.)
+
+Origin: Thoron
+Author: KuchiSofts
+License: BSD-3-Clause
+
+diff --git a/chrome/browser/ui/startup/bad_flags_prompt.cc b/chrome/browser/ui/startup/bad_flags_prompt.cc
+index 6ad2804fdc0c07d97a72590aca135290c16369eb..69c2d11db83de34f2a355dc1ddeb9cac19d0115f 100644
+--- a/chrome/browser/ui/startup/bad_flags_prompt.cc
++++ b/chrome/browser/ui/startup/bad_flags_prompt.cc
+@@ -119,8 +119,7 @@ const char* const kBadFlags[] = {
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+     // These flags enable extensions running scripts on chrome:// and
+     // chrome-extension:// URLs.
+-    // Thorium permits extensions on chrome:// URLs without showing this
+-    // warning.
++    extensions::switches::kExtensionsOnChromeURLs,
+     extensions::switches::kExtensionsOnExtensionURLs,
+ 
+     // This flag gives the specified extension(s) access to restricted extension
+@@ -136,8 +135,8 @@ const char* const kBadFlags[] = {
+ 
+     // These flags control Blink feature state, which is not supported and is
+     // intended only for use by Chromium developers.
+-    // Thorium permits explicit Blink feature overrides without showing this
+-    // warning.
++    switches::kDisableBlinkFeatures,
++    switches::kEnableBlinkFeatures,
+ 
+     // This flag allows people to allowlist certain origins as secure, even
+     // if they are not.
+@@ -161,7 +160,7 @@ const char* const kBadFlags[] = {
+ 
+     // GPU sanboxing isn't implemented for the Web GPU API yet meaning it would
+     // be possible to read GPU data for other Chromium processes.
+-    // Thorium permits unsafe WebGPU without showing this warning.
++    switches::kEnableUnsafeWebGPU,
+ 
+ #if BUILDFLAG(IS_WIN)
+     // These flags allow loading libraries from specified paths, which may

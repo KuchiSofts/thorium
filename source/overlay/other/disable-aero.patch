@@ -1,0 +1,40 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/themes/theme_helper_win.cc b/chrome/browser/themes/theme_helper_win.cc
+index b80fd78c52babe64bf6148fe66481e5da5f33dd5..68372419ad4698c53ee3f43bbdbcef4496e31dff 100644
+--- a/chrome/browser/themes/theme_helper_win.cc
++++ b/chrome/browser/themes/theme_helper_win.cc
+@@ -1,14 +1,15 @@
+-// Copyright 2016 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/themes/theme_helper_win.h"
+ 
++#include "base/command_line.h"
+ #include "chrome/browser/themes/custom_theme_supplier.h"
+ #include "chrome/browser/themes/theme_properties.h"
+ #include "chrome/grit/theme_resources.h"
+ 
+ bool ThemeHelperWin::ShouldUseNativeFrame(
+     const CustomThemeSupplier* theme_supplier) const {
+-  return true;
++  return !base::CommandLine::ForCurrentProcess()->HasSwitch("disable-aero");
+ }
+diff --git a/ui/views/win/hwnd_message_handler.cc b/ui/views/win/hwnd_message_handler.cc
+index 42fd0087319f0ce9a15b327b52403607e08d092a..1c51b40618b1597cec266b85ae201572ae07054d 100644
+--- a/ui/views/win/hwnd_message_handler.cc
++++ b/ui/views/win/hwnd_message_handler.cc
+@@ -1057,7 +1057,7 @@ void HWNDMessageHandler::FrameTypeChanged() {
+   if (!custom_window_region_.is_valid() && IsFrameSystemDrawn()) {
+     dwm_transition_desired_ = true;
+   }
+-  if (!dwm_transition_desired_ || !IsFullscreen()) {
++  if ((!dwm_transition_desired_ || !IsFullscreen()) && IsFrameSystemDrawn()) {
+     PerformDwmTransition();
+   }
+ }

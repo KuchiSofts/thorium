@@ -1,0 +1,32 @@
+Origin: chromium-ubuntu-build (saiarcot895)
+Author: saiarcot895
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/content/gpu/BUILD.gn b/content/gpu/BUILD.gn
+index 15aed10aab990bb7a7590ef6d56d15c5439d3dfe..00c892af16b06b28bb527c71e1b8ec68b201be98 100644
+--- a/content/gpu/BUILD.gn
++++ b/content/gpu/BUILD.gn
+@@ -1,4 +1,4 @@
+-# Copyright 2014 The Chromium Authors
++# Copyright 2026 The Chromium Authors and Alex313031
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
+@@ -6,6 +6,7 @@ import("//build/config/cast.gni")
+ import("//build/config/ui.gni")
+ import("//gpu/vulkan/features.gni")
+ import("//media/media_options.gni")
++import("//media/gpu/args.gni")
+ 
+ # See //content/BUILD.gn for how this works.
+ group("gpu") {
+@@ -130,4 +131,8 @@ target(link_target_type, "gpu_sources") {
+       !is_castos) {
+     configs += [ "//build/config/linux/dri" ]
+   }
++
++  if (is_linux && use_vaapi) {
++    public_configs = [ "//build/config/linux/libva" ]
++  }
+ }

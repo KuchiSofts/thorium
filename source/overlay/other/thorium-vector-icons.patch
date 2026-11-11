@@ -1,0 +1,89 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/components/omnibox/browser/BUILD.gn b/components/omnibox/browser/BUILD.gn
+index f7aaba4a989da2663c8ef1692e5ad7fbb9ff3f3c..1946a91076f790209f765a58991286ed9319b9d6 100644
+--- a/components/omnibox/browser/BUILD.gn
++++ b/components/omnibox/browser/BUILD.gn
+@@ -114,6 +114,22 @@ aggregate_vector_icons("omnibox_vector_icons") {
+     "wb_sunny_filled.icon",
+   ]
+ 
++  if (is_thorium_build) {
++    sources += [
++      "bookmark_chrome_refresh_old_thorium.icon",
++      "bookmark_old_thorium.icon",
++      "clear_old_thorium.icon",
++      "http_old_thorium.icon",
++      "incognito_cr2023_old_thorium.icon",
++      "star_active_chrome_refresh_old_thorium.icon",
++      "star_chrome_refresh_old_thorium.icon",
++      "find_in_page_thorium.icon",
++      "incognito_thorium.icon",
++      "star_thorium.icon",
++      "http_chrome_refresh_thorium.icon",
++    ]
++  }
++
+   if (is_mac) {
+     sources += [
+       "ios_share.icon",
+diff --git a/components/vector_icons/BUILD.gn b/components/vector_icons/BUILD.gn
+index 23cdbe1d87b4e33761b4ac5a79a76a317ba2f140..d968b46b317dab7083086b7092878d57d2d6c34d 100644
+--- a/components/vector_icons/BUILD.gn
++++ b/components/vector_icons/BUILD.gn
+@@ -1,4 +1,4 @@
+-# Copyright 2017 The Chromium Authors
++# Copyright 2026 The Chromium Authors and Alex313031
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
+@@ -528,6 +528,46 @@ if (current_toolchain == default_toolchain) {
+       "work_old.icon",
+     ]
+ 
++    if (is_thorium_build) {
++      sources += [
++        "back_arrow_old_thorium.icon",
++        "back_to_tab_chrome_refresh_old_thorium.icon",
++        "cancel_chrome_refresh_old_thorium.icon",
++        "close_old_thorium.icon",
++        "close_rounded_old_thorium.icon",
++        "error_old_thorium.icon",
++        "error_outline_old_thorium.icon",
++        "extension_old_thorium.icon",
++        "forward_arrow_old_thorium.icon",
++        "help_old_thorium.icon",
++        "help_outline_old_thorium.icon",
++        "info_outline_old_thorium.icon",
++        "info_refresh_old_thorium.icon",
++        "not_secure_warning_chrome_refresh_old_thorium.icon",
++        "not_secure_warning_off_chrome_refresh_old_thorium.icon",
++        "not_secure_warning_old_thorium.icon",
++        "submenu_arrow_old_thorium.icon",
++        "volume_up_old_thorium.icon",
++        "warning_old_thorium.icon",
++        "warning_outline_old_thorium.icon",
++        "thorium/back_to_tab_thorium.icon",
++        "thorium/cookie_thorium.icon",
++        "bookmark_folder.icon",
++        "folder_managed.icon",
++        "info_regular.icon",
++        "thorium/close_chrome_refresh_thorium.icon",
++        "thorium/cookie_chrome_refresh_thorium.icon",
++        "thorium/extension_chrome_refresh_thorium.icon",
++        "thorium/back_arrow_chrome_refresh_thorium.icon",
++        "thorium/forward_arrow_chrome_refresh_thorium.icon",
++        "thorium/reload_chrome_refresh_thorium.icon",
++        "thorium/restore_tab.icon",
++        "thorium/submenu_arrow_chrome_refresh_thorium.icon",
++        "thorium/volume_off_thorium.icon",
++        "thorium/volume_off_chrome_refresh_thorium.icon",
++        "thorium/volume_up_chrome_refresh_thorium.icon",
++      ]
++    }
+     if (is_chromeos) {
+       sources += [ "notification_download_old.icon" ]
+     }

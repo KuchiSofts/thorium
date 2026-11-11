@@ -1,0 +1,72 @@
+Origin: ungoogled-chromium
+Author: ungoogled-chromium
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/components/history/core/browser/history_backend.cc b/components/history/core/browser/history_backend.cc
+index cd4e64e7e47ea4cfdc0cab929a2d3655f8b8fa40..4d4a83b50f981e953c53d22515d29b34a186e907 100644
+--- a/components/history/core/browser/history_backend.cc
++++ b/components/history/core/browser/history_backend.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2012 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -17,6 +17,7 @@
+ #include <utility>
+ #include <vector>
+ 
++#include "base/command_line.h"
+ #include "base/compiler_specific.h"
+ #include "base/containers/flat_map.h"
+ #include "base/containers/flat_set.h"
+@@ -1394,8 +1395,12 @@ void HistoryBackend::InitImpl(
+   // Get the first item in our database.
+   db_->GetStartDate(&first_recorded_time_);
+ 
+-  // Start expiring old stuff.
+-  expirer_.StartExpiringOldStuff(base::Days(kExpireDaysThreshold));
++  // Start expiring old stuff if flag is unset.
++  static const bool keep_all_history =
++      base::CommandLine::ForCurrentProcess()->HasSwitch("keep-all-history");
++  if (!keep_all_history) {
++    expirer_.StartExpiringOldStuff(base::Days(kExpireDaysThreshold));
++  }
+ }
+ 
+ void HistoryBackend::CloseAllDatabases() {
+@@ -1623,7 +1628,13 @@ void HistoryBackend::AddPagesWithDetails(const URLRows& urls,
+ }
+ 
+ bool HistoryBackend::IsExpiredVisitTime(const base::Time& time) const {
+-  return time < expirer_.GetCurrentExpirationTime();
++  static const bool keep_all_history =
++      base::CommandLine::ForCurrentProcess()->HasSwitch("keep-all-history");
++  if (keep_all_history) {
++    return false;
++  } else {
++    return time < expirer_.GetCurrentExpirationTime();
++  }
+ }
+ 
+ // static
+diff --git a/components/history/core/browser/history_backend.h b/components/history/core/browser/history_backend.h
+index 794aa619d60b56a3829741997ca262cac9474b61..ac838063650df006ae445279a5ca6012a8871f70 100644
+--- a/components/history/core/browser/history_backend.h
++++ b/components/history/core/browser/history_backend.h
+@@ -1,4 +1,4 @@
+-// Copyright 2012 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -213,7 +213,7 @@ class HistoryBackend : public base::RefCountedThreadSafe<HistoryBackend>,
+ 
+   // The number of days old a history entry can be before it is considered "old"
+   // and is deleted.
+-  static constexpr int kExpireDaysThreshold = 90;
++  static constexpr int kExpireDaysThreshold = 120;
+ 
+   // The maximum redirect chain depth to traverse before stopping. Prevents
+   // quadratic sql query floods on unbounded client-redirect chains.

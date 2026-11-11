@@ -1,0 +1,99 @@
+Origin: ungoogled-chromium
+Author: ungoogled-chromium
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/extensions/api/developer_private/extension_info_generator.cc b/chrome/browser/extensions/api/developer_private/extension_info_generator.cc
+index d4ef0e322ba66bede49ebc4ece75bcd39ea71928..d9411184eb2d661c651d14fc95d6f3fcf28b2423 100644
+--- a/chrome/browser/extensions/api/developer_private/extension_info_generator.cc
++++ b/chrome/browser/extensions/api/developer_private/extension_info_generator.cc
+@@ -49,7 +49,6 @@
+ #include "extensions/browser/icon_util.h"
+ #include "extensions/browser/image_loader.h"
+ #include "extensions/browser/managed_installation_mode.h"
+-#include "extensions/browser/manifest_v2_handler.h"
+ #include "extensions/browser/path_util.h"
+ #include "extensions/browser/permissions/site_permissions_helper.h"
+ #include "extensions/browser/shared_module_service.h"
+@@ -60,7 +59,6 @@
+ #include "extensions/common/command.h"
+ #include "extensions/common/extension_features.h"
+ #include "extensions/common/extension_set.h"
+-#include "extensions/common/extension_urls.h"
+ #include "extensions/common/install_warning.h"
+ #include "extensions/common/manifest.h"
+ #include "extensions/common/manifest_handlers/background_info.h"
+@@ -897,17 +895,6 @@ void ExtensionInfoGenerator::FillExtensionInfo(const Extension& extension,
+         toolbar_actions_model->IsActionPinned(extension.id());
+   }
+ 
+-  // MV2 deprecation.
+-  ManifestV2Handler* mv2_handler = ManifestV2Handler::Get(profile);
+-  CHECK(mv2_handler);
+-  info.is_affected_by_mv2_deprecation =
+-      mv2_handler->IsExtensionAffected(extension);
+-  if (info.web_store_url.length() > 0) {
+-    info.recommendations_url =
+-        extension_urls::GetNewWebstoreItemRecommendationsUrl(extension.id())
+-            .spec();
+-  }
+-
+   info.can_upload_as_account_extension =
+       AccountExtensionTracker::Get(profile)->CanUploadAsAccountExtension(
+           extension)
+diff --git a/chrome/browser/ui/webui/extensions/extensions_ui.cc b/chrome/browser/ui/webui/extensions/extensions_ui.cc
+index 453c88c973eeed6b3b0da09010e4f0210334addb..0e5ee2897ccdaa08a31ed60ad5216f80f7c196d0 100644
+--- a/chrome/browser/ui/webui/extensions/extensions_ui.cc
++++ b/chrome/browser/ui/webui/extensions/extensions_ui.cc
+@@ -515,9 +515,7 @@ content::WebUIDataSource* CreateAndAddExtensionsSource(Profile* profile,
+       "enableUserPermittedSites",
+       base::FeatureList::IsEnabled(
+           extensions_features::kExtensionsMenuAccessControlWithPermittedSites));
+-  source->AddBoolean(
+-      "safetyHubThreeDotDetails",
+-      base::FeatureList::IsEnabled(features::kSafetyHubThreeDotDetails));
++  source->AddBoolean("safetyHubThreeDotDetails", false);
+   source->AddBoolean("enableGlobalScopedShortcuts", IsGlobalShortcutEnabled());
+ 
+   // MV2 deprecation.
+diff --git a/extensions/browser/manifest_v2_handler.cc b/extensions/browser/manifest_v2_handler.cc
+index 5841d3dfbc88884916629485c70b7c2671a6bc6b..e0fb4e06b97bcb9ea4cd886ea95a22cce919d279 100644
+--- a/extensions/browser/manifest_v2_handler.cc
++++ b/extensions/browser/manifest_v2_handler.cc
+@@ -109,12 +109,7 @@ bool ManifestV2HandlerFactory::ServiceIsCreatedWithBrowserContext() const {
+ 
+ // Returns true if legacy extensions should be disabled.
+ bool ShouldDisableLegacyExtensions() {
+-  if (g_allow_mv2_for_testing) {
+-    // We allow legacy MV2 extensions for testing purposes.
+-    return false;
+-  }
+-
+-  return true;
++  return false;
+ }
+ 
+ }  // namespace
+diff --git a/extensions/common/extension.cc b/extensions/common/extension.cc
+index 28a3cac3756c7dab50819987ab0a924678042a43..471422ff9c9e5bf5d32e355c04e03d393f6f9ba7 100644
+--- a/extensions/common/extension.cc
++++ b/extensions/common/extension.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2013 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -97,12 +97,6 @@ bool IsManifestSupported(int manifest_version,
+   // Supported versions are always safe.
+   if (manifest_version >= kMinimumSupportedManifestVersion &&
+       manifest_version <= kMaximumSupportedManifestVersion) {
+-    // Emit a warning for unpacked extensions on Manifest V2 warning that
+-    // MV2 is deprecated.
+-    if (type == Manifest::Type::kExtension && manifest_version == 2 &&
+-        Manifest::IsUnpackedLocation(location)) {
+-      *warning = errors::kManifestV2IsDeprecatedWarning;
+-    }
+     return true;
+   }
+ 

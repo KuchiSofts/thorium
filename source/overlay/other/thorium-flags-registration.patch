@@ -1,0 +1,59 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index f0f529901a3fcde87402a508a627cdfc2419be42..b712a1750e440d5968e035b38ac90f2e7e2ec2d4 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1,4 +1,4 @@
+-# Copyright 2014 The Chromium Authors
++# Copyright 2026 The Chromium Authors and Alex313031
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
+@@ -1035,6 +1035,8 @@ source_set("core") {
+     "resources_util.cc",
+     "shell_integration.cc",
+     "startup_data.cc",
++    "thorium_flag_choices.h",
++    "thorium_flag_entries.h",
+     "unexpire_flags.cc",
+     "unexpire_flags.h",
+     "universal_web_contents_observers.cc",
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index 57d883af1aa3bb572588cdb455a87c6416334fc8..9ff93419f2b9fcd6390468105ef08dcdd9d8b176 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2012 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -153,6 +153,7 @@
+ #include "components/paint_preview/buildflags/buildflags.h"
+ #include "components/paint_preview/features/features.h"
+ #include "components/password_manager/core/browser/features/password_features.h"
++#include "components/password_manager/core/browser/password_manager_switches.h"
+ #include "components/password_manager/core/common/password_manager_features.h"
+ #include "components/payments/core/features.h"
+ #include "components/performance_manager/public/features.h"
+@@ -5389,11 +5390,16 @@ constexpr char kEnterpriseIsolatedModeInternalName[] =
+     "force-enterprise-isolated-mode";
+ 
+ // When adding a new choice, add it to the end of the list.
++
++// Include Thorium flags.
++#include "chrome/browser/thorium_flag_choices.h"
++
+ const FeatureEntry kFeatureEntries[] = {
+ // Include generated flags for flag unexpiry; see //docs/flag_expiry.md and
+ // //tools/flags/generate_unexpire_flags.py.
+ #include "build/chromeos_buildflags.h"
+ #include "chrome/browser/unexpire_flags_gen.inc"
++#include "chrome/browser/thorium_flag_entries.h"
+     {switches::kEnableBenchmarking, flag_descriptions::kEnableBenchmarkingName,
+      flag_descriptions::kEnableBenchmarkingDescription, kOsAll,
+      MULTI_VALUE_TYPE(kEnableBenchmarkingChoices)},

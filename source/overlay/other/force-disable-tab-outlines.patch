@@ -1,0 +1,41 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index f5d009d36446fa5929dbf70ec3443f4410e9fc03..87defaf0d4aa135c01b23a7ca6e63b0f180097d7 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1399,8 +1399,11 @@ bool BrowserView::GetTabStripVisible() const {
+ }
+ 
+ bool BrowserView::ShouldDrawTabStrokes() const {
++  static const bool force_disable_tab_outlines =
++      base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "force-disable-tab-outlines");
+ #if BUILDFLAG(IS_CHROMEOS)
+-  return false;
++  return !force_disable_tab_outlines;
+ #else   // BUILDFLAG(IS_CHROMEOS)
+ 
+   if (web_app::AppBrowserController::From(browser()) &&
+@@ -1422,7 +1425,7 @@ bool BrowserView::ShouldDrawTabStrokes() const {
+         theme_service->UsingSystemTheme();
+   }
+ 
+-  if (!using_system_theme) {
++  if (!using_system_theme && force_disable_tab_outlines) {
+     // Strokes are only supported for system themes.
+     return false;
+   }
+@@ -1440,7 +1443,8 @@ bool BrowserView::ShouldDrawTabStrokes() const {
+       GetFrameView()->GetFrameColor(BrowserFrameActiveState::kActive);
+   const float contrast_ratio =
+       color_utils::GetContrastRatio(background_color, frame_color);
+-  return contrast_ratio < kMinimumContrastRatioForOutlines;
++  return contrast_ratio < kMinimumContrastRatioForOutlines ||
++         !force_disable_tab_outlines;
+ #endif  // !BUILDFLAG(IS_CHROMEOS)
+ }
+ 

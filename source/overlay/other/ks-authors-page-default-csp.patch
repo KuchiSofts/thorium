@@ -1,0 +1,50 @@
+Thoron: chrome://authors uses Chromium's default WebUI security policy.
+
+The Thorium credits page allowed inline scripts ('unsafe-inline') although it has no scripts, and it was
+allowed to make network requests although it only shows the bundled authors list. With this patch it
+gets Chromium's default WebUI content security policy and no network access. The page and its credits
+are unchanged.
+
+Origin: Thoron
+Author: KuchiSofts
+License: BSD-3-Clause
+
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+index 830136b6456f62ca1be5a6defa8d0b068f5be4c6..524089c3d41b132324ba4dace7d86388eed4d0d0 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+@@ -352,7 +352,6 @@ bool ChromeWebUIControllerFactory::IsWebUIAllowedToMakeNetworkRequests(
+       origin.host() == chrome::kChromeUIDownloadsHost ||
+       // https://crbug.com/376417346
+       origin.host() == chrome::kChromeUIExtensionsHost ||
+-      origin.host() == chrome::kChromeUIAuthorsHost ||
+       // https://crbug.com/509216218
+       origin.host() == chrome::kChromeUIDrivePickerHostHost;
+ }
+diff --git a/chrome/browser/ui/webui/thorium_easter_eggs.h b/chrome/browser/ui/webui/thorium_easter_eggs.h
+index 7ada13c66c574063e83bb76300c34f427bd23724..74de4b13003b4f94d78050c86b5bb432f593f370 100644
+--- a/chrome/browser/ui/webui/thorium_easter_eggs.h
++++ b/chrome/browser/ui/webui/thorium_easter_eggs.h
+@@ -24,8 +24,6 @@ class ThoriumAuthorsDataSource : public content::URLDataSource {
+   ThoriumAuthorsDataSource& operator=(const ThoriumAuthorsDataSource&) = delete;
+   std::string GetSource() override;
+   std::string GetMimeType(const GURL& url) override;
+-  std::string GetContentSecurityPolicy(
+-      network::mojom::CSPDirectiveName directive) override;
+   void StartDataRequest(const GURL& url,
+                         const content::WebContents::Getter& wc_getter,
+                         GotDataCallback callback) override;
+@@ -39,13 +37,6 @@ std::string ThoriumAuthorsDataSource::GetMimeType(const GURL& url) {
+   return "text/html";
+ }
+ 
+-std::string ThoriumAuthorsDataSource::GetContentSecurityPolicy(
+-    network::mojom::CSPDirectiveName directive) {
+-  if (directive == network::mojom::CSPDirectiveName::ScriptSrc)
+-    return "script-src 'unsafe-inline'";
+-  return std::string();
+-}
+-
+ void ThoriumAuthorsDataSource::StartDataRequest(
+     const GURL& url,
+     const content::WebContents::Getter& wc_getter,

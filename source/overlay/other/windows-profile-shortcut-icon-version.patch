@@ -1,0 +1,24 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/profiles/profile_shortcut_manager_win.cc b/chrome/browser/profiles/profile_shortcut_manager_win.cc
+index df3db71c00dbee1738718d3a434039919ddd7979..374c164adc789c518afa5c5f6ab93fc6336e0c4b 100644
+--- a/chrome/browser/profiles/profile_shortcut_manager_win.cc
++++ b/chrome/browser/profiles/profile_shortcut_manager_win.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2012 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -78,7 +78,7 @@ const int kMaxProfileShortcutFileNameLength = 64;
+ // Incrementing this number will cause profile icons to be regenerated on
+ // profile startup (it should be incremented whenever the product/avatar icons
+ // change, etc).
+-const int kCurrentProfileIconVersion = 10;
++const int kCurrentProfileIconVersion = 12;
+ 
+ bool disabled_for_unit_tests = false;
+ bool disable_unpinning_for_unit_tests = false;

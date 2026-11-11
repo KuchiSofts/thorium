@@ -1,0 +1,45 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/startup/bad_flags_prompt.cc b/chrome/browser/ui/startup/bad_flags_prompt.cc
+index 4d5f2619823d40c3e3a77c286e72f444fcf2cbad..6ad2804fdc0c07d97a72590aca135290c16369eb 100644
+--- a/chrome/browser/ui/startup/bad_flags_prompt.cc
++++ b/chrome/browser/ui/startup/bad_flags_prompt.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2012 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -119,7 +119,8 @@ const char* const kBadFlags[] = {
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+     // These flags enable extensions running scripts on chrome:// and
+     // chrome-extension:// URLs.
+-    extensions::switches::kExtensionsOnChromeURLs,
++    // Thorium permits extensions on chrome:// URLs without showing this
++    // warning.
+     extensions::switches::kExtensionsOnExtensionURLs,
+ 
+     // This flag gives the specified extension(s) access to restricted extension
+@@ -135,8 +136,8 @@ const char* const kBadFlags[] = {
+ 
+     // These flags control Blink feature state, which is not supported and is
+     // intended only for use by Chromium developers.
+-    switches::kDisableBlinkFeatures,
+-    switches::kEnableBlinkFeatures,
++    // Thorium permits explicit Blink feature overrides without showing this
++    // warning.
+ 
+     // This flag allows people to allowlist certain origins as secure, even
+     // if they are not.
+@@ -160,7 +161,7 @@ const char* const kBadFlags[] = {
+ 
+     // GPU sanboxing isn't implemented for the Web GPU API yet meaning it would
+     // be possible to read GPU data for other Chromium processes.
+-    switches::kEnableUnsafeWebGPU,
++    // Thorium permits unsafe WebGPU without showing this warning.
+ 
+ #if BUILDFLAG(IS_WIN)
+     // These flags allow loading libraries from specified paths, which may

@@ -1,0 +1,126 @@
+Thoron: About page shows the Chromium base version, the disclaimer and the release notes.
+
+Thoron versions widen Chromium's last number (patch x 100 + rebuild, see tools/release/version.py in the
+Thoron repository), so the About page also shows the Chromium version a build is based on. When
+chrome/VERSION carries THORON_REBUILD, the Chromium patch is the last number divided by 100; otherwise
+the version is shown as it is. The page also shows the disclaimer verbatim and links to the release notes.
+
+Origin: Thoron
+Author: KuchiSofts
+License: BSD-3-Clause
+
+diff --git a/chrome/app/settings_strings.grdp b/chrome/app/settings_strings.grdp
+index e1bf5d14c9fc2abfd989ad140d525f5b65c54a43..b57b5abd117e6cc83217160b82700fafb618f0f9 100644
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -59,6 +59,15 @@
+     <message name="IDS_SETTINGS_ABOUT_PAGE_LEARN_MORE_SYSTEM_REQUIREMENTS" desc="The accessibility label for a 'Learn more' link next to an error message about how the user's operating system is not supported.">
+       Learn more about system requirements
+     </message>
++    <message name="IDS_SETTINGS_ABOUT_THORON_BASED_ON" desc="About page: the Chromium version this build is based on.">
++      Based on Chromium <ph name="VERSION">$1<ex>158.0.8127.30</ex></ph>
++    </message>
++    <message name="IDS_SETTINGS_ABOUT_THORON_DISCLAIMER" desc="About page: the product disclaimer, shown verbatim." translateable="false">
++      Thoron is an independent browser by KuchiSofts, based on Thorium by Alex313031 and Chromium by The Chromium Authors. It is not affiliated with or endorsed by the Thorium project or Google.
++    </message>
++    <message name="IDS_SETTINGS_ABOUT_THORON_RELEASE_NOTES" desc="About page: link to the release notes.">
++      Release notes
++    </message>
+     <if expr="not is_chromeos">
+       <message name="IDS_SETTINGS_ABOUT_PAGE_RELAUNCH" desc="The label for the relaunch button that relaunches the browser once update is complete">
+         Relaunch
+diff --git a/chrome/browser/resources/settings/about_page/about_page.html.ts b/chrome/browser/resources/settings/about_page/about_page.html.ts
+index b9ac4e634feddf9e14a6da7c36fcb49fa143c032..da98f0e08d764dc9b2cb87449948567cda8683ac 100644
+--- a/chrome/browser/resources/settings/about_page/about_page.html.ts
++++ b/chrome/browser/resources/settings/about_page/about_page.html.ts
+@@ -56,6 +56,7 @@ export function getHtml(this: SettingsAboutPageElement) {
+       </span>
+ </if>
+       <div class="secondary">$i18n{aboutBrowserVersion}</div>
++      <div class="secondary">$i18n{aboutThoronBasedOn}</div>
+     </div>
+ <if expr="not is_chromeos">
+     <div class="separator" ?hidden="${!this.showButtonContainer_}"></div>
+@@ -110,6 +111,10 @@ export function getHtml(this: SettingsAboutPageElement) {
+     <div class="info-section">
+       <div class="secondary">$i18n{aboutProductTitle}</div>
+       <div class="secondary">$i18n{aboutProductCopyright}</div>
++      <div class="secondary">$i18n{aboutThoronDisclaimer}</div>
++      <div class="secondary">
++        <a href="$i18n{aboutThoronReleaseNotesUrl}" target="_blank">$i18n{aboutThoronReleaseNotes}</a>
++      </div>
+     </div>
+ 
+     <div class="info-section">
+diff --git a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+index c14a8b0fb5f2b4804462d61db840690e6f2644a9..56ff6c6fb5866a3ba5a43918ae41bfbf8c1f4a6f 100644
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -14,7 +14,10 @@
+ #include "base/json/json_writer.h"
+ #include "base/strings/escape.h"
+ #include "base/strings/string_number_conversions.h"
++#include "base/strings/stringprintf.h"
+ #include "base/strings/utf_string_conversions.h"
++#include "base/version.h"
++#include "base/version_info/version_info.h"
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
+ #include "build/buildflag.h"
+@@ -64,6 +67,7 @@
+ #include "chrome/browser/ui/webui/settings/reset_settings_handler.h"
+ #include "chrome/browser/ui/webui/settings/shared_settings_localized_strings_provider.h"
+ #include "chrome/browser/ui/webui/version/version_ui.h"
++#include "chrome/common/chrome_version.h"
+ #include "chrome/common/channel_info.h"
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/chrome_switches.h"
+@@ -327,6 +331,18 @@ void AddA11yStrings(content::WebUIDataSource* html_source) {
+   AddCaptionSubpageStrings(html_source);
+ }
+ 
++// Thoron: the Chromium version a build is based on (see THORON_REBUILD_STRING).
++std::string ThoronChromiumVersion() {
++  const std::string_view rebuild = THORON_REBUILD_STRING;
++  const base::Version& version = version_info::GetVersion();
++  if (rebuild.empty() || rebuild.front() == '@' || !version.IsValid() ||
++      version.components().size() != 4) {
++    return std::string(version_info::GetVersionNumber());
++  }
++  const auto& c = version.components();
++  return base::StringPrintf("%u.%u.%u.%u", c[0], c[1], c[2], c[3] / 100);
++}
++
+ void AddAboutStrings(content::WebUIDataSource* html_source, Profile* profile) {
+   // Top level About Page strings.
+   static constexpr webui::LocalizedString kLocalizedStrings[] = {
+@@ -370,6 +386,16 @@ void AddAboutStrings(content::WebUIDataSource* html_source, Profile* profile) {
+   std::u16string browser_version = VersionUI::GetAnnotatedVersionStringForUi();
+ 
+   html_source->AddString("aboutBrowserVersion", browser_version);
++  html_source->AddString(
++      "aboutThoronBasedOn",
++      l10n_util::GetStringFUTF16(IDS_SETTINGS_ABOUT_THORON_BASED_ON,
++                                 base::UTF8ToUTF16(ThoronChromiumVersion())));
++  html_source->AddLocalizedString("aboutThoronDisclaimer",
++                                  IDS_SETTINGS_ABOUT_THORON_DISCLAIMER);
++  html_source->AddLocalizedString("aboutThoronReleaseNotes",
++                                  IDS_SETTINGS_ABOUT_THORON_RELEASE_NOTES);
++  html_source->AddString("aboutThoronReleaseNotesUrl",
++                         "https://github.com/KuchiSofts/thoron/releases");
+   html_source->AddString(
+       "aboutProductCopyright",
+       base::i18n::MessageFormatter::FormatWithNumberedArgs(
+diff --git a/chrome/common/chrome_version.h.in b/chrome/common/chrome_version.h.in
+index 8449e74fa0e26f4e289c64846787222a04cbbba4..a385930efb10fd3d37d3d3a85e1be3351e54a008 100644
+--- a/chrome/common/chrome_version.h.in
++++ b/chrome/common/chrome_version.h.in
+@@ -13,6 +13,8 @@
+ #define CHROME_VERSION_MINOR @MINOR@
+ #define CHROME_VERSION_BUILD @BUILD@
+ #define CHROME_VERSION_PATCH @PATCH@
++// Thoron: the rebuild number from tools/release/version.py; left unsubstituted when unset.
++#define THORON_REBUILD_STRING "@THORON_REBUILD@"
+ 
+ // Branding Information
+ 

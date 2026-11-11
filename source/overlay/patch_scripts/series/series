@@ -1,0 +1,186 @@
+# Thorium patch series.
+#
+# Syntax:
+#   other/example.patch
+#   chromium/apply/root: other/example.patch
+#   [condition] chromium/apply/root: other/example.patch
+#
+# Patch paths are relative to the Thorium repository root. Apply roots are
+# relative to the Chromium source tree.
+
+# 05 - Child repositories and generated third_party data.
+third_party/ffmpeg: other/add-hevc-ffmpeg-decoder-parser.patch
+third_party/ffmpeg: other/add-ac3-eac3-ffmpeg-decoders.patch
+third_party/ffmpeg: other/fix-ffmpeg-android-x86-disable-hevc-nasm.patch
+third_party/ffmpeg: other/ks-ffmpeg-158-no-duplicate-bswapdsp.patch
+third_party/ffmpeg: other/ks-ffmpeg-158-hevc-x86-pred.patch
+third_party/ffmpeg: other/ffmpeg-branding.patch
+third_party/widevine: other/widevine-cdm-support.patch
+third_party/search_engines_data/resources: other/thorium-search-engines-data.patch
+third_party/zstd/src: other/zstd-clang-cl-bmi2-detection.patch
+v8: other/v8-remove-local-sse2-override.patch
+v8: other/v8-linux-snapshot-toolchain.patch
+[sse2] third_party/angle: other/SSE2/angle-lockfree.patch
+
+# 10 - Media, codecs, and third_party-facing browser glue.
+other/enable-hevc-ffmpeg-decoding.patch
+other/enable-webrtc-h265-l1t2-l1t3-by-default.patch
+other/enable-mpeg2-ac3-eac3-decoding.patch
+other/thorium-media-switches.patch
+other/widevine-cdm-prebuilt-signatures.patch
+
+# 20 - Product defaults, identity, resources, branding, and browser preferences.
+other/thorium-default-api-keys.patch
+other/disable-fetching-field-trials.patch
+other/thorium-blink-feature-defaults.patch
+other/allow-webaudio-autoplay.patch
+other/enable-saving-pages-from-all-schemes.patch
+other/content-gpu-vaapi-libva-config.patch
+other/thorium-content-shell-branding.patch
+other/thorium-common-branding-paths.patch
+other/thorium-startup-logging.patch
+other/thorium-app-metadata-branding.patch
+other/thorium-theme-resources.patch
+other/thorium-app-vector-icons.patch
+other/preinstall-ublock-origin.patch
+other/bookmark-default-prefs.patch
+other/bookmark-dialog-default-folder.patch
+other/increase-bookmark-open-prompt-threshold.patch
+other/thorium-browser-ui-default-prefs.patch
+other/tab-strip-combo-button-position.patch
+other/dom-distiller-reader-mode.patch
+
+# 30 - Build graph, toolchain, and platform build behavior.
+other/thorium-root-build-targets.patch
+other/thorium-chrome-build-targets.patch
+other/thorium-build-config-and-simd.patch
+other/enable-xnnpack-arm-fp16-vector.patch
+other/thorium-build-platform-tools.patch
+other/llvm-optimized-toolchain-build.patch
+
+# 40 - Linux/platform integration, UI debug tools, and shared resource branding.
+other/linux-disable-custom-titlebar-default.patch
+other/linux-obsolete-system-policy.patch
+other/linux-memory-details-branding.patch
+other/linux-shell-integration-branding.patch
+other/thorium-linux-installer-packaging.patch
+other/thorium-ui-debug-shell.patch
+other/thorium-webui-image-resources.patch
+other/thorium-browser-resource-branding.patch
+
+# 50 - UI defaults, flags, WebUI, policy, FTP, and broad UI restoration.
+other/omnibox-search-engine-icon-branding.patch
+other/relax-bad-flags-warning.patch
+other/disable-startup-warning-infobars.patch
+other/disable-default-browser-prompt.patch
+other/thorium-chrome-urls-page.patch
+other/thorium-flags-registration.patch
+other/thorium-internal-url-scheme-alias.patch
+other/thorium-internal-url-scheme-branding.patch
+other/thorium-flags-page-branding.patch
+other/thorium-version-page-branding.patch
+other/thorium-vector-icons.patch
+other/thorium-views-vector-icons.patch
+other/thorium-app-menu-icons.patch
+other/prevent-url-elisions-by-default.patch
+other/disable-ai-entrypoints-by-default.patch
+other/enable-chrome-labs-by-default.patch
+other/enable-whats-new-by-default.patch
+other/fix-policy-templates.patch
+other/ftp-support-thorium.patch
+other/ks-native-gpc.patch
+other/add-flag-for-close-confirmation.patch
+other/thorium-debug-mode.patch
+other/thorium-first-run-welcome.patch
+other/thorium-first-run-branding.patch
+other/disable-middle-click-paste-with-autoscroll.patch
+other/views-menu-delay.patch
+other/new-tab-to-left-context-menu.patch
+other/status-bubble-instant-expand.patch
+other/enable-sharing-hub-page-action.patch
+other/thorium-2024-ui-core.patch
+other/thorium-2024-menu-interactions.patch
+other/custom-tab-width.patch
+other/expand-chrome-color-choices.patch
+other/classic-omnibox.patch
+other/rectangular-tabs.patch
+other/prominent-active-tab-titles.patch
+other/toolbar-avatar-button-visibility.patch
+other/restore-tab-button.patch
+other/thorium-chrome-labs-experiments.patch
+other/add-flag-for-system-linux-theme.patch
+other/restore_download_shelf.patch
+other/downloads-page-enhancements.patch
+
+# 60 - Installer, shell integration, and context-menu behavior.
+other/mini_installer.patch
+other/open_in_same_tab.patch
+other/windows-thorium-flags-conf.patch
+
+# 70 - User-facing flags, defaults, download/security behavior, and ThoriumOS.
+other/add-flag-to-close-window-with-last-tab.patch
+other/add-flag-to-scroll-tabs.patch
+other/add-flag-for-double-click-close-tab.patch
+other/add-flag-for-right-click-close-tab.patch
+other/add-flag-for-hover-activate-tab.patch
+other/add-flag-for-open-bookmarks-in-new-tab.patch
+other/add-flag-for-open-omnibox-url-in-new-tab.patch
+other/disable-qr-code-generator.patch
+other/hide-cast-context-menu.patch
+other/add-flag-for-incognito-themes.patch
+other/add-flag-to-hide-extensions-menu.patch
+other/add-flag-to-hide-tab-close-buttons.patch
+other/add-flag-for-custom-ntp.patch
+other/add-flag-for-tab-hover-cards.patch
+other/force-disable-tab-outlines.patch
+other/quiet-notification-defaults.patch
+other/secure-doh-without-system-dns-config.patch
+other/keep-doh-enabled-on-managed-devices.patch
+other/add-flag-for-encrypted-client-hello.patch
+other/reduce-doh-request-headers.patch
+other/disable-alternate-error-pages-by-default.patch
+other/add-flag-to-keep-all-history.patch
+other/add-flag-to-clear-data-on-exit.patch
+other/enable-parallel-downloading-by-default.patch
+other/disable-background-mode-by-default.patch
+other/thorium-dino-game.patch
+other/allow-insecure-downloads.patch
+other/disable-download-quarantine.patch
+other/notify-shell-after-download-complete.patch
+other/disable-vulkan-gpu-log-warnings.patch
+other/thorium-sandbox-compat.patch
+other/thoriumos-ash-vector-icons.patch
+other/thoriumos-help-app-discovery.patch
+other/thoriumos-sample-system-web-app.patch
+other/thoriumos-disable-stats-reporting.patch
+other/disable-thorium-icons.patch
+other/always-enable-reload-menu.patch
+
+# 80 - Extensions, privacy, install branding, and late platform overlays.
+other/allow_manifest_v2_extensions.patch
+other/increase-dnr-limits.patch
+other/show-hosted-apps-in-extensions.patch
+other/thorium_webui.patch
+other/keyboard_shortcuts.patch
+other/keep-expired-flags.patch
+other/disable-privacy-sandbox.patch
+other/disable-encryption.patch
+other/disable-feature-promos.patch
+other/thorium-install-static-branding.patch
+other/windows-chrome-proxy-branding.patch
+other/windows-profile-shortcut-icon-version.patch
+other/disable-aero.patch
+other/android-disable-signin-without-account-manager.patch
+other/add-quick-extension-toggle-menu.patch
+other/developer-crx-installation.patch
+
+other/ks-remove-easter-egg-pages.patch
+other/ks-authors-page-default-csp.patch
+other/ks-security-flag-warnings.patch
+other/ks-about-page.patch
+other/ks-native-adblock-crates.patch
+other/ks-native-adblock-engine.patch
+other/ks-native-adblock-hook.patch
+# 95 - Conditional / platform-specific overlays that are still active.
+[raspi] other/linux-widevine-cdm-locations.patch
+[raspi] other/raspi-netflix-chromeos-ua.patch

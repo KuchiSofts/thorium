@@ -1,0 +1,24 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/chrome_proxy/chrome_proxy_main_win.cc b/chrome/chrome_proxy/chrome_proxy_main_win.cc
+index 776f544e4630a65d74bc81b50c6e08dad6f43818..200df3382873579015cd3e5aebf2b63c19014973 100644
+--- a/chrome/chrome_proxy/chrome_proxy_main_win.cc
++++ b/chrome/chrome_proxy/chrome_proxy_main_win.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2018 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -15,7 +15,7 @@
+ namespace {
+ 
+ constexpr base::FilePath::CharType kChromeExecutable[] =
+-    FILE_PATH_LITERAL("chrome.exe");
++    FILE_PATH_LITERAL("thorium.exe");
+ 
+ constexpr base::FilePath::CharType kChromeProxyExecutable[] =
+     FILE_PATH_LITERAL("chrome_proxy.exe");

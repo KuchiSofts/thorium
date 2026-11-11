@@ -1,0 +1,44 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/ui/views/controls/menu/menu_config_mac.mm b/ui/views/controls/menu/menu_config_mac.mm
+index a4c8e33535fc92df39b6a0c299adcdb6c9599eb5..d417a6a51fe53c801f858b76535977dc8cf94354 100644
+--- a/ui/views/controls/menu/menu_config_mac.mm
++++ b/ui/views/controls/menu/menu_config_mac.mm
+@@ -38,9 +38,9 @@ void MenuConfig::InitPlatform() {
+         new gfx::PlatformFontMac(gfx::PlatformFontMac::SystemFontType::kMenu)));
+   }
+   check_selected_combobox_item = true;
+-  arrow_key_selection_wraps = false;
++  arrow_key_selection_wraps = thorium_2024;
+   use_mnemonics = false;
+-  show_context_menu_accelerators = false;
++  show_context_menu_accelerators = thorium_2024;
+   all_menus_use_prefix_selection = true;
+   if (thorium_2024) {
+     menu_horizontal_border_size = 1;
+diff --git a/ui/views/controls/menu/menu_config_win.cc b/ui/views/controls/menu/menu_config_win.cc
+index 0ecd33a3af66e0b1c115097ec964abc7b5fa522b..0aa697edaf2a683de63f8c00b53234c5e2682a62 100644
+--- a/ui/views/controls/menu/menu_config_win.cc
++++ b/ui/views/controls/menu/menu_config_win.cc
+@@ -20,10 +20,14 @@ void MenuConfig::InitPlatform() {
+ 
+   const bool thorium_2024 = features::IsThorium2024();
+ 
+-  BOOL show_cues;
+-  show_mnemonics =
+-      (SystemParametersInfo(SPI_GETKEYBOARDCUES, 0, &show_cues, 0) &&
+-       show_cues == TRUE);
++  if (thorium_2024) {
++    show_mnemonics = true;
++  } else {
++    BOOL show_cues;
++    show_mnemonics =
++        (SystemParametersInfo(SPI_GETKEYBOARDCUES, 0, &show_cues, 0) &&
++         show_cues == TRUE);
++  }
+ 
+   SystemParametersInfo(SPI_GETMENUSHOWDELAY, 0, &show_delay, 0);
+   static const bool is_win11 =

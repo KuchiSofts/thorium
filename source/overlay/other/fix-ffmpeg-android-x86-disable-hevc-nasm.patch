@@ -1,0 +1,44 @@
+Origin: enable-chromium-hevc-hardware-decoding (StaZhu), Thorium
+Author: enable-chromium-hevc-hardware-decoding (StaZhu), Thorium
+License: MIT AND BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/ffmpeg_generated.gni b/ffmpeg_generated.gni
+index 515a79a7b81c526470c30495e3c8f97ab28e5abf..982aa92afcbcd2e0423b25712c424774f62eb7c0 100644
+--- a/ffmpeg_generated.gni
++++ b/ffmpeg_generated.gni
+@@ -387,19 +387,21 @@ if ((current_cpu == "x64" && ffmpeg_branding == "Chrome") ||
+     "libavcodec/x86/ac3dsp_init.c",
+   ]
+ 
+-  ffmpeg_asm_sources += [
+-    "libavcodec/x86/bswapdsp.asm",
+-    "libavcodec/x86/hevc/add_res.asm",
+-    "libavcodec/x86/hevc/deblock.asm",
+-    "libavcodec/x86/hevc/dequant.asm",
+-    "libavcodec/x86/hevc/idct.asm",
+-    "libavcodec/x86/hevc/mc.asm",
+-    "libavcodec/x86/hevc/sao.asm",
+-    "libavcodec/x86/hevc/sao_10bit.asm",
+-    "libavcodec/x86/h26x/h2656_inter.asm",
+-    "libavcodec/x86/ac3dsp.asm",
+-    "libavcodec/x86/ac3dsp_downmix.asm",
+-  ]
++  if (!(is_android && current_cpu == "x86")) {
++    ffmpeg_asm_sources += [
++      "libavcodec/x86/bswapdsp.asm",
++      "libavcodec/x86/hevc/add_res.asm",
++      "libavcodec/x86/hevc/deblock.asm",
++      "libavcodec/x86/hevc/dequant.asm",
++      "libavcodec/x86/hevc/idct.asm",
++      "libavcodec/x86/hevc/mc.asm",
++      "libavcodec/x86/hevc/sao.asm",
++      "libavcodec/x86/hevc/sao_10bit.asm",
++      "libavcodec/x86/h26x/h2656_inter.asm",
++      "libavcodec/x86/ac3dsp.asm",
++      "libavcodec/x86/ac3dsp_downmix.asm",
++    ]
++  }
+ 
+   ffmpeg_c_sources += [
+     "libavcodec/x86/autorename_libavcodec_x86_aacpsdsp_init.c",

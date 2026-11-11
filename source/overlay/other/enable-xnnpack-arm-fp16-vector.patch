@@ -1,0 +1,18 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/third_party/xnnpack/build_defs.gni b/third_party/xnnpack/build_defs.gni
+index f12e9c7714e31f183317dabeb16098099331b5e6..d3ac4c29feda116bbb491edf6312fcc4f5028d11 100644
+--- a/third_party/xnnpack/build_defs.gni
++++ b/third_party/xnnpack/build_defs.gni
+@@ -16,7 +16,7 @@ xnn_defines = [
+   "XNN_ENABLE_SSSE3=1",
+   "XNN_ENABLE_SSE41=1",
+   "XNN_ENABLE_ARM_FP16_SCALAR=0",
+-  "XNN_ENABLE_ARM_FP16_VECTOR=0",
++  "XNN_ENABLE_ARM_FP16_VECTOR=1",
+   "XNN_ENABLE_ARM_BF16=0",
+ ]
+ 

@@ -1,0 +1,81 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index e5002d5996a0c1061eb8ff7985c256079ccac343..694f60ad604933cb33d6a7167d41278270e88a05 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -419,6 +419,7 @@
+ #include "mojo/public/cpp/bindings/remote.h"
+ #include "net/base/data_url.h"
+ #include "net/base/features.h"
++#include "net/base/switches.h"
+ #include "net/base/url_util.h"
+ #include "net/cookies/cookie_setting_override.h"
+ #include "net/cookies/site_for_cookies.h"
+@@ -3303,6 +3304,12 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
+ 
+     command_line->CopySwitchesFrom(browser_command_line, kSwitchNames);
+ #endif
++    static const char* const kThoriumNetworkSwitchNames[] = {
++        net::switches::kDisableThoriumDohWithoutSystemConfig,
++    };
++    command_line->CopySwitchesFrom(browser_command_line,
++                                   kThoriumNetworkSwitchNames);
++
+     MaybeAppendSecureOriginsAllowlistSwitch(command_line);
+   } else if (process_type == switches::kZygoteProcess) {
+ #if BUILDFLAG(IS_CHROMEOS)
+diff --git a/net/base/switches.h b/net/base/switches.h
+index 6c919002d24e908de5da85757c5e432cc9624fb1..d6c114bcbcfe8463bb220e05966c347196ad3bc9 100644
+--- a/net/base/switches.h
++++ b/net/base/switches.h
+@@ -9,6 +9,9 @@
+ 
+ namespace net::switches {
+ 
++inline constexpr char kDisableThoriumDohWithoutSystemConfig[] =
++    "disable-thorium-dns-config";
++
+ inline constexpr char kLogNetLog[] = "log-net-log";
+ inline constexpr char kUnsafelyTreatInsecureOriginAsSecure[] =
+     "unsafely-treat-insecure-origin-as-secure";
+diff --git a/net/dns/dns_client.cc b/net/dns/dns_client.cc
+index cc88bf4e53621044adeb85924b1708fdbb99b65f..d061265bd06d85909d565e0a0c397b5a6168a09c 100644
+--- a/net/dns/dns_client.cc
++++ b/net/dns/dns_client.cc
+@@ -10,6 +10,7 @@
+ #include <string>
+ #include <utility>
+ 
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/logging.h"
+@@ -22,6 +23,7 @@
+ #include "net/base/features.h"
+ #include "net/base/ip_address.h"
+ #include "net/base/ip_endpoint.h"
++#include "net/base/switches.h"
+ #include "net/dns/address_sorter.h"
+ #include "net/dns/dns_session.h"
+ #include "net/dns/dns_transaction.h"
+@@ -363,6 +365,16 @@ class DnsClientImpl : public DnsClient {
+     DnsConfig config;
+     if (config_overrides_.OverridesEverything()) {
+       config = config_overrides_.ApplyOverrides(DnsConfig());
++    } else if (!system_config_ &&
++               base::CommandLine::ForCurrentProcess()->HasSwitch(
++                   switches::kDisableThoriumDohWithoutSystemConfig) &&
++               config_overrides_.dns_over_https_config &&
++               !config_overrides_.dns_over_https_config->servers().empty() &&
++               config_overrides_.secure_dns_mode == SecureDnsMode::kSecure) {
++      // Chromium supports DoH overrides without a system DNS configuration.
++      // Keep Thorium's escape hatch for this explicit Secure DoH fallback.
++      // An empty config has no DoH servers and disables secure transactions.
++      return DnsConfig();
+     } else {
+       config = config_overrides_.ApplyOverrides(
+           system_config_.value_or(DnsConfig()));

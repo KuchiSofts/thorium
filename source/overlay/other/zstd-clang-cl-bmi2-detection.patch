@@ -1,0 +1,18 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/lib/common/portability_macros.h b/lib/common/portability_macros.h
+index bcca634e4192c800333871de7951a9ce8dbcc275..869beaf63e2a83892f5db12a9de26fc189e5fc1f 100644
+--- a/lib/common/portability_macros.h
++++ b/lib/common/portability_macros.h
+@@ -78,7 +78,7 @@
+ #ifndef STATIC_BMI2
+ #  if defined(__BMI2__)
+ #    define STATIC_BMI2 1
+-#  elif defined(_MSC_VER) && defined(__AVX2__)
++#  elif defined(_MSC_VER) && !defined(__clang__) && defined(__AVX2__)
+ #    define STATIC_BMI2 1 /* MSVC does not have a BMI2 specific flag, but every CPU that supports AVX2 also supports BMI2 */
+ #  endif
+ #endif

@@ -1,0 +1,23 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/ui/views/BUILD.gn b/ui/views/BUILD.gn
+index a07afd253b13bc63d8061a4aa6cfcd4577ebbbd7..1d1825931e0e0996267663116c1ed580adbf76b7 100644
+--- a/ui/views/BUILD.gn
++++ b/ui/views/BUILD.gn
+@@ -86,6 +86,13 @@ aggregate_vector_icons("views_vector_icons") {
+     "visibility_off.icon",
+     "visibility_off_filled.icon",
+   ]
++
++  if (is_thorium_build) {
++    sources += [
++      "thorium/arrow_drop_down_thorium.icon",
++      "new_incognito_window_old_thorium.icon",
++    ]
++  }
+ }
+ 
+ generate_allowlist_from_histograms_file("bubble_histograms_variant") {

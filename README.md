@@ -4,11 +4,11 @@
 
 # Thoron
 
-**A fast, secure, Thorium-based browser for Windows 11 and Ubuntu.**
+**A fast, secure and private browser for Windows, based on Thorium and Chromium.**
 
-[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-35%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
+[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-33%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%20first-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
 
-[Why Thoron](#why-thoron) · [Features](#features) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits)
+[Why Thoron](#why-thoron) · [Features](#features) · [Install and update](#install-and-update) · [Versions](#versions) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits) · [Wiki](https://github.com/KuchiSofts/thoron/wiki)
 
 </div>
 
@@ -42,32 +42,55 @@ Thoron is in active development. These are the headline features on the roadmap:
 
 | Feature | What it does | Phase |
 |---|---|---|
-| **Smart updater** | Small delta downloads for installed **and** portable copies, staged in the background, applied on relaunch, with one-step rollback. Full installers stay available. | [P3](ROADMAP.md#p3---updater-v1--import) · [P4](ROADMAP.md#p4---updater-v2) |
+| **Updates itself** | The browser checks for a new release, verifies its signature, installs it and asks for one relaunch. Your data is never touched. Smaller delta downloads, portable copies and one-step rollback follow. | [P3](ROADMAP.md#p3---updater-v1--import) · [P4](ROADMAP.md#p4---updater-v2) |
+| **One installer for good** | A small `ThoronSetup.exe` that always installs the newest release, so one download link stays valid. The full installer is in every release too. | [P3](ROADMAP.md#p3---updater-v1--import) |
 | **Import from your browser** | Brings over **open tabs and tab groups** (names, colours, pinned tabs), bookmarks, history, passwords, settings and extensions from Thorium, Chrome, Edge, Brave, Vivaldi, Opera and later Firefox. Your old browser is never modified. | [P3](ROADMAP.md#p3---updater-v1--import) |
+| **A first run that moves you in** | On first start Thoron offers to import from the browsers it finds and to become your default browser. Both are offers: nothing is taken over silently. | [P3](ROADMAP.md#p3---updater-v1--import) |
 | **Built-in ad blocking** | Today: the genuine, unmodified uBlock Origin, pinned and signature-verified. Being built: a blocker inside the browser itself that reads the same lists and replaces it. It already measures faster and lighter than uBlock Origin with the same blocking, and stays off by default until its last correctness checks are done. To try it, turn on "Built-in ad blocking" at `chrome://flags/#thoron-native-adblock` (and turn uBlock Origin off, or both do the same work). | [P5](ROADMAP.md#p5---quality) |
 | **Protected portable mode** | Saved passwords and cookies in the portable version are encrypted with your passphrase, so they work on any PC and stay safe if the folder is lost. | [P4](ROADMAP.md#p4---updater-v2) |
 | **Right build, automatically** | The installer picks the fastest build your CPU supports (AVX2, SSE4 or ARM64). | [P4](ROADMAP.md#p4---updater-v2) |
 | **Measured performance** | Every release is benchmarked (Speedometer, JetStream, MotionMark, startup, memory, idle CPU). A regression blocks the release. | [Q track](ROADMAP.md#quality--performance-q) |
+
+## Install and update
+
+There is no public release yet. The first one is **Thoron 0.1.1 for Windows x64**; what is left before it
+is listed at the top of the [roadmap](ROADMAP.md#now-the-road-to-thoron-011-windows-x64).
+
+From that release on:
+
+- **Install:** download `ThoronSetup.exe` from the newest
+  [release](https://github.com/KuchiSofts/thoron/releases) and run it. It installs for your user account,
+  without administrator rights, and offers to import from your other browser.
+- **Update:** nothing to do. Thoron updates itself and asks for one relaunch. You can also look for an
+  update on the About page, or turn automatic updates off.
+- **Your data:** an update only replaces the program. Bookmarks, passwords, history, tabs and extensions
+  are never deleted, moved or changed by it.
+
+## Versions
+
+Thoron has its own version numbers, `0.MINOR.PATCH`, starting at **0.1.1**. Every release gets the next
+one. The About page shows the Thoron version and, below it, the Chromium version it is built on. What
+changed in each version is in the [changelog](CHANGELOG.md), one line per change.
 
 ## Roadmap
 
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `███████░░░░░░░░░░░░░` 52 of 150 tasks done (35%) · roadmap updated 2026-11-08
+**Overall:** `███████░░░░░░░░░░░░░` 52 of 158 tasks done (33%) · roadmap updated 2026-11-12
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
 | [P0 - Foundation](ROADMAP.md#p0---foundation) | `████████████████████` | 11/11 | ✅ Done |
 | [P1 - Build environment](ROADMAP.md#p1---build-environment) | `██████████████████░░` | 9/10 | 🔄 In progress |
-| [P2 - First release](ROADMAP.md#p2---first-release) | `████░░░░░░░░░░░░░░░░` | 5/23 | 🔄 In progress |
+| [P2 - First release](ROADMAP.md#p2---first-release) | `████░░░░░░░░░░░░░░░░` | 5/26 | 🔄 In progress |
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
-| [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
+| [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/21 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
 | [P5 - Quality](ROADMAP.md#p5---quality) | `████████░░░░░░░░░░░░` | 11/29 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `██████████░░░░░░░░░░` | 8/16 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
-| [Docs (D)](ROADMAP.md#docs-d) | `██████████░░░░░░░░░░` | 4/8 | 🔄 In progress |
+| [Docs (D)](ROADMAP.md#docs-d) | `████████░░░░░░░░░░░░` | 4/10 | 🔄 In progress |
 | [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `██░░░░░░░░░░░░░░░░░░` | 1/8 | 🔄 In progress |
 | [Branding (B)](ROADMAP.md#branding-b) | `██████████░░░░░░░░░░` | 2/4 | 🔄 In progress |
 
@@ -135,6 +158,9 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P2.21** Linux program and package names: `thoron` instead of `thorium` for the binary, the `.deb`/`.rpm` packages, the `.desktop` file and the icons; the developer test shell and the prebuilt `pak` tool are not packaged
 - [ ] **P2.22** Linux dark mode on 158: check whether Chromium 158 follows a GTK theme switch on its own; if not, write Thoron's own fix (the Thorium patch was not carried over, see `docs/build/M158_REBASE.md`)
 - [ ] **P2.23** Check the hand-ported UI patches in a running 158 build: tab search button on the right (default) and on the left (flag), Thorium 2024 UI, classic omnibox, rectangular tabs, custom tab width, open link in this tab
+- [ ] **P2.24** Thoron's own version: `0.MINOR.PATCH`, starting at 0.1.1, shown on the About page, in `chrome://version`, in the installer and as the release tag (`v0.1.1`); the release script gives every release the next number by itself; the four-part build version stays Chromium-based (`158.0.8127.<n>`), because websites, extensions, Chromium's component updates and the installer's upgrade order rely on it
+- [ ] **P2.25** The browser's source in `main`: the patch series for Chromium 158 was only on the build machine; publish it as an overlay on a pinned upstream commit, so that `main` holds everything a release is built from and nothing else
+- [ ] **P2.26** Repository hygiene and protection
 
 **P2b - ARM64**
 
@@ -164,6 +190,9 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P3.16** Linux keyring check: Thoron keeps the `Chromium Safe Storage` entry that Thorium uses, so no key migration is needed; prove it on import
 - [ ] **P3.17** Guided Chrome password import (Chrome's own CSV export → import → secure delete); never bypasses app-bound encryption
 - [ ] **P3.18** Import report (counts per type, what was skipped and why; no secrets)
+- [ ] **P3.19** One installer for good, `ThoronSetup.exe`: a small program that never changes with a release; it reads the signed update manifest, downloads the newest full installer, checks the signature and the SHA-256, and runs it
+- [ ] **P3.20** Updates from inside the browser, Windows: a check on a schedule and from the About page, the signed manifest (P3.3), a verified download (P3.4), then Chromium's own installer applies the new version while the browser runs and the About page offers to relaunch; `User Data` is never opened by the update
+- [ ] **P3.21** First run on Windows: offers to import from the browsers it finds (P3.13, P3.14) and to make Thoron the default browser for web links and for the file types a browser opens; where Windows wants the person to confirm, it opens Windows' own page for it and takes nothing over silently
 
 **P4 - Updater v2**
 
@@ -228,7 +257,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **S.13** Inherited history cleaned: three inappropriate image files that upstream added in 2023 and later deleted were purged from every commit; the current tree is unchanged; they were verified absent from the M150 browser build
 - [ ] **S.14** Safe Browsing decision: without Google API keys the built-in Safe Browsing cannot query Google; choose between a key-free setup, another provider, or Google's service with the user's consent, and measure what it contacts
 - [ ] **S.15** Turn off the Google contacts a fresh profile makes without need: optimization guide hints (`optimizationguide-pa.googleapis.com`), Google sign-in checks (`accounts.google.com`) and the `www.google.com` requests, measured in `docs/security/NETWORK.md`
-- [ ] **S.16** Chromium's Gemini plumbing ("Glic") in a browser that cannot use it: Chromium 158 registers its internal "Gemini in Chrome" component extension in every profile it opens and shows "AI innovations" in Settings, although Gemini needs a Google sign-in in the browser, which Thoron does not offer (it is built without Google API keys); turn the feature and its component off by default, so that nothing of it is loaded or shown
+- [ ] **S.16** Chromium's Gemini plumbing ("Glic") in a browser that cannot use it: Chromium 158 registers its internal "Gemini in Chrome" component extension in every profile it opens and shows "AI innovations" in Settings, a feature Thoron does not want: Gemini works for a Google account signed in to the browser, which the Google credentials inherited from upstream still allow (L.8); turn the feature and its component off by default, so that nothing of it is loaded or shown
 
 **Quality & performance (Q)**
 
@@ -250,6 +279,8 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **D.6** Repository identity: renamed to `KuchiSofts/thoron` with Thoron description and topics; the owner asks GitHub Support to detach it from the Thorium fork network and to remove cached views and old pull-request references to purged history
 - [x] **D.7** README shows the live roadmap: overall progress, per-phase bars, what's next and the full task list, generated from this file by `tools/docs/roadmap_progress.py`; `check_docs` fails if it is stale, and validates every heading anchor
 - [x] **D.8** Repository cleanup: remove the unused upstream Thorium M138 tree from `main` (sources, logos, infra, old build scripts, submodules, old docs, about 1,500 files) so `main` holds only Thoron's own work; keep Thorium's M138 `PATCHES.md` and README as licence evidence; drop the upstream Sponsor button; Thoron issue templates
+- [ ] **D.9** Project wiki: what Thoron is, install, update, import, privacy and security, versions, building, questions and answers; updated with every release
+- [ ] **D.10** Short changelog: one line per change under Added, Changed, Fixed, Removed and Security, per Thoron version; the long explanations stay in the design docs
 
 **Legal & licensing (L)**
 
@@ -260,7 +291,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **L.5** Name and logo check: "Thoron" in trademark registries and existing software in target markets; logo similarity to other browser marks (for example Chrome's three-segment logo)
 - [x] **L.6** No prebuilt or proprietary binaries in the repository: removed the Widevine CDM (Google proprietary, no redistribution right), Flash Player (Adobe, end-of-life), `shc`-compiled launchers whose embedded script cannot be verified, and prebuilt tools and packages; `tools/audit/binary_policy.py` enforces it
 - [ ] **L.7** Remove those binaries from the repository's git history as well, and include them in the GitHub Support cache request (D.6)
-- [ ] **L.8** Google API keys and OAuth credentials compiled in by upstream's `thorium-default-api-keys.patch` belong to Google and other projects; decide before the first release whether Thoron ships without them (Google sync, sign-in, translation and Safe Browsing then off, see S.14) or with keys of its own; kept for now by the owner's decision (2026-11-09)
+- [ ] **L.8** Google API keys and OAuth credentials compiled in by upstream's `thorium-default-api-keys.patch` belong to Google and other projects; decide before the first release whether Thoron ships without them (Google sync, sign-in, translation and Safe Browsing then off, see S.14) or with keys of its own; kept for now by the owner's decision (2026-11-09); the patch that carries them is withheld from `source/` (P2.25), so the repository does not publish them
 
 **Branding (B)**
 
@@ -274,12 +305,13 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 
 ## Platforms
 
-| OS | CPUs | Packages |
+| Platform | When | Packages |
 |---|---|---|
-| Windows 11 | x64 (AMD, Intel), ARM64 | installer `.exe`, portable `.zip` |
-| Ubuntu 24.04 / 26.04 LTS | x64 (AMD, Intel), ARM64 | `.deb` via a signed APT repository, portable `.tar.xz` |
+| Windows 11 x64 (AMD, Intel) | first | `ThoronSetup.exe`, full installer |
+| Windows 11 ARM64 | later | installer, portable `.zip` |
+| Ubuntu 24.04 / 26.04 LTS, x64 and ARM64 | later | `.deb` via a signed APT repository, portable `.tar.xz` |
 
-ARM64 builds stay labelled *beta* until they have been tested on real devices.
+Windows comes first. ARM64 builds stay labelled *beta* until they have been tested on real devices.
 
 ## Verifying downloads
 

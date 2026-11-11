@@ -1,0 +1,315 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/extensions/preinstalled_extensions.cc b/chrome/browser/extensions/preinstalled_extensions.cc
+index f0c36044ef5f5f553d9f8d4eb04b6ce323800d29..b079e73c37f2d63ac719a48eccf185d7001767ac 100644
+--- a/chrome/browser/extensions/preinstalled_extensions.cc
++++ b/chrome/browser/extensions/preinstalled_extensions.cc
+@@ -11,14 +11,18 @@
+ #include <set>
+ #include <string>
+ 
++#include "base/files/file_util.h"
++#include "base/functional/bind.h"
+ #include "base/no_destructor.h"
+ #include "base/strings/string_util.h"
++#include "base/task/thread_pool.h"
+ #include "build/branding_buildflags.h"
+ #include "chrome/browser/extensions/external_loader.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "chrome/common/extensions/extension_constants.h"
+ #include "chrome/common/pref_names.h"
++#include "chrome/grit/component_extension_resources.h"
+ #include "components/pref_registry/pref_registry_syncable.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/version_info/version_info.h"
+@@ -28,6 +32,7 @@
+ #include "extensions/common/extension.h"
+ #include "extensions/common/extension_urls.h"
+ #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
++#include "ui/base/resource/resource_bundle.h"
+ 
+ #if BUILDFLAG(ENABLE_PLATFORM_APPS)
+ #include "chrome/browser/web_applications/preinstalled_app_install_features.h"
+@@ -40,6 +45,25 @@ namespace {
+ 
+ using extensions::mojom::ManifestLocation;
+ 
++// The upstream GitHub CRX has its own signing key, distinct from the CWS ID.
++constexpr char kUBlockOriginExtensionId[] = "fkgkibajhfbepljeaefdnfnegdcjomkh";
++constexpr char kUBlockOriginVersion[] = "1.75.0";
++
++// Keep the source in the profile: the external installer reads it
++// asynchronously. The signed CRX is verified by the normal external-file
++// installation path.
++base::FilePath WriteUBlockOriginCrx(base::FilePath profile_path,
++                                    std::string crx_data) {
++  const base::FilePath directory =
++      profile_path.AppendASCII("Preinstalled Extensions");
++  const base::FilePath path = directory.AppendASCII("uBlock0_1.75.0.crx");
++  if (crx_data.empty() || !base::CreateDirectory(directory) ||
++      !base::WriteFile(path, crx_data)) {
++    return base::FilePath();
++  }
++  return path;
++}
++
+ #if BUILDFLAG(ENABLE_PLATFORM_APPS)
+ // Returns true if the app was a pre-installed app in Chrome 22
+ bool IsOldPreinstalledApp(const std::string& extension_id) {
+@@ -105,16 +129,13 @@ bool Provider::DidPerformNewInstallationForProfile(Profile* profile) {
+ void Provider::InitProfileState() {
+   // We decide to install or not install pre-installed extensions based on the
+   // following criteria, from highest priority to lowest priority:
+-  //
+-  // - If the locale is not compatible with the pre-installed extensions, don't
+-  //   install them.
+   // - The kPreinstalledExtensions preferences value in the profile.  This
+   //   value is usually set in the master_preferences file.
+   // - If they have already been installed, don't reinstall them.
+ 
+   preinstalled_extensions_enabled_ =
+-      IsLocaleSupported() && profile_->GetPrefs()->GetString(
+-                                 prefs::kPreinstalledExtensions) == "install";
++      profile_->GetPrefs()->GetString(prefs::kPreinstalledExtensions) ==
++      "install";
+   CHECK(!perform_new_installation_, base::NotFatalUntil::M161);
+ 
+   InstallState state =
+@@ -170,12 +191,13 @@ Provider::Provider(Profile* profile,
+                    extensions::mojom::ManifestLocation crx_location,
+                    extensions::mojom::ManifestLocation download_location,
+                    int creation_flags)
+-    : extensions::ExternalProviderImpl(service,
+-                                       base::MakeRefCounted<NullLoader>(),
+-                                       profile,
+-                                       crx_location,
+-                                       download_location,
+-                                       creation_flags),
++    : extensions::ExternalProviderImpl(
++          service,
++          base::MakeRefCounted<NullLoader>(),
++          profile,
++          crx_location,
++          download_location,
++          creation_flags & ~extensions::Extension::FROM_WEBSTORE),
+       profile_(profile) {
+   CHECK(profile, base::NotFatalUntil::M161);
+   // See SetPrefs() below.
+@@ -185,6 +207,8 @@ Provider::Provider(Profile* profile,
+   InitProfileState();
+ }
+ 
++Provider::~Provider() = default;
++
+ void Provider::VisitRegisteredExtension() {
+   if (!preinstalled_extensions_enabled_) {
+     // If pre-installed apps aren't enabled for the profile, we short-circuit
+@@ -199,12 +223,22 @@ void Provider::VisitRegisteredExtension() {
+ void Provider::SetPrefs(base::DictValue prefs) {
+   CHECK(preinstalled_extensions_enabled_, base::NotFatalUntil::M161);
+ 
++  // Locale restrictions apply only to Chromium's store-provided entries.
++  if (!IsLocaleSupported()) {
++    prefs.clear();
++  }
++  for (auto entry : prefs) {
++    if (entry.second.is_dict()) {
++      entry.second.GetDict().Set("is_from_webstore", true);
++    }
++  }
++
+   // Load a hard-coded list of external extensions. These are not component
+   // extensions; they are installed from the webstore and don't get access to
+   // component only APIs. Must be used with ManifestLocation::kInternal to allow
+   // CWS to download certain extensions.
+ #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-  if (perform_new_installation_) {
++  if (perform_new_installation_ && IsLocaleSupported()) {
+     AddExtension(extension_misc::kDocsOfflineExtensionId, prefs);
+   }
+ #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+@@ -274,11 +308,41 @@ void Provider::SetPrefs(base::DictValue prefs) {
+   }
+ #endif  // BUILDFLAG(ENABLE_PLATFORM_APPS)
+ 
++  // Only a newly created profile gets uBO. Normal external-provider handling
++  // preserves user uninstalls and does not downgrade an existing installation.
++  if (perform_new_installation_) {
++    base::ThreadPool::PostTaskAndReplyWithResult(
++        FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
++        base::BindOnce(
++            &WriteUBlockOriginCrx, profile_->GetPath(),
++            ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
++                IDR_THORIUM_UBLOCK_ORIGIN_CRX)),
++        base::BindOnce(&Provider::OnUBlockOriginCrxReady,
++                       weak_ptr_factory_.GetWeakPtr(), std::move(prefs)));
++    return;
++  }
++
++  ExternalProviderImpl::SetPrefs(std::move(prefs));
++}
++
++void Provider::OnUBlockOriginCrxReady(base::DictValue prefs,
++                                      base::FilePath crx_path) {
++  if (!crx_path.empty()) {
++    base::DictValue extension;
++    extension.Set("external_crx", crx_path.AsUTF8Unsafe());
++    extension.Set("external_version", kUBlockOriginVersion);
++    prefs.Set(kUBlockOriginExtensionId, std::move(extension));
++  } else {
++    // Allow a later startup to retry if writing the bundled package failed.
++    profile_->GetPrefs()->SetInteger(prefs::kPreinstalledExtensionsInstallState,
++                                     kUnknown);
++  }
+   ExternalProviderImpl::SetPrefs(std::move(prefs));
+ }
+ 
+ void Provider::AddExtension(const std::string& extension_id,
+                             base::DictValue& prefs) {
++  prefs.SetByDottedPath(extension_id + ".is_from_webstore", true);
+   prefs.SetByDottedPath(extension_id + ".external_update_url",
+                         extension_urls::GetWebstoreUpdateUrl().spec());
+ }
+diff --git a/chrome/browser/extensions/preinstalled_extensions.h b/chrome/browser/extensions/preinstalled_extensions.h
+index 399a7f4b8dbb10128a1eb0926d38afc5eeceb81d..4d54d1b78a53dca3ccf4c4ef16af398647e2b31c 100644
+--- a/chrome/browser/extensions/preinstalled_extensions.h
++++ b/chrome/browser/extensions/preinstalled_extensions.h
+@@ -5,8 +5,10 @@
+ #ifndef CHROME_BROWSER_EXTENSIONS_PREINSTALLED_EXTENSIONS_H_
+ #define CHROME_BROWSER_EXTENSIONS_PREINSTALLED_EXTENSIONS_H_
+ 
++#include "base/files/file_path.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/scoped_refptr.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/values.h"
+ #include "chrome/browser/extensions/external_provider_impl.h"
+ #include "extensions/buildflags/buildflags.h"
+@@ -51,6 +53,8 @@ class Provider : public extensions::ExternalProviderImpl {
+   Provider(const Provider&) = delete;
+   Provider& operator=(const Provider&) = delete;
+ 
++  ~Provider() override;
++
+   // ExternalProviderImpl overrides:
+   void VisitRegisteredExtension() override;
+   void SetPrefs(base::DictValue prefs) override;
+@@ -71,6 +75,8 @@ class Provider : public extensions::ExternalProviderImpl {
+   // Adds an extension to the provided `prefs`.
+   void AddExtension(const std::string& extension_id, base::DictValue& prefs);
+ 
++  void OnUBlockOriginCrxReady(base::DictValue prefs, base::FilePath crx_path);
++
+   // The associated profile.
+   raw_ptr<Profile> profile_ = nullptr;
+   // Whether default extensions are enabled for the profile.
+@@ -80,6 +86,8 @@ class Provider : public extensions::ExternalProviderImpl {
+   // Whether this class should perform a new installation, such as for a
+   // new profile.
+   bool perform_new_installation_ = false;
++
++  base::WeakPtrFactory<Provider> weak_ptr_factory_{this};
+ };
+ 
+ }  // namespace preinstalled_extensions
+diff --git a/chrome/browser/resources/BUILD.gn b/chrome/browser/resources/BUILD.gn
+index 058f702e8bf94d1c14ea921c09712b31b5b410ca..b81c11b652940554922a5df5d1655675e290528a 100644
+--- a/chrome/browser/resources/BUILD.gn
++++ b/chrome/browser/resources/BUILD.gn
+@@ -254,6 +254,14 @@ if (enable_webui_generate_code_cache) {
+ }
+ 
+ if (enable_extensions_core) {
++  if (!is_chromeos) {
++    action("download_ublock_origin") {
++      script = "ublock_origin/download.py"
++      outputs = [ "$target_gen_dir/ublock_origin/uBlock0_1.75.0.crx" ]
++      args = [ rebase_path(outputs[0], root_build_dir) ]
++    }
++  }
++
+   grit("component_extension_resources") {
+     source = "component_extension_resources.grd"
+ 
+@@ -288,6 +296,10 @@ if (enable_extensions_core) {
+     # Some resources within component_extension_resources.grd are generated at
+     # build time so we include them as explicit dependencies here
+     deps = [ "//chrome/browser/resources/glic/extension:build_ts" ]
++    if (!is_chromeos) {
++      deps += [ ":download_ublock_origin" ]
++      inputs += [ "$target_gen_dir/ublock_origin/uBlock0_1.75.0.crx" ]
++    }
+ 
+     if (is_chromeos) {
+       inputs += [
+diff --git a/chrome/browser/resources/component_extension_resources.grd b/chrome/browser/resources/component_extension_resources.grd
+index 37f5f7edf273e7ad3651a5f83fd6c1e2892c0912..5f45018d8e2390e0d841eb6d6e0ccb600e800336 100644
+--- a/chrome/browser/resources/component_extension_resources.grd
++++ b/chrome/browser/resources/component_extension_resources.grd
+@@ -69,6 +69,9 @@
+         <include name="IDR_ARC_SUPPORT_ICON_HEADER" file="chromeos/arc_support/images/header.png" type="BINDATA" />
+         <include name="IDR_ARC_SUPPORT_UI_JS" file="chromeos/arc_support/ui.js" type="chrome_html" />
+       </if>
++      <if expr="not is_chromeos">
++        <include name="IDR_THORIUM_UBLOCK_ORIGIN_CRX" file="${root_gen_dir}/chrome/browser/resources/ublock_origin/uBlock0_1.75.0.crx" use_base_dir="false" resource_path="ublock_origin/uBlock0_1.75.0.crx" type="BINDATA" />
++      </if>
+     </includes>
+ 
+     <!-- Game Controls lottie json files -->
+diff --git a/chrome/browser/resources/ublock_origin/download.py b/chrome/browser/resources/ublock_origin/download.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..cb2cdf9575e359a7712aa3328b3e6ae2c1a13042
+--- /dev/null
++++ b/chrome/browser/resources/ublock_origin/download.py
+@@ -0,0 +1,47 @@
++#!/usr/bin/env python3
++# Copyright 2026 The Thorium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++"""Fetch the pinned upstream uBO CRX for embedding in resources.pak."""
++
++import hashlib
++import os
++from pathlib import Path
++import sys
++import tempfile
++import urllib.request
++
++URL = (
++    "https://github.com/gorhill/uBlock/releases/download/1.75.0/"
++    "uBlock0_1.75.0.chromium.crx"
++)
++SHA256 = "d688ed3f0262ec4f8bdcd4c8f65987c5444c560aeb387a9e02aca1facdfa7046"
++
++
++def fetch(output):
++    if output.is_file() and hashlib.sha256(output.read_bytes()).hexdigest() == SHA256:
++        return
++    with urllib.request.urlopen(URL, timeout=60) as response:
++        data = response.read()
++    if hashlib.sha256(data).hexdigest() != SHA256:
++        raise ValueError("uBlock Origin CRX SHA-256 mismatch")
++    output.parent.mkdir(parents=True, exist_ok=True)
++    temporary = None
++    try:
++        with tempfile.NamedTemporaryFile(dir=output.parent, delete=False) as stream:
++            temporary = Path(stream.name)
++            stream.write(data)
++        os.replace(temporary, output)
++    finally:
++        if temporary is not None:
++            temporary.unlink(missing_ok=True)
++
++
++if __name__ == "__main__":
++    if len(sys.argv) != 2:
++        sys.exit("usage: download.py OUTPUT_CRX")
++    try:
++        fetch(Path(sys.argv[1]))
++    except (OSError, ValueError) as error:
++        sys.exit(f"Cannot bundle uBlock Origin: {error}")

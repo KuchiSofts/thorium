@@ -1,0 +1,54 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegate.cc
+index 33a3b3844ad4839eb87c15c7aef0c956abd9f98e..fb1383639a6e03f8e4af5ae6d5bba24c50fc2ff4 100644
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2012 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -39,6 +39,7 @@
+ #include "base/threading/hang_watcher.h"
+ #include "base/time/time.h"
+ #include "base/timer/timer.h"
++#include "base/version_info/version_info.h"
+ #include "build/build_config.h"
+ #include "chrome/common/buildflags.h"
+ #include "chrome/common/channel_info.h"
+@@ -753,14 +754,13 @@ void InitLogging(const std::string& process_type) {
+       *base::CommandLine::ForCurrentProcess();
+   logging::InitChromeLogging(command_line, file_state);
+ 
+-#if BUILDFLAG(IS_CHROMEOS)
+   // Log the Chrome version for information. Do so at WARNING level as that's
+   // the min level on ChromeOS.
+   if (process_type.empty()) {
+-    LOG(WARNING) << "This is Chrome version " << chrome::kChromeVersion
+-                 << " (not a warning)";
++    LOG(WARNING) << "This is " << version_info::GetProductName() << " version: "
++                 << chrome::kChromeVersion << " (not a warning)";
++    LOG(WARNING) << "In Loving Memory of Linda Louise Frick: Grandma, Mother, and Sister.";
+   }
+-#endif  // BUILDFLAG(IS_CHROMEOS)
+ }
+ #endif  // !BUILDFLAG(IS_ANDROID)
+ 
+diff --git a/chrome/common/logging_chrome.cc b/chrome/common/logging_chrome.cc
+index b6d6fc87bdf137a35207acb750a03d18ffaaaff7..f2f8e972f3b6ad91292c8cfbad23581b8a46315b 100644
+--- a/chrome/common/logging_chrome.cc
++++ b/chrome/common/logging_chrome.cc
+@@ -578,7 +578,7 @@ base::FilePath GetLogFileName(const base::CommandLine& command_line) {
+ 
+   // If command line and environment do not provide a log file we can use,
+   // fallback to the default.
+-  const base::FilePath log_filename(FILE_PATH_LITERAL("chrome_debug.log"));
++  const base::FilePath log_filename(FILE_PATH_LITERAL("thorium_debug.log"));
+   base::FilePath log_path;
+ 
+   if (base::PathService::Get(chrome::DIR_LOGS, &log_path)) {

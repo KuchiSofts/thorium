@@ -1,0 +1,692 @@
+Thoron: connect native ad blocking to page loading.
+
+Nothing here happens unless the ThoronNativeAdblock feature is on.
+- chrome/browser depends on components/thoron_adblock.
+- ChromeContentBrowserClient puts the ad-blocking proxy first in front of every subresource
+  URLLoaderFactory, so a blocked request never reaches an extension or the network. It skips sites where
+  the person allowed ads (Chromium's per-site Ads setting, the native blocker's per-site switch).
+- It tells the engine service where updated lists are kept (the user data dir) and to download them
+  through the browser's own network context.
+- Page info shows the Ads setting on every site while native ad blocking is on.
+- While it is on, page info and Settings call that setting "Ads and trackers" and say what it does
+  (new strings in components/site_settings_strings.grdp); with it off they keep upstream's wording.
+- Under that row, page info says "Thoron blocks them unless you allow them on this site" instead of
+  upstream's "Site shows intrusive or misleading ads", which would read as a warning about the site.
+- When it blocks a request, the page is marked as having blocked ads, which shows the address bar icon
+  (without upstream's expanding label, which would animate on most page loads);
+  its bubble says how many ads and trackers were blocked on the page (counted in memory only) and has
+  a checkbox that allows them on the site and reloads.
+- Each document is sent what it needs when its navigation is ready to commit (a universal
+  WebContentsObserver, on the frame's channel, the way the subresource filter activates a document): a
+  style sheet that hides the site's elements and the site's scriptlets. A frame agent in the renderer
+  inserts the style sheet as a user style sheet and runs the scriptlets in the page's world at document
+  start, before any page script. Nothing is sent on a site where the person allowed ads.
+- Generic hide rules ("##.ad-banner"): the frame agent tells the browser which class names and ids its
+  document uses (when the DOM is ready, at load, and four more times in the next 15 seconds) and inserts
+  the style sheet that comes back. The browser answers by the address the frame committed, with the
+  site's exceptions applied, and not at all where ads are allowed.
+- A URLLoaderRequestInterceptor on every navigation (WillCreateURLLoaderRequestInterceptors) looks at
+  a document's request at the start and after every redirect: `$removeparam` parameters are taken out
+  through an internal redirect, and a frame the lists block is refused. A URLLoaderThrottle on every
+  document request (CreateURLLoaderThrottles) adds `$csp` policies to the response. Neither acts on a
+  site where the person allowed ads.
+- An isolated world id of its own for the runner of procedural hide rules, which the frame agent runs
+  at document start.
+- WillInterceptWebSocket and CreateWebSocket: while the feature is on, every WebSocket connection of a
+  frame is put to the engine; a blocked one is dropped, any other goes on as before (to an extension
+  that asked for it, or straight to the network).
+- chrome://flags has a switch for it ("Built-in ad blocking", #thoron-native-adblock).
+- The installer ships the saved engine, the filter lists and the resources file.
+
+Origin: Thoron
+Author: KuchiSofts
+License: BSD-3-Clause
+
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 24f8cbe6bd907ca32b08e8e904d0cfc21ea61b96..dafe1ec125f1b19f03f98c84224221c3417c70d6 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -2751,6 +2751,7 @@ source_set("browser") {
+     "//components/sync",
+     "//components/sync_preferences",
+     "//components/tab_groups",
++    "//components/thoron_adblock",
+     "//components/tracing:background_tracing_utils",
+     "//components/tracing:tracing_config",
+     "//components/tracing:tracing_metrics",
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index cf314780497655d91f67ab18ba0eb2d6f487284e..5bfec3e7be9795d1ac2bd7d2f00f3f0aeadd32c9 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -195,6 +195,7 @@
+ #include "components/sync/base/features.h"
+ #include "components/sync_preferences/features.h"
+ #include "components/tab_groups/features.h"
++#include "components/thoron_adblock/features.h"
+ #include "components/themes/cross_device/features.h"
+ #include "components/thin_webview/features.h"
+ #include "components/touch_to_search/core/browser/contextual_search_field_trial.h"
+@@ -5400,6 +5401,14 @@ const FeatureEntry kFeatureEntries[] = {
+ #include "build/chromeos_buildflags.h"
+ #include "chrome/browser/unexpire_flags_gen.inc"
+ #include "chrome/browser/thorium_flag_entries.h"
++    // Thoron: the switch for its built-in ad blocking (off unless turned on).
++    {"thoron-native-adblock", "Built-in ad blocking",
++     "Blocks ads and trackers inside the browser itself, with the same filter "
++     "lists as uBlock Origin; it is faster and lighter than an extension. If "
++     "uBlock Origin is on as well, both do the same work: turn one of them "
++     "off.",
++     kOsDesktop,
++     FEATURE_VALUE_TYPE(thoron_adblock::kThoronNativeAdblock)},
+     {switches::kEnableBenchmarking, flag_descriptions::kEnableBenchmarkingName,
+      flag_descriptions::kEnableBenchmarkingDescription, kOsAll,
+      MULTI_VALUE_TYPE(kEnableBenchmarkingChoices)},
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index 694f60ad604933cb33d6a7167d41278270e88a05..3473f2e3130b05a25a00b1c83c925ceeec1a914b 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -350,6 +350,12 @@
+ #include "components/site_token_provider/features.h"
+ #include "components/supervised_user/core/common/features.h"
+ #include "components/sync_tab_context/http_rpc_constants.h"
++#include "components/thoron_adblock/document_loader_throttle.h"
++#include "components/thoron_adblock/document_request_interceptor.h"
++#include "components/thoron_adblock/engine_service.h"
++#include "components/thoron_adblock/features.h"
++#include "components/thoron_adblock/proxying_url_loader_factory.h"
++#include "components/thoron_adblock/websocket.h"
+ #include "components/translate/core/common/translate_switches.h"
+ #include "components/user_prefs/user_prefs.h"
+ #include "components/variations/variations_associated_data.h"
+@@ -6291,6 +6297,16 @@ ChromeContentBrowserClient::CreateURLLoaderThrottles(
+             GetNoStatePrefetchCanceler(wc_getter)));
+   }
+ 
++  // Thoron native ad blocking: `$csp` for a document's response (null unless
++  // the feature is on and the request is a document's).
++  if (auto thoron_throttle =
++          thoron_adblock::DocumentLoaderThrottle::MaybeCreate(
++              request, HostContentSettingsMapFactory::GetForProfile(profile),
++              wc_getter.Run(), frame_tree_node_id);
++      thoron_throttle) {
++    result.push_back(std::move(thoron_throttle));
++  }
++
+ #if BUILDFLAG(IS_ANDROID)
+   auto [client_data_header, is_custom_tab] =
+       GetClientDataHeader(frame_tree_node_id);
+@@ -6956,6 +6972,27 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
+     network::mojom::URLLoaderFactoryOverridePtr* factory_override,
+     scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner,
+     bool is_for_network_service) {
++  // Thoron native ad blocking: first in line, so a blocked request never
++  // reaches an extension or the network. Updated lists are kept in the user
++  // data dir and downloaded through the browser's own network context (no
++  // profile, no cookies).
++  if (base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock) &&
++      !thoron_adblock::EngineService::Get().is_configured()) {
++    thoron_adblock::EngineService::Get().Configure(
++        base::PathService::CheckedGet(chrome::DIR_USER_DATA),
++        base::BindRepeating(
++            []() -> scoped_refptr<network::SharedURLLoaderFactory> {
++              return g_browser_process
++                         ? g_browser_process->shared_url_loader_factory()
++                         : nullptr;
++            }));
++  }
++  thoron_adblock::ProxyingURLLoaderFactory::MaybeProxy(
++      type, factory_builder,
++      HostContentSettingsMapFactory::GetForProfile(
++          Profile::FromBrowserContext(browser_context)),
++      isolation_info, request_initiator, frame);
++
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   auto* web_request_api =
+       extensions::BrowserContextKeyedAPIFactory<extensions::WebRequestAPI>::Get(
+@@ -7097,6 +7134,21 @@ ChromeContentBrowserClient::WillCreateURLLoaderRequestInterceptors(
+     }
+   }
+ 
++  // Thoron native ad blocking: a document's request is looked at before it
++  // goes out, at the start and after every redirect (null unless the feature
++  // is on). Last, so the others see the request as the page made it.
++  if (content::WebContents* web_contents =
++          content::WebContents::FromFrameTreeNodeId(frame_tree_node_id)) {
++    if (auto thoron_interceptor =
++            thoron_adblock::DocumentRequestInterceptor::MaybeCreate(
++                HostContentSettingsMapFactory::GetForProfile(
++                    Profile::FromBrowserContext(
++                        web_contents->GetBrowserContext())),
++                frame_tree_node_id)) {
++      interceptors.push_back(std::move(thoron_interceptor));
++    }
++  }
++
+   return interceptors;
+ }
+ 
+@@ -7127,6 +7179,12 @@ ChromeContentBrowserClient::
+ 
+ bool ChromeContentBrowserClient::WillInterceptWebSocket(
+     content::RenderFrameHost* frame) {
++  // Thoron native ad blocking: every WebSocket connection of a frame is put
++  // to the engine first (CreateWebSocket below).
++  if (frame &&
++      base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock)) {
++    return true;
++  }
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   if (!frame) {
+     return false;
+@@ -7169,6 +7227,33 @@ void ChromeContentBrowserClient::CreateWebSocket(
+     mojo::PendingRemote<network::mojom::WebSocketHandshakeClient>
+         handshake_client,
+     content::ContentBrowserClient::WebSocketOptions options) {
++  // Thoron native ad blocking: a WebSocket to an address the lists block is
++  // not opened (dropping the handshake fails the connection). Any other is
++  // opened as usual, unless an extension wants to see it, which the code
++  // below takes care of.
++  if (frame &&
++      base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock)) {
++    if (thoron_adblock::BlocksWebSocket(
++            *frame, url,
++            HostContentSettingsMapFactory::GetForProfile(
++                Profile::FromBrowserContext(frame->GetBrowserContext())))) {
++      return;
++    }
++    bool extension_asks = false;
++#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
++    const auto* thoron_web_request_api =
++        extensions::BrowserContextKeyedAPIFactory<
++            extensions::WebRequestAPI>::Get(frame->GetBrowserContext());
++    extension_asks = thoron_web_request_api &&
++                     thoron_web_request_api->MayHaveProxiesForFrame(frame);
++#endif
++    if (!extension_asks) {
++      thoron_adblock::ConnectWebSocket(std::move(factory), url, user_agent,
++                                       std::move(handshake_client),
++                                       std::move(options.header_client));
++      return;
++    }
++  }
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   // TODO(crbug.com/40195467): Request w/o a frame also should be proxied.
+   if (!frame) {
+diff --git a/chrome/common/chrome_isolated_world_ids.h b/chrome/common/chrome_isolated_world_ids.h
+index 846e4777c4d2e983078ad629621a3eb3acf780e4..8d838103321369f351eb8a290cb2cff2f8de90ce 100644
+--- a/chrome/common/chrome_isolated_world_ids.h
++++ b/chrome/common/chrome_isolated_world_ids.h
+@@ -19,6 +19,9 @@ enum ChromeIsolatedWorldIDs {
+   // Isolated world ID for internal Chrome features.
+   ISOLATED_WORLD_ID_CHROME_INTERNAL,
+ 
++  // Thoron native ad blocking: the runner for procedural hide rules.
++  ISOLATED_WORLD_ID_THORON_ADBLOCK,
++
+ #if BUILDFLAG(IS_MAC)
+   // Isolated world ID for AppleScript.
+   ISOLATED_WORLD_ID_APPLESCRIPT,
+diff --git a/chrome/installer/mini_installer/chrome.release b/chrome/installer/mini_installer/chrome.release
+index 477dddb87ace2a0b48a108489ce6db7744e8457a..301e2b39dfad2510a012a72ab601caba2ddf5c41 100644
+--- a/chrome/installer/mini_installer/chrome.release
++++ b/chrome/installer/mini_installer/chrome.release
+@@ -26,6 +26,12 @@ chrome_elf.dll: %(VersionDir)s\
+ chrome_pwa_launcher.exe: %(VersionDir)s\
+ chrome_renderer.dll: %(VersionDir)s\
+ chrome_wer.dll: %(VersionDir)s\
++#
++# Thoron native ad blocking: the saved engine, the filter lists (fallback) and
++# uBlock Origin's scriptlets and stand-ins
++thoron_adblock_engine.dat: %(VersionDir)s\
++thoron_adblock_lists.txt: %(VersionDir)s\
++thoron_adblock_resources.json: %(VersionDir)s\
+ content_resources.pak: %(VersionDir)s\
+ content_shell.pak: %(VersionDir)s\
+ d3dcompiler_47.dll: %(VersionDir)s\
+diff --git a/components/page_info/BUILD.gn b/components/page_info/BUILD.gn
+index a248f84b52164a4731b74bec11f31c2abdcf700d..94dff65fd333283f0d4e88e6c1d071944fadc080 100644
+--- a/components/page_info/BUILD.gn
++++ b/components/page_info/BUILD.gn
+@@ -36,6 +36,7 @@ static_library("page_info") {
+     "//components/strings:components_branded_strings_grit",
+     "//components/strings:components_strings_grit",
+     "//components/subresource_filter/core/browser",
++    "//components/thoron_adblock:features",
+     "//components/ukm/content",
+     "//components/url_formatter",
+     "//components/vector_icons",
+diff --git a/components/page_info/DEPS b/components/page_info/DEPS
+index 5ac95e92cdb5b6dfa78e3a19c9ac07b3b35ae204..ba150b4d59266c1e86250cff4e1dc52a691b8b76 100644
+--- a/components/page_info/DEPS
++++ b/components/page_info/DEPS
+@@ -18,6 +18,7 @@ include_rules = [
+   "+components/safe_browsing/content/browser",
+   "+components/safe_browsing/core/browser",
+   "+components/safe_browsing/core/common",
++  "+components/thoron_adblock/features.h",
+   "+components/security_interstitials",
+   "+components/security_state",
+   "+components/search",
+diff --git a/components/page_info/page_info.cc b/components/page_info/page_info.cc
+index dc31f82b9b76649241b2c366a3cdf1821f6495c4..5e461f05f017789cc53a9d0c7432de3619329040 100644
+--- a/components/page_info/page_info.cc
++++ b/components/page_info/page_info.cc
+@@ -43,6 +43,7 @@
+ #include "components/page_info/core/page_info_action.h"
+ #include "components/page_info/page_info_delegate.h"
+ #include "components/page_info/page_info_ui.h"
++#include "components/thoron_adblock/features.h"
+ #include "components/permissions/constants.h"
+ #include "components/permissions/features.h"
+ #include "components/permissions/object_permission_context_base.h"
+@@ -1449,6 +1450,11 @@ bool PageInfo::ShouldShowPermission(
+   // Note |ContentSettingsType::ADS| will show up regardless of its default
+   // value when it has been activated on the current origin.
+   if (info.type == ContentSettingsType::ADS) {
++    // Thoron native ad blocking: the Ads setting is its per-site switch, so it
++    // is shown on every site while native ad blocking is on.
++    if (base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock)) {
++      return true;
++    }
+     if (!base::FeatureList::IsEnabled(
+             subresource_filter::kSafeBrowsingSubresourceFilter)) {
+       return false;
+diff --git a/components/page_info/page_info_ui.cc b/components/page_info/page_info_ui.cc
+index a4c1c51327f52619864f9b13f7fd78162d131cd2..86ab7c825de3fe7010699c6892f58ba522924f4e 100644
+--- a/components/page_info/page_info_ui.cc
++++ b/components/page_info/page_info_ui.cc
+@@ -29,6 +29,7 @@
+ #include "components/security_interstitials/core/common_string_util.h"
+ #include "components/strings/grit/components_branded_strings.h"
+ #include "components/strings/grit/components_strings.h"
++#include "components/thoron_adblock/features.h"
+ #include "components/url_formatter/elide_url.h"
+ #include "content/public/browser/permission_result.h"
+ #include "content/public/common/content_features.h"
+@@ -560,6 +561,11 @@ PageInfoUI::~PageInfoUI() = default;
+ 
+ // static
+ std::u16string PageInfoUI::PermissionTypeToUIString(ContentSettingsType type) {
++  // Thoron native ad blocking: the Ads setting is its per-site switch.
++  if (type == ContentSettingsType::ADS &&
++      base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock)) {
++    return l10n_util::GetStringUTF16(IDS_THORON_ADBLOCK_TYPE);
++  }
+   for (const PermissionUIInfo& info : GetContentSettingsUIInfo()) {
+     if (info.type == type)
+       return l10n_util::GetStringUTF16(info.string_id);
+@@ -570,6 +576,11 @@ std::u16string PageInfoUI::PermissionTypeToUIString(ContentSettingsType type) {
+ // static
+ std::u16string PageInfoUI::PermissionTypeToUIStringMidSentence(
+     ContentSettingsType type) {
++  // Thoron native ad blocking: the Ads setting is its per-site switch.
++  if (type == ContentSettingsType::ADS &&
++      base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock)) {
++    return l10n_util::GetStringUTF16(IDS_THORON_ADBLOCK_TYPE_MID_SENTENCE);
++  }
+   for (const PermissionUIInfo& info : GetContentSettingsUIInfo()) {
+     if (info.type == type)
+       return l10n_util::GetStringUTF16(info.string_id_mid_sentence);
+diff --git a/components/site_settings_strings.grdp b/components/site_settings_strings.grdp
+index ab3c100b747f5ec6244fa719272e29427f723280..eb37ba5984007fba44d45e63e400d48252808441 100644
+--- a/components/site_settings_strings.grdp
++++ b/components/site_settings_strings.grdp
+@@ -325,4 +325,43 @@
+     Offer writing help
+   </message>
+   </if>
++  <!-- Thoron native ad blocking: the Ads setting is its per-site switch; shown only while it is on. -->
++  <message name="IDS_THORON_ADBLOCK_TYPE" desc="Name of the Ads site setting while Thoron's built-in ad and tracker blocking is on. Allowing it on a site turns the blocking off there.">
++    Ads and trackers
++  </message>
++  <message name="IDS_THORON_ADBLOCK_TYPE_MID_SENTENCE" desc="Name of the Ads site setting while Thoron's built-in ad and tracker blocking is on, used mid-sentence.">
++    ads and trackers
++  </message>
++  <message name="IDS_THORON_ADBLOCK_DESCRIPTION" desc="Description of the Ads site setting while Thoron's built-in ad and tracker blocking is on.">
++    Ads and many trackers are blocked before they load, so pages load faster and fewer companies can follow you across sites. If a site does not work right, allow ads and trackers on that site.
++  </message>
++  <message name="IDS_THORON_ADBLOCK_PAGE_INFO_DETAIL" desc="Text under the Ads and trackers row in page info while Thoron's built-in blocking is on. It must be true whether the row is on or off.">
++    Thoron blocks them unless you allow them on this site
++  </message>
++  <message name="IDS_THORON_ADBLOCK_ALLOWED" desc="1 of 2 states of the Ads site setting while Thoron's built-in blocking is on: blocking is off.">
++    Sites can show ads and use trackers
++  </message>
++  <message name="IDS_THORON_ADBLOCK_BLOCKED" desc="2 of 2 states of the Ads site setting while Thoron's built-in blocking is on: blocking is on.">
++    Block ads and trackers
++  </message>
++  <message name="IDS_THORON_ADBLOCK_ALLOWED_EXCEPTIONS" desc="Label of the list of sites allowed to show ads and use trackers.">
++    Allowed to show ads and use trackers
++  </message>
++  <message name="IDS_THORON_ADBLOCK_BLOCKED_EXCEPTIONS" desc="Label of the list of sites where ads and trackers are blocked.">
++    Ads and trackers blocked
++  </message>
++  <message name="IDS_THORON_ADBLOCK_ICON_TOOLTIP" desc="Tooltip of the address bar icon shown when Thoron's built-in blocking stopped ads or trackers on the page.">
++    Ads and trackers blocked
++  </message>
++  <message name="IDS_THORON_ADBLOCK_BUBBLE_TITLE" desc="Title of the bubble opened from that icon, with how many requests were blocked on the page.">
++    {COUNT, plural,
++      =1 {1 ad or tracker blocked on this page}
++      other {# ads and trackers blocked on this page}}
++  </message>
++  <message name="IDS_THORON_ADBLOCK_BUBBLE_MESSAGE" desc="Text of that bubble.">
++    They were stopped before they loaded. If this page does not work right, allow ads and trackers on this site.
++  </message>
++  <message name="IDS_THORON_ADBLOCK_BUBBLE_ALLOW" desc="Checkbox in that bubble that turns the blocking off for the site (the page then reloads).">
++    Always allow ads and trackers on this site
++  </message>
+ </grit-part>
+diff --git a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+index 56ff6c6fb5866a3ba5a43918ae41bfbf8c1f4a6f..0c5397b35a3067bbafbd59999483494216edf4ee 100644
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -113,6 +113,7 @@
+ #include "components/signin/public/base/signin_switches.h"
+ #include "components/strings/grit/components_branded_strings.h"
+ #include "components/strings/grit/components_strings.h"
++#include "components/thoron_adblock/features.h"
+ #include "components/subresource_filter/core/browser/subresource_filter_features.h"
+ #include "components/subscription_eligibility/subscription_eligibility_service.h"
+ #include "components/supervised_user/core/common/features.h"
+@@ -4310,6 +4311,27 @@ void AddSiteSettingsStrings(content::WebUIDataSource* html_source,
+   // The exception placeholder should not be translated. See
+   // crbug.com/40700443.
+   html_source->AddString("addSiteExceptionPlaceholder", "[*.]example.com");
++
++  // Thoron native ad blocking: the Ads setting is its per-site switch, so its
++  // labels say what it does while native ad blocking is on.
++  if (base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock)) {
++    static constexpr webui::LocalizedString kThoronAdsStrings[] = {
++        {"siteSettingsAds", IDS_THORON_ADBLOCK_TYPE},
++        {"siteSettingsAdsMidSentence", IDS_THORON_ADBLOCK_TYPE_MID_SENTENCE},
++        {"siteSettingsAdsDescription", IDS_THORON_ADBLOCK_DESCRIPTION},
++        {"siteSettingsAdsAllowed", IDS_THORON_ADBLOCK_ALLOWED},
++        {"siteSettingsAdsBlocked", IDS_THORON_ADBLOCK_BLOCKED},
++        {"siteSettingsAdsAllowedExceptions",
++         IDS_THORON_ADBLOCK_ALLOWED_EXCEPTIONS},
++        {"siteSettingsAdsBlockedExceptions",
++         IDS_THORON_ADBLOCK_BLOCKED_EXCEPTIONS},
++        {"siteSettingsAdsBlockNotBlocklistedSingular",
++         IDS_THORON_ADBLOCK_BLOCKED_EXCEPTIONS},
++        {"siteSettingsAdsBlockBlocklistedSingular",
++         IDS_THORON_ADBLOCK_BLOCKED_EXCEPTIONS},
++    };
++    html_source->AddLocalizedStrings(kThoronAdsStrings);
++  }
+ }
+ 
+ void AddStorageAccessStrings(content::WebUIDataSource* html_source) {
+diff --git a/chrome/browser/ui/page_info/chrome_page_info_ui_delegate.cc b/chrome/browser/ui/page_info/chrome_page_info_ui_delegate.cc
+index 906206dad5253b96768c9e373798f8d0fba9ecf8..1181b57443b93c25d3a3604eb60b8f48c74165c6 100644
+--- a/chrome/browser/ui/page_info/chrome_page_info_ui_delegate.cc
++++ b/chrome/browser/ui/page_info/chrome_page_info_ui_delegate.cc
+@@ -29,6 +29,7 @@
+ #include "components/prefs/pref_service.h"
+ #include "components/strings/grit/components_strings.h"
+ #include "components/tabs/public/tab_interface.h"
++#include "components/thoron_adblock/features.h"
+ #include "content/public/browser/permission_controller.h"
+ #include "content/public/browser/permission_descriptor_util.h"
+ #include "content/public/browser/permission_result.h"
+@@ -203,6 +204,11 @@ std::u16string ChromePageInfoUiDelegate::GetPermissionDetail(
+   switch (type) {
+     // TODO(crbug.com/40777580): Reconcile with SiteDetailsPermissionElement.
+     case ContentSettingsType::ADS:
++      // Thoron native ad blocking: the row is its per-site switch, not a
++      // warning about the site.
++      if (base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock)) {
++        return l10n_util::GetStringUTF16(IDS_THORON_ADBLOCK_PAGE_INFO_DETAIL);
++      }
+       return l10n_util::GetStringUTF16(IDS_PAGE_INFO_PERMISSION_ADS_SUBTITLE);
+     default:
+       return {};
+diff --git a/chrome/browser/ui/content_settings/content_setting_image_model.cc b/chrome/browser/ui/content_settings/content_setting_image_model.cc
+index 2d799ab588d4b40e53d7d4a81ffb71c7ea6011a0..1fde070b2f17cd3af60bced455f631e532637b13 100644
+--- a/chrome/browser/ui/content_settings/content_setting_image_model.cc
++++ b/chrome/browser/ui/content_settings/content_setting_image_model.cc
+@@ -46,6 +46,7 @@
+ #include "components/permissions/permission_request_manager.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/strings/grit/components_strings.h"
++#include "components/thoron_adblock/features.h"
+ #include "components/tabs/public/tab_interface.h"
+ #include "components/vector_icons/vector_icons.h"
+ #include "content/public/browser/page.h"
+@@ -833,6 +834,14 @@ bool ContentSettingBlockedImageModel::UpdateAndGetVisibility(
+ 
+   int tooltip_id = image_details->blocked_tooltip_id;
+   int explanation_id = image_details->blocked_explanatory_text_id;
++  // Thoron native ad blocking: the icon reports its blocking. It shows on
++  // most pages, so it has no expanding label: animating one on every page
++  // load costs CPU and draws the eye for no reason.
++  if (type == ContentSettingsType::ADS &&
++      base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock)) {
++    tooltip_id = IDS_THORON_ADBLOCK_ICON_TOOLTIP;
++    explanation_id = 0;
++  }
+ 
+   // If a content type is blocked by default and was accessed, display the
+   // content blocked page action.
+diff --git a/chrome/browser/ui/content_settings/content_setting_bubble_model.cc b/chrome/browser/ui/content_settings/content_setting_bubble_model.cc
+index 92ccf274b58e2a7914a78a9dcb9bee5af54b8664..1c04e7b27dd999d4f9ade608e1585a54f1fa7a2f 100644
+--- a/chrome/browser/ui/content_settings/content_setting_bubble_model.cc
++++ b/chrome/browser/ui/content_settings/content_setting_bubble_model.cc
+@@ -66,6 +66,8 @@
+ #include "components/permissions/permission_util.h"
+ #include "components/permissions/permissions_client.h"
+ #include "components/strings/grit/components_strings.h"
++#include "components/thoron_adblock/blocked_count.h"
++#include "components/thoron_adblock/features.h"
+ #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+ #include "components/subresource_filter/content/browser/content_subresource_filter_web_contents_helper.h"
+ #include "components/subresource_filter/content/browser/subresource_filter_content_settings_manager.h"
+@@ -81,6 +83,8 @@
+ #include "content/public/browser/render_process_host.h"
+ #include "content/public/browser/render_view_host.h"
+ #include "content/public/browser/weak_document_ptr.h"
++#include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/reload_type.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_contents_delegate.h"
+ #include "mojo/public/cpp/bindings/associated_remote.h"
+@@ -1551,6 +1555,15 @@ void ContentSettingNotificationsBubbleModel::OnCancelButtonClicked() {
+ 
+ // ContentSettingSubresourceFilterBubbleModel ----------------------------------
+ 
++// Thoron native ad blocking uses this bubble to report its blocking: how many
++// requests it stopped on the page, and a checkbox to allow ads and trackers on
++// the site (its per-site switch).
++namespace {
++bool ThoronNativeAdblock() {
++  return base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock);
++}
++}  // namespace
++
+ ContentSettingSubresourceFilterBubbleModel::
+     ContentSettingSubresourceFilterBubbleModel(Delegate* delegate,
+                                                content::Page& page)
+@@ -1559,7 +1572,8 @@ ContentSettingSubresourceFilterBubbleModel::
+   SetMessage();
+   SetManageText();
+   set_done_button_text(l10n_util::GetStringUTF16(IDS_OK));
+-  set_show_learn_more(true);
++  // Upstream's "learn more" page is about Chromium's abusive-ads filter.
++  set_show_learn_more(!ThoronNativeAdblock());
+   subresource_filter::ContentSubresourceFilterThrottleManager::LogAction(
+       subresource_filter::SubresourceFilterAction::kDetailsShown);
+ }
+@@ -1568,16 +1582,26 @@ ContentSettingSubresourceFilterBubbleModel::
+     ~ContentSettingSubresourceFilterBubbleModel() = default;
+ 
+ void ContentSettingSubresourceFilterBubbleModel::SetTitle() {
++  if (ThoronNativeAdblock()) {
++    set_title(l10n_util::GetPluralStringFUTF16(
++        IDS_THORON_ADBLOCK_BUBBLE_TITLE,
++        thoron_adblock::BlockedCount::Get(GetPage())));
++    return;
++  }
+   set_title(l10n_util::GetStringUTF16(IDS_BLOCKED_ADS_PROMPT_TITLE));
+ }
+ 
+ void ContentSettingSubresourceFilterBubbleModel::SetManageText() {
+-  set_manage_text(l10n_util::GetStringUTF16(IDS_ALWAYS_ALLOW_ADS));
++  set_manage_text(l10n_util::GetStringUTF16(
++      ThoronNativeAdblock() ? IDS_THORON_ADBLOCK_BUBBLE_ALLOW
++                            : IDS_ALWAYS_ALLOW_ADS));
+   set_manage_text_style(ContentSettingBubbleModel::ManageTextStyle::kCheckbox);
+ }
+ 
+ void ContentSettingSubresourceFilterBubbleModel::SetMessage() {
+-  set_message(l10n_util::GetStringUTF16(IDS_BLOCKED_ADS_PROMPT_EXPLANATION));
++  set_message(l10n_util::GetStringUTF16(
++      ThoronNativeAdblock() ? IDS_THORON_ADBLOCK_BUBBLE_MESSAGE
++                            : IDS_BLOCKED_ADS_PROMPT_EXPLANATION));
+ }
+ 
+ void ContentSettingSubresourceFilterBubbleModel::OnManageCheckboxChecked(
+@@ -1595,6 +1619,20 @@ void ContentSettingSubresourceFilterBubbleModel::OnLearnMoreClicked() {
+ }
+ 
+ void ContentSettingSubresourceFilterBubbleModel::CommitChanges() {
++  if (is_checked_ && ThoronNativeAdblock()) {
++    // Allow ads on the site (the native blocker and Chromium's abusive-ads
++    // filter both follow this setting) and reload, so the page loads unblocked.
++    const GURL url = GetPage().GetMainDocument().GetLastCommittedURL();
++    HostContentSettingsMapFactory::GetForProfile(GetProfile())
++        ->SetContentSettingDefaultScope(url, GURL(), ContentSettingsType::ADS,
++                                        CONTENT_SETTING_ALLOW);
++    if (GetPage().IsPrimary()) {
++      content::WebContents::FromRenderFrameHost(&GetPage().GetMainDocument())
++          ->GetController()
++          .Reload(content::ReloadType::NORMAL, true);
++    }
++    return;
++  }
+   if (is_checked_) {
+     if (GetPage().IsPrimary()) {
+       subresource_filter::ContentSubresourceFilterThrottleManager::FromPage(
+diff --git a/chrome/browser/universal_web_contents_observers.cc b/chrome/browser/universal_web_contents_observers.cc
+index 70c84066d5da97b6c2806495e3f4c85849b9102d..1013b1e36fd336030a760b2b12a6ede42bad13ea 100644
+--- a/chrome/browser/universal_web_contents_observers.cc
++++ b/chrome/browser/universal_web_contents_observers.cc
+@@ -4,7 +4,13 @@
+ 
+ #include "chrome/browser/universal_web_contents_observers.h"
+ 
++#include "base/feature_list.h"
++#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
++#include "chrome/browser/profiles/profile.h"
++#include "components/content_settings/core/browser/host_content_settings_map.h"
+ #include "components/performance_manager/embedder/performance_manager_registry.h"
++#include "components/thoron_adblock/document_observer.h"
++#include "components/thoron_adblock/features.h"
+ #include "content/public/browser/web_contents.h"
+ #include "extensions/buildflags/buildflags.h"
+ 
+@@ -32,6 +38,15 @@ void AttachUniversalWebContentsObservers(content::WebContents* web_contents) {
+   }
+ #endif
+ 
++  // Thoron native ad blocking: each document is sent its hide rules and
++  // scriptlets when it commits.
++  if (base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock)) {
++    thoron_adblock::DocumentObserver::CreateForWebContents(
++        web_contents,
++        HostContentSettingsMapFactory::GetForProfile(
++            Profile::FromBrowserContext(web_contents->GetBrowserContext())));
++  }
++
+   if (auto* pm_registry =
+           performance_manager::PerformanceManagerRegistry::GetInstance()) {
+     pm_registry->MaybeCreatePageNodeForWebContents(web_contents);
+diff --git a/chrome/browser/chrome_content_browser_client_receiver_bindings.cc b/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
+index aa6ff52009ededd49510bb33534fe1a6afd5209f..4727edb4d319c877c9a2df07c985307dde97c1c9 100644
+--- a/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
++++ b/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
+@@ -45,6 +45,8 @@
+ #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
+ #include "components/spellcheck/spellcheck_buildflags.h"
+ #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
++#include "components/thoron_adblock/document_agent.mojom.h"
++#include "components/thoron_adblock/document_observer.h"
+ #include "components/surface_embed/browser/surface_embed_host.h"
+ #include "components/surface_embed/common/features.h"
+ #include "components/sync/base/features.h"
+@@ -675,6 +677,16 @@ void ChromeContentBrowserClient::
+             BindInterstitialCommands(std::move(receiver), render_frame_host);
+       },
+       &render_frame_host));
++  // Thoron native ad blocking: a frame's questions about generic hide rules.
++  associated_registry.AddInterface<thoron_adblock::mojom::DocumentHost>(
++      base::BindRepeating(
++          [](content::RenderFrameHost* render_frame_host,
++             mojo::PendingAssociatedReceiver<
++                 thoron_adblock::mojom::DocumentHost> receiver) {
++            thoron_adblock::DocumentObserver::BindDocumentHost(
++                std::move(receiver), render_frame_host);
++          },
++          &render_frame_host));
+   associated_registry.AddInterface<
+       subresource_filter::mojom::SubresourceFilterHost>(base::BindRepeating(
+       [](content::RenderFrameHost* render_frame_host,
+diff --git a/chrome/renderer/BUILD.gn b/chrome/renderer/BUILD.gn
+index dab2e49bb9720a5392e35750489ae55d923e162d..01919db81fbbdfb7d77b5395c7ff35ed6fb9573c 100644
+--- a/chrome/renderer/BUILD.gn
++++ b/chrome/renderer/BUILD.gn
+@@ -199,6 +199,8 @@ static_library("renderer") {
+     "//components/subresource_filter/content/renderer",
+     "//components/subresource_filter/core/common",
+     "//components/supervised_user/core/common:buildflags",
++    "//components/thoron_adblock:features",
++    "//components/thoron_adblock:renderer",
+     "//components/surface_embed/common",
+     "//components/surface_embed/renderer",
+     "//components/sync_tab_context:constants",
+diff --git a/chrome/renderer/chrome_content_renderer_client.cc b/chrome/renderer/chrome_content_renderer_client.cc
+index 792412915da65daf1ba2ab756c0292cc42eb865f..812d74d47da946c8783d8b1888d03e693fe3dc1e 100644
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ -124,6 +124,8 @@
+ #include "components/subresource_filter/content/renderer/unverified_ruleset_dealer.h"
+ #include "components/subresource_filter/core/common/common_features.h"
+ #include "components/surface_embed/common/features.h"
++#include "components/thoron_adblock/features.h"
++#include "components/thoron_adblock/renderer/document_agent.h"
+ #include "components/surface_embed/renderer/create_plugin.h"
+ #include "components/variations/net/variations_http_headers.h"
+ #include "components/variations/variations_switches.h"
+@@ -658,6 +660,13 @@ void ChromeContentRendererClient::RenderFrameCreated(
+ 
+   new prerender::NoStatePrefetchRenderFrameObserver(render_frame);
+ 
++  // Thoron native ad blocking: applies each document's hide rules and
++  // scriptlets. Deletes itself with the frame.
++  if (base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock)) {
++    new thoron_adblock::DocumentAgent(render_frame,
++                                      ISOLATED_WORLD_ID_THORON_ADBLOCK);
++  }
++
+   auto content_settings_delegate =
+       std::make_unique<ChromeContentSettingsAgentDelegate>(render_frame);
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+@@ -1489,11 +1498,21 @@ ChromeContentRendererClient::CreateSpeechRecognitionClient(
+ 
+ void ChromeContentRendererClient::RunScriptsAtDocumentStart(
+     content::RenderFrame* render_frame) {
++  // Thoron native ad blocking. Found now, used below: the extensions' scripts
++  // may delete the frame, and the agent with it.
++  thoron_adblock::DocumentAgent* thoron_agent =
++      thoron_adblock::DocumentAgent::Get(render_frame);
++  base::WeakPtr<thoron_adblock::DocumentAgent> thoron_document =
++      thoron_agent ? thoron_agent->AsWeakPtr() : nullptr;
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   extensions::ExtensionsRendererClient::Get()->RunScriptsAtDocumentStart(
+       render_frame);
+   // |render_frame| might be dead by now.
+ #endif
++  if (thoron_document) {
++    thoron_document->RunAtDocumentStart();
++    // |render_frame| might be dead by now.
++  }
+ }
+ 
+ void ChromeContentRendererClient::RunScriptsAtDocumentEnd(

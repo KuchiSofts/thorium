@@ -1,0 +1,45 @@
+Origin: chromium-ubuntu-build (saiarcot895), Thorium
+Author: chromium-ubuntu-build (saiarcot895), Thorium
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/sandbox/linux/BUILD.gn b/sandbox/linux/BUILD.gn
+index 7b4fd087fdaf20ba09612017f486f652a09209de..70ab28e76d71ad78b1fb94876808c7a9a1e449c4 100644
+--- a/sandbox/linux/BUILD.gn
++++ b/sandbox/linux/BUILD.gn
+@@ -1,4 +1,4 @@
+-# Copyright 2014 The Chromium Authors
++# Copyright 2026 The Chromium Authors and Alex313031
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
+@@ -303,6 +303,9 @@ if (is_linux || is_chromeos) {
+       "suid/process_util_linux.c",
+       "suid/sandbox.c",
+     ]
++
++    cflags = [ "-fPIE" ]
++    ldflags = [ "-pie" ]
+   }
+ }
+ 
+diff --git a/sandbox/policy/linux/bpf_audio_policy_linux.cc b/sandbox/policy/linux/bpf_audio_policy_linux.cc
+index e1716b97e8f2148837dfee0badbc52ef5714fe5a..675a5a402487aa7bad5c60209b83b32991e7c4ca 100644
+--- a/sandbox/policy/linux/bpf_audio_policy_linux.cc
++++ b/sandbox/policy/linux/bpf_audio_policy_linux.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2018 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -71,6 +71,9 @@ ResultExpr AudioProcessPolicy::EvaluateSyscall(int system_call_number) const {
+ #endif
+ #if defined(__NR_uname)
+     case __NR_uname:
++#endif
++#if defined(__NR_sched_getaffinity)
++    case __NR_sched_getaffinity:
+ #endif
+       return Allow();
+ #if defined(__NR_futex)

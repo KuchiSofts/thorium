@@ -1,0 +1,24 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/components/download/public/common/download_features.cc b/components/download/public/common/download_features.cc
+index c3d158eab25d52be1ebb21d3533e9d9779b470f5..e983bdca9279e70e5659980ce7eed79b0946b36d 100644
+--- a/components/download/public/common/download_features.cc
++++ b/components/download/public/common/download_features.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2018 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -14,7 +14,7 @@ BASE_FEATURE(kParallelDownloading,
+ #if BUILDFLAG(IS_ANDROID)
+              base::FEATURE_ENABLED_BY_DEFAULT
+ #else
+-             base::FEATURE_DISABLED_BY_DEFAULT
++             base::FEATURE_ENABLED_BY_DEFAULT
+ #endif
+ );
+ 

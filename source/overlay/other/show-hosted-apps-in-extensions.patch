@@ -1,0 +1,32 @@
+Origin: Thorium, not-lucky; idea from Iridium
+Author: Thorium, not-lucky; idea from Iridium
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/extensions/browser/ui_util.cc b/extensions/browser/ui_util.cc
+index c732fe330454977c0da07315bcc9e9caad123731..749d16929857c446a8a180f83107456bd3b3616d 100644
+--- a/extensions/browser/ui_util.cc
++++ b/extensions/browser/ui_util.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2020 The Chromium Authors
++// Copyright 2026 The Chromium Authors, Alex313031, and not-lucky
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -32,14 +32,14 @@ bool ShouldDisplayInExtensionSettings(Manifest::Type type,
+     return false;
+   }
+ 
+-  // Unless they are unpacked, never show hosted apps. Note: We intentionally
++  // Unless they are unpacked, show hosted apps in Thorium. Note: We intentionally
+   // show packaged apps and platform apps because there are some pieces of
+   // functionality that are only available in chrome://extensions/ but which
+   // are needed for packaged and platform apps. For example, inspecting
+   // background pages. See http://crbug.com/40162419.
+   if (!Manifest::IsUnpackedLocation(location) &&
+       type == Manifest::Type::kHostedApp) {
+-    return false;
++    return true;
+   }
+ 
+   return true;

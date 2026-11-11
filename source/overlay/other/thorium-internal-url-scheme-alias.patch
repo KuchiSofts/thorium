@@ -1,0 +1,451 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index b712a1750e440d5968e035b38ac90f2e7e2ec2d4..c02f7b5cd661c4d929151a61a34467f95f3da8bb 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1037,6 +1037,8 @@ source_set("core") {
+     "startup_data.cc",
+     "thorium_flag_choices.h",
+     "thorium_flag_entries.h",
++    "thorium_url_utils.cc",
++    "thorium_url_utils.h",
+     "unexpire_flags.cc",
+     "unexpire_flags.h",
+     "universal_web_contents_observers.cc",
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index 565bd580ba6172469d31079a4e455eb05020488c..b38c8ca940137d9b751fe5c352270ce7780c4378 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -202,6 +202,7 @@
+ #include "chrome/browser/subresource_filter/subresource_filter_navigation_download_policy.h"
+ #include "chrome/browser/tab_group_sync/tab_group_sync_utils.h"
+ #include "chrome/browser/task_manager/task_manager_interface.h"
++#include "chrome/browser/thorium_url_utils.h"
+ #include "chrome/browser/tracing/chrome_tracing_delegate.h"
+ #include "chrome/browser/translate/translate_service.h"
+ #include "chrome/browser/ui/blocked_content/blocked_window_params.h"
+@@ -5227,6 +5228,8 @@ ChromeContentBrowserClient::GetForcedColorsForWebContents(
+ 
+ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
+     BrowserURLHandler* handler) {
++  handler->AddPreHandler(&thorium::RewriteInternalURLAlias);
++
+   // The group policy NTP URL handler must be registered before the other NTP
+   // URL handlers below. Also register it before the "parts" handlers, so the
+   // NTP policy takes precedence over extensions that override the NTP.
+diff --git a/chrome/browser/extensions/extension_tab_util.cc b/chrome/browser/extensions/extension_tab_util.cc
+index aeb80f6bc0ae2b70cfaafa2cf6bb1c470f6c72ec..41270dca6c036deee48a56c5df9b151784375e54 100644
+--- a/chrome/browser/extensions/extension_tab_util.cc
++++ b/chrome/browser/extensions/extension_tab_util.cc
+@@ -1102,7 +1102,8 @@ bool ExtensionTabUtil::IsKillURL(const GURL& url) {
+     return true;
+   }
+ 
+-  if (!url.SchemeIs(content::kChromeUIScheme)) {
++  if (!url.SchemeIs(content::kChromeUIScheme) &&
++      !url.SchemeIs(content::kThoriumUIScheme)) {
+     return false;
+   }
+ 
+diff --git a/chrome/browser/history/history_utils.cc b/chrome/browser/history/history_utils.cc
+index 71be10047aec7c68a900ef5bbd1374685480d4d2..537a5167042c97e4db24123c804012d113b197be 100644
+--- a/chrome/browser/history/history_utils.cc
++++ b/chrome/browser/history/history_utils.cc
+@@ -25,6 +25,7 @@ bool CanAddURLToHistory(const GURL& url) {
+       url.SchemeIs(url::kContentScheme) ||
+       url.SchemeIs(content::kChromeDevToolsScheme) ||
+       url.SchemeIs(content::kChromeUIScheme) ||
++      url.SchemeIs(content::kThoriumUIScheme) ||
+       url.SchemeIs(content::kChromeUIUntrustedScheme) ||
+       url.SchemeIs(content::kViewSourceScheme) ||
+       url.SchemeIs(chrome::kChromeNativeScheme) ||
+diff --git a/chrome/browser/profiles/profile_io_data.cc b/chrome/browser/profiles/profile_io_data.cc
+index 803c106e13bca305ad9a39aa37c825226fdeedd6..942d9e28b53864450e747c02e97cc12944a9554b 100644
+--- a/chrome/browser/profiles/profile_io_data.cc
++++ b/chrome/browser/profiles/profile_io_data.cc
+@@ -44,6 +44,7 @@ bool ProfileIOData::IsHandledProtocol(std::string_view scheme) {
+       extensions::kExtensionScheme,
+ #endif
+       content::kChromeUIScheme,
++      content::kThoriumUIScheme,
+       content::kChromeUIUntrustedScheme,
+       url::kDataScheme,
+ #if BUILDFLAG(IS_CHROMEOS)
+diff --git a/chrome/browser/thorium_url_utils.cc b/chrome/browser/thorium_url_utils.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..b4b3f12c97d14906def73a3fafbdece7fa1dba16
+--- /dev/null
++++ b/chrome/browser/thorium_url_utils.cc
+@@ -0,0 +1,26 @@
++// Copyright 2026 The Chromium Authors and Alex313031
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/thorium_url_utils.h"
++
++#include "content/public/common/url_constants.h"
++#include "url/gurl.h"
++
++namespace thorium {
++
++GURL CanonicalizeInternalURL(const GURL& url) {
++  if (!url.SchemeIs(content::kThoriumUIScheme)) {
++    return url;
++  }
++
++  GURL::Replacements replacements;
++  replacements.SetSchemeStr(content::kChromeUIScheme);
++  return url.ReplaceComponents(replacements);
++}
++
++void RewriteInternalURLAlias(GURL* url, content::BrowserContext*) {
++  *url = CanonicalizeInternalURL(*url);
++}
++
++}  // namespace thorium
+diff --git a/chrome/browser/thorium_url_utils.h b/chrome/browser/thorium_url_utils.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..5b32f2d6254d497368ecb24cdbf5796eb27f9afa
+--- /dev/null
++++ b/chrome/browser/thorium_url_utils.h
+@@ -0,0 +1,26 @@
++// Copyright 2026 The Chromium Authors and Alex313031
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_THORIUM_URL_UTILS_H_
++#define CHROME_BROWSER_THORIUM_URL_UTILS_H_
++
++class GURL;
++
++namespace content {
++class BrowserContext;
++}  // namespace content
++
++namespace thorium {
++
++// Converts the user-facing `thorium://` alias to the canonical `chrome://`
++// scheme. All URL components other than the scheme are preserved.
++GURL CanonicalizeInternalURL(const GURL& url);
++
++// Canonicalizes the internal URL alias before Chromium's normal browser URL
++// handlers run. This preserves all existing platform and policy rewrites.
++void RewriteInternalURLAlias(GURL* url, content::BrowserContext*);
++
++}  // namespace thorium
++
++#endif  // CHROME_BROWSER_THORIUM_URL_UTILS_H_
+diff --git a/chrome/browser/ui/incognito_allowed_url.cc b/chrome/browser/ui/incognito_allowed_url.cc
+index 90cbf265af08d0e667c96b2c62d70f01ed4c078f..1db9738f74b52a091954bb01f94aaff923880587 100644
+--- a/chrome/browser/ui/incognito_allowed_url.cc
++++ b/chrome/browser/ui/incognito_allowed_url.cc
+@@ -23,7 +23,8 @@ namespace {
+ bool IsHostAllowedInIncognito(const GURL& url) {
+   std::string_view scheme = url.scheme();
+   std::string_view host = url.host();
+-  if (scheme != content::kChromeUIScheme) {
++  if (scheme != content::kChromeUIScheme &&
++      scheme != content::kThoriumUIScheme) {
+     return true;
+   }
+ 
+diff --git a/components/url_formatter/url_fixer.cc b/components/url_formatter/url_fixer.cc
+index f70743151995466fcbc69328f83c51d05dd1584c..24a5b69857ec11724dc4d569dc55f81bb14dde7a 100644
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -39,6 +39,7 @@ namespace {
+ 
+ // Hardcode these constants to avoid dependences on //chrome and //content.
+ const char kChromeUIScheme[] = "chrome";
++const char kThoriumUIScheme[] = "thorium";
+ const char kDevToolsScheme[] = "devtools";
+ const char kChromeUIDefaultHost[] = "version";
+ const char kViewSourceScheme[] = "view-source";
+@@ -446,7 +447,8 @@ std::string SegmentURLInternal(std::string* text, url::Parsed* parts) {
+       (*text)[semicolon] = ':';
+       if (GetValidScheme(*text, &parts->scheme, &scheme) &&
+           (url::IsStandard(scheme) || scheme == url::kAboutScheme ||
+-           scheme == kChromeUIScheme || scheme == url::kFileScheme)) {
++           scheme == kChromeUIScheme || scheme == kThoriumUIScheme ||
++           scheme == url::kFileScheme)) {
+         found_scheme = true;
+       } else {
+         (*text)[semicolon] = ';';
+@@ -459,10 +461,11 @@ std::string SegmentURLInternal(std::string* text, url::Parsed* parts) {
+     }
+   }
+ 
+-  // Proceed with about, chrome, and devtools schemes,
++  // Proceed with about, chrome, thorium, and devtools schemes,
+   // but not file or nonstandard schemes.
+   if ((scheme != url::kAboutScheme) && (scheme != kChromeUIScheme) &&
+-      (scheme != kDevToolsScheme) && !url::IsStandard(scheme)) {
++      (scheme != kThoriumUIScheme) && (scheme != kDevToolsScheme) &&
++      !url::IsStandard(scheme)) {
+     return scheme;
+   }
+ 
+@@ -614,12 +617,15 @@ GURL FixupURLInternal(const std::string& text,
+   }
+ 
+   // For some schemes whose layouts we understand, we rebuild the URL.
+-  bool chrome_url =
+-      (scheme == url::kAboutScheme) || (scheme == kChromeUIScheme);
+-  bool devtools_url = (scheme == kDevToolsScheme);
++  const bool chrome_url = (scheme == url::kAboutScheme) ||
++                          (scheme == kChromeUIScheme) ||
++                          (scheme == kThoriumUIScheme);
++  const bool devtools_url = (scheme == kDevToolsScheme);
+   if (chrome_url || devtools_url || url::IsStandard(scheme)) {
+-    // Replace the about: scheme with the chrome: scheme.
+-    std::string url(scheme == url::kAboutScheme ? kChromeUIScheme : scheme);
++    // Canonicalize the internal URL aliases to the chrome: scheme.
++    const bool canonicalize_internal_scheme =
++        scheme == url::kAboutScheme || scheme == kThoriumUIScheme;
++    std::string url(canonicalize_internal_scheme ? kChromeUIScheme : scheme);
+     url.append(url::kStandardSchemeSeparator);
+ 
+     // We need to check whether the |username| is valid because it is our
+@@ -742,7 +748,11 @@ bool IsEquivalentScheme(const std::string& scheme1,
+                         const std::string& scheme2) {
+   return scheme1 == scheme2 ||
+          (scheme1 == url::kAboutScheme && scheme2 == kChromeUIScheme) ||
+-         (scheme1 == kChromeUIScheme && scheme2 == url::kAboutScheme);
++         (scheme1 == kChromeUIScheme && scheme2 == url::kAboutScheme) ||
++         (scheme1 == kThoriumUIScheme && scheme2 == url::kAboutScheme) ||
++         (scheme1 == url::kAboutScheme && scheme2 == kThoriumUIScheme) ||
++         (scheme1 == kThoriumUIScheme && scheme2 == kChromeUIScheme) ||
++         (scheme1 == kChromeUIScheme && scheme2 == kThoriumUIScheme);
+ }
+ 
+ }  // namespace url_formatter
+diff --git a/content/browser/browser_url_handler_impl.cc b/content/browser/browser_url_handler_impl.cc
+index d4229cbfdf3066e50b26f3cc08b8c3131c8896d3..d18502824afd012e4566d6b48f7f05529f041e86 100644
+--- a/content/browser/browser_url_handler_impl.cc
++++ b/content/browser/browser_url_handler_impl.cc
+@@ -99,6 +99,21 @@ BrowserURLHandlerImpl::BrowserURLHandlerImpl() {
+ BrowserURLHandlerImpl::~BrowserURLHandlerImpl() {
+ }
+ 
++void BrowserURLHandlerImpl::AddPreHandler(URLPreHandler handler) {
++  CHECK(handler);
++  url_pre_handlers_.push_back(handler);
++}
++
++void BrowserURLHandlerImpl::RunPreHandlers(
++    GURL* url,
++    BrowserContext* browser_context) const {
++  CHECK(url, base::NotFatalUntil::M159);
++  CHECK(browser_context, base::NotFatalUntil::M159);
++  for (URLPreHandler handler : url_pre_handlers_) {
++    handler(url, browser_context);
++  }
++}
++
+ void BrowserURLHandlerImpl::AddHandlerPair(URLHandler handler,
+                                            URLHandler reverse_handler) {
+   url_handlers_.push_back(HandlerPair(handler, reverse_handler));
+@@ -113,20 +128,47 @@ void BrowserURLHandlerImpl::RewriteURLIfNecessary(
+   RewriteURLIfNecessary(url, browser_context, &ignored_reverse_on_redirect);
+ }
+ 
++void BrowserURLHandlerImpl::RewriteURLForNavigation(
++    const GURL& original_url,
++    BrowserContext* browser_context,
++    GURL* url_to_load,
++    GURL* virtual_url,
++    bool* reverse_on_redirect) {
++  CHECK(browser_context, base::NotFatalUntil::M159);
++  CHECK(url_to_load, base::NotFatalUntil::M159);
++  CHECK(virtual_url, base::NotFatalUntil::M159);
++  CHECK(reverse_on_redirect, base::NotFatalUntil::M159);
++
++  *url_to_load = original_url;
++  RunPreHandlers(url_to_load, browser_context);
++  *virtual_url = *url_to_load;
++  RewriteURLAfterPreHandlers(url_to_load, browser_context,
++                             reverse_on_redirect);
++}
++
+ std::vector<GURL> BrowserURLHandlerImpl::GetPossibleRewrites(
+     const GURL& url,
+     BrowserContext* browser_context) {
++  GURL pre_rewritten_url(url);
++  RunPreHandlers(&pre_rewritten_url, browser_context);
++
+   std::vector<GURL> rewrites;
++  bool handled = false;
+   for (const auto& it : url_handlers_) {
+     const URLHandler& handler = it.first;
+     if (!handler)
+       continue;
+ 
+-    GURL mutable_url(url);
+-    if (handler(&mutable_url, browser_context))
++    GURL mutable_url(pre_rewritten_url);
++    if (handler(&mutable_url, browser_context)) {
+       rewrites.push_back(std::move(mutable_url));
++      handled = true;
++    }
+   }
+ 
++  if (!handled && pre_rewritten_url != url)
++    rewrites.push_back(std::move(pre_rewritten_url));
++
+   return rewrites;
+ }
+ 
+@@ -138,6 +180,18 @@ void BrowserURLHandlerImpl::RewriteURLIfNecessary(
+   CHECK(browser_context, base::NotFatalUntil::M159);
+   CHECK(reverse_on_redirect, base::NotFatalUntil::M159);
+ 
++  RunPreHandlers(url, browser_context);
++  RewriteURLAfterPreHandlers(url, browser_context, reverse_on_redirect);
++}
++
++void BrowserURLHandlerImpl::RewriteURLAfterPreHandlers(
++    GURL* url,
++    BrowserContext* browser_context,
++    bool* reverse_on_redirect) {
++  CHECK(url, base::NotFatalUntil::M159);
++  CHECK(browser_context, base::NotFatalUntil::M159);
++  CHECK(reverse_on_redirect, base::NotFatalUntil::M159);
++
+   if (!url->is_valid()) {
+     *reverse_on_redirect = false;
+     return;
+@@ -155,11 +209,13 @@ void BrowserURLHandlerImpl::RewriteURLIfNecessary(
+ 
+ bool BrowserURLHandlerImpl::ReverseURLRewrite(
+     GURL* url, const GURL& original, BrowserContext* browser_context) {
++  GURL pre_rewritten_original(original);
++  RunPreHandlers(&pre_rewritten_original, browser_context);
+   for (const auto& it : url_handlers_) {
+     const URLHandler& handler = it.first;
+     const URLHandler& reverse_rewriter = it.second;
+     if (reverse_rewriter) {
+-      GURL test_url(original);
++      GURL test_url(pre_rewritten_original);
+       if (!handler) {
+         if (reverse_rewriter(url, browser_context))
+           return true;
+diff --git a/content/browser/browser_url_handler_impl.h b/content/browser/browser_url_handler_impl.h
+index d1c01e0bada6d02f223809cd6c89fbe50447e242..ae426f648dab2bbcbb74d3128d1a5b0c27640239 100644
+--- a/content/browser/browser_url_handler_impl.h
++++ b/content/browser/browser_url_handler_impl.h
+@@ -32,8 +32,17 @@ class CONTENT_EXPORT BrowserURLHandlerImpl : public BrowserURLHandler {
+   std::vector<GURL> GetPossibleRewrites(
+       const GURL& url,
+       BrowserContext* browser_context) override;
++  void AddPreHandler(URLPreHandler handler) override;
+   void AddHandlerPair(URLHandler handler, URLHandler reverse_handler) override;
+ 
++  // Canonicalizes `original_url` before initializing both output URLs, then
++  // runs the normal URL handler chain for the URL that will be loaded.
++  void RewriteURLForNavigation(const GURL& original_url,
++                               BrowserContext* browser_context,
++                               GURL* url_to_load,
++                               GURL* virtual_url,
++                               bool* reverse_on_redirect);
++
+   // Like the //content-public RewriteURLIfNecessary overload (overridden
+   // above), but if the original URL needs to be adjusted if the modified URL is
+   // redirected, this method sets |*reverse_on_redirect| to true.
+@@ -53,6 +62,14 @@ class CONTENT_EXPORT BrowserURLHandlerImpl : public BrowserURLHandler {
+   ~BrowserURLHandlerImpl() override;
+   friend struct base::DefaultSingletonTraits<BrowserURLHandlerImpl>;
+ 
++  void RunPreHandlers(GURL* url, BrowserContext* browser_context) const;
++  void RewriteURLAfterPreHandlers(GURL* url,
++                                  BrowserContext* browser_context,
++                                  bool* reverse_on_redirect);
++
++  // Canonicalization handlers that always run before regular URL handlers.
++  std::vector<URLPreHandler> url_pre_handlers_;
++
+   // The list of known URLHandlers, optionally with reverse-rewriters.
+   typedef std::pair<URLHandler, URLHandler> HandlerPair;
+   std::vector<HandlerPair> url_handlers_;
+diff --git a/content/browser/renderer_host/navigation_controller_impl.cc b/content/browser/renderer_host/navigation_controller_impl.cc
+index 95577a5d73f9a2db43421f45a471368f79625288..8c51ad881de7bb96c5b3abbd0271fef93d8c4946 100644
+--- a/content/browser/renderer_host/navigation_controller_impl.cc
++++ b/content/browser/renderer_host/navigation_controller_impl.cc
+@@ -456,9 +456,9 @@ void RewriteUrlForNavigation(const GURL& original_url,
+   // remove "view-source:" from the beginning of the URL to get the URL that
+   // will actually be loaded. This real URL won't be shown to the user, just
+   // used internally.
+-  *url_to_load = *virtual_url = original_url;
+-  BrowserURLHandlerImpl::GetInstance()->RewriteURLIfNecessary(
+-      url_to_load, browser_context, reverse_on_redirect);
++  BrowserURLHandlerImpl::GetInstance()->RewriteURLForNavigation(
++      original_url, browser_context, url_to_load, virtual_url,
++      reverse_on_redirect);
+ }
+ 
+ #if DCHECK_IS_ON()
+diff --git a/content/common/url_schemes.cc b/content/common/url_schemes.cc
+index 072f185a1341bbd709ae4f0a3f8df781468e7cce..184abbc127ddc81605878192d52242a3dd4b914d 100644
+--- a/content/common/url_schemes.cc
++++ b/content/common/url_schemes.cc
+@@ -70,6 +70,7 @@ void RegisterContentSchemes(bool should_lock_registry) {
+ 
+   url::AddStandardScheme(kChromeDevToolsScheme, url::SCHEME_WITH_HOST);
+   url::AddStandardScheme(kChromeUIScheme, url::SCHEME_WITH_HOST);
++  url::AddStandardScheme(kThoriumUIScheme, url::SCHEME_WITH_HOST);
+   url::AddStandardScheme(kChromeUIUntrustedScheme, url::SCHEME_WITH_HOST);
+   url::AddStandardScheme(kChromeErrorScheme, url::SCHEME_WITH_HOST);
+   for (auto& scheme : schemes.standard_schemes)
+diff --git a/content/public/browser/browser_url_handler.h b/content/public/browser/browser_url_handler.h
+index 1fe986b72eee6e6a2972e6d3f173675729f92bb7..c3658c907649c6bd982f0310c6350eeb98cc3450 100644
+--- a/content/public/browser/browser_url_handler.h
++++ b/content/public/browser/browser_url_handler.h
+@@ -31,6 +31,11 @@ class CONTENT_EXPORT BrowserURLHandler {
+   typedef bool (*URLHandler)(GURL* url,
+                              BrowserContext* browser_context);
+ 
++  // A canonicalization function that always runs before the regular URL
++  // handlers. Pre-handlers may modify the URL but cannot stop processing.
++  using URLPreHandler = void (*)(GURL* url,
++                                 BrowserContext* browser_context);
++
+   // Returns the null handler for use with |AddHandlerPair()|.
+   static URLHandler null_handler();
+ 
+@@ -45,12 +50,18 @@ class CONTENT_EXPORT BrowserURLHandler {
+   // Returns the list of possible rewrites, in order of priority (i.e., index 0
+   // is the rewrite that would be used in RewriteURLIfNecessary()). Note that
+   // this only allows for one rewrite per registered URLHandler (and each gets a
+-  // fresh copy of |url|), so it is not necessarily the complete set of all
++  // fresh copy of the URL after pre-handlers have run), so it is not
++  // necessarily the complete set of all
+   // possible rewrites.
+   virtual std::vector<GURL> GetPossibleRewrites(
+       const GURL& url,
+       BrowserContext* browser_context) = 0;
+ 
++  // Registers a canonicalization handler that runs before URLHandler pairs.
++  // Pre-handlers run in registration order for normal rewrites, possible
++  // rewrites, and reverse-rewrite handler selection.
++  virtual void AddPreHandler(URLPreHandler handler) = 0;
++
+   // Add the specified handler pair to the list of URL handlers.
+   //
+   // Note that normally, the reverse handler is only used if the modified URL is
+diff --git a/content/public/common/url_constants.h b/content/public/common/url_constants.h
+index 75eb817c98106200261571b2420173f21cd60e6b..629a0eaee1c1a5f651d2d7df1343f1f3d6b7a229 100644
+--- a/content/public/common/url_constants.h
++++ b/content/public/common/url_constants.h
+@@ -19,6 +19,9 @@ namespace content {
+ inline constexpr char kChromeDevToolsScheme[] = "devtools";
+ inline constexpr char kChromeErrorScheme[] = "chrome-error";
+ inline constexpr char kChromeUIScheme[] = "chrome";  // Used for WebUIs.
++// User-facing Thorium alias for `kChromeUIScheme`. Navigations are
++// canonicalized to `chrome://` before WebUI loading.
++inline constexpr char kThoriumUIScheme[] = "thorium";
+ inline constexpr char kChromeNativeScheme[] = "chrome-native";
+ inline constexpr char kChromeUIUntrustedScheme[] = "chrome-untrusted";
+ inline constexpr char kViewSourceScheme[] = "view-source";

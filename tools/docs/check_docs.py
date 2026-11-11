@@ -55,7 +55,7 @@ HARDWARE_RE = re.compile(r"(?i)\b(?:ryzen\s+[3579]\b|threadripper|core\s+i[3579]
 # Files we author. Upstream docs are reference material: they legitimately contain upstream
 # maintainers' public paths/emails and some pre-existing broken links (tracked in ROADMAP D.3).
 OWNED_DOC_GLOBS = ("README.md", "ROADMAP.md", "CHANGELOG.md", "CREDITS.md", "SECURITY.md",
-                   "CONTRIBUTING.md", "docs/design/**/*.md", "docs/legal/**/*.md", "docs/build/**/*.md",
+                   "CONTRIBUTING.md", "docs/design/**/*.md", "docs/legal/**/*.md", "docs/build/**/*.md", "source/*.md",
                    "tools/**/*.md", "branding/**/*.md")
 OWNED_PRIVATE_GLOBS = OWNED_DOC_GLOBS + ("NOTICE", ".gitignore", "tools/**/*.py", "tools/**/*.ps1", "tools/**/*.sh",
                                          "docs/**/*.md", "branding/**/*.svg", "branding/**/*.html")

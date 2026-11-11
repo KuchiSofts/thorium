@@ -1,0 +1,22 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/src/libANGLE/renderer/serial_utils.h b/src/libANGLE/renderer/serial_utils.h
+index beeb7c8068..8a9c6c1969 100644
+--- a/src/libANGLE/renderer/serial_utils.h
++++ b/src/libANGLE/renderer/serial_utils.h
+@@ -130,6 +130,12 @@ class alignas(8) AtomicQueueSerial final
+   private:
+     static constexpr uint64_t kInvalid = 0;
+     std::atomic<uint64_t> mValue       = kInvalid;
++
++    // This serial is loaded and stored from multiple threads, so the atomic has to be lock-free
++    // rather than fall back to a lock in libatomic. On 32-bit x86 that means cmpxchg8b, i.e. an
++    // i586 or newer baseline, which the SSE2 profile implies.
++    static_assert(std::atomic<uint64_t>::is_always_lock_free,
++                  "AtomicQueueSerial requires lock-free 64-bit atomics");
+ };
+ 
+ // Used as default/initial serial
