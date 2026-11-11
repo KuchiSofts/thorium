@@ -267,23 +267,40 @@ one, so going back means restoring a backup. Never skip these steps (ROADMAP **Q
 
 1. Close the browser completely (no `thorium.exe` or `thoron.exe` left in Task Manager).
 2. Back up the whole `%LOCALAPPDATA%\Thorium` folder (program and `User Data`) and verify the copy.
-3. Copy `User Data` to a work folder and snapshot it:
-   `py -3 -I tools\qa\profile_check.py snapshot "<copy>\User Data" --out before.json`.
-4. Open the copy with the new build **fully offline**, so it can neither sync nor make websites
-   rotate your login cookies (which could sign out the real browser):
+3. Rehearse the update on a copy of the profile:
 
    ```powershell
-   & <out dir>\thoron.exe --user-data-dir="<copy>\User Data" --no-first-run --no-default-browser-check `
-       --disable-sync --disable-background-networking --disable-component-update `
-       --proxy-server=http://127.0.0.1:9 --proxy-bypass-list="<-loopback>" `
-       --host-resolver-rules="MAP * ~NOTFOUND" --force-webrtc-ip-handling-policy=disable_non_proxied_udp
+   py -3 -I tools\qa\profile_rehearsal.py --browser <out dir>\thoron.exe `
+       --user-data "$env:LOCALAPPDATA\Thorium\User Data" --work <private local folder> `
+       --before-out <private local folder>\before.json
    ```
 
-   Check the tabs and tab groups, then close the window normally (not a forced kill).
-5. `py -3 -I tools\qa\profile_check.py snapshot "<copy>\User Data" --out after.json`, then
-   `py -3 -I tools\qa\profile_check.py compare before.json after.json` must report 1:1.
-6. Only then install over the real Thorium. The installer first asks "Do you want to install
+   The tool copies `User Data` to a new folder under the work folder, snapshots the copy
+   (`tools\qa\profile_check.py`: counts only, nothing is decrypted), opens the copy with the new
+   build **fully offline**, so it can neither sync nor make websites rotate your login cookies (which
+   could sign out the real browser), lets it run for a minute, closes it the normal way, snapshots
+   again and compares. A window with your tabs opens and closes by itself: do not use it. The last
+   line must say that the new build kept everything. The copy is deleted whatever happened, and your
+   real `User Data` is only read. A build that does not close when asked does not count as a pass.
+4. Only then install over the real Thorium. The installer first asks "Do you want to install
    Thorium?".
+5. When you have used the new version and closed it again, compare the real profile with the
+   snapshot from before:
+   `py -3 -I tools\qa\profile_check.py snapshot "$env:LOCALAPPDATA\Thorium\User Data" --out after.json`,
+   then `py -3 -I tools\qa\profile_check.py compare before.json after.json` must report 1:1.
+
+The tool refuses to start while the browser of that profile runs, or when the work folder is inside
+the profile, inside a git repository or in a folder whose name looks cloud-synced. Tabs and tab
+groups are compared only when the browser is set to continue where you left off; with `--headless`
+(no window) they are not compared, and the tool says so. To look at the copy yourself instead, copy
+`User Data` by hand, take the two snapshots with `profile_check.py`, and open the copy with:
+
+```powershell
+& <out dir>\thoron.exe --user-data-dir="<copy>\User Data" --no-first-run --no-default-browser-check `
+    --disable-sync --disable-background-networking --disable-component-update `
+    --proxy-server=http://127.0.0.1:9 --proxy-bypass-list="<-loopback>" `
+    --host-resolver-rules="MAP * ~NOTFOUND" --force-webrtc-ip-handling-policy=disable_non_proxied_udp
+```
 
 Keep backups, profile copies and snapshots only on a local drive that is not cloud-synced, never in
 a cloud folder or in this repository, and delete the profile copy when you are done: it contains

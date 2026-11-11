@@ -33,6 +33,7 @@ from pathlib import Path
 CMD_SET_TAB_WINDOW, CMD_PINNED, CMD_TAB_CLOSED, CMD_WINDOW_CLOSED = 0, 12, 16, 17
 CMD_SET_TAB_GROUP, CMD_TAB_GROUP_METADATA2 = 25, 27
 COOKIE_LOSS_TOLERANCE = 0.02      # expired cookies are deleted at start-up
+NO_NEW_SESSION = "the new version did not write a session"   # a browser without a window never writes one
 
 
 def _records(data: bytes):
@@ -236,7 +237,7 @@ def _compare_sessions(name: str, b: dict, a: dict, was_open: bool) -> list[str]:
     problems = []
     bf, af = b.get("session_file"), a.get("session_file")
     if was_open and bf and af and af["name"] == bf["name"] and af["mtime"] <= bf["mtime"]:
-        problems.append(f"{name}: the new version did not write a session (same file {af['name']}), "
+        problems.append(f"{name}: {NO_NEW_SESSION} (same file {af['name']}), "
                         f"so this compares the old session with itself")
     for key in ("windows", "tabs", "pinned"):
         if as_[key] < bs[key]:
@@ -248,6 +249,17 @@ def _compare_sessions(name: str, b: dict, a: dict, was_open: bool) -> list[str]:
             problems.append(f"{name}: tab group '{title}' (colour {color}, {tabs} tabs) missing or changed "
                             f"({count} before, {after_groups[(title, color, tabs)]} after)")
     return problems
+
+
+def summary_line(name: str, p: dict) -> str:
+    """One profile of a snapshot in a line: counts only."""
+    sess = p["session"]
+    tabs = f"{sess.get('windows')} windows, {sess.get('tabs')} tabs, {len(sess.get('groups', []))} groups" \
+        if "tabs" in sess else ", ".join(sess)
+    ext = p["extensions_enabled"]
+    return (f"{name}: {tabs}; {p['bookmarks']} bookmarks, {p['passwords']} passwords, "
+            f"{p['cookies'].get('total', 'unreadable')} cookies, "
+            f"{'unreadable' if ext is None else len(ext)} extensions enabled")
 
 
 def main(argv: list[str]) -> int:
@@ -268,13 +280,7 @@ def main(argv: list[str]) -> int:
             return 1
         a.out.write_text(json.dumps(snap, indent=2, ensure_ascii=False), encoding="utf-8")
         for name, p in snap["profiles"].items():
-            sess = p["session"]
-            tabs = f"{sess.get('windows')} windows, {sess.get('tabs')} tabs, {len(sess.get('groups', []))} groups" \
-                if "tabs" in sess else ", ".join(sess)
-            ext = p["extensions_enabled"]
-            print(f"{name}: {tabs}; {p['bookmarks']} bookmarks, {p['passwords']} passwords, "
-                  f"{p['cookies'].get('total', 'unreadable')} cookies, "
-                  f"{'unreadable' if ext is None else len(ext)} extensions enabled")
+            print(summary_line(name, p))
         return 0
     problems = compare(json.loads(a.before.read_text(encoding="utf-8")), json.loads(a.after.read_text(encoding="utf-8")))
     for p in problems:

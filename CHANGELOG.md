@@ -13,6 +13,13 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- `tools/qa/profile_rehearsal.py`: the rehearsal before an update, in one command (ROADMAP **Q.7**). It
+  copies a closed browser's `User Data` to a new private folder, opens the copy with the new build fully
+  offline, closes it the normal way, compares the copy before and after with `profile_check.py`, and
+  deletes the copy whatever happened. The real folder is only read. It refuses a running browser, a work
+  folder inside the profile, in a git repository or in a folder whose name looks cloud-synced, and a drive
+  with too little room. A build that has to be stopped by force does not count as a pass.
+  `docs/build/WINDOWS.md` ("Upgrading") uses it.
 - Native ad blocking (off by default) understands the rest of the common filter syntax (ROADMAP **P5.22**):
   - procedural hide rules (`:has-text()`, `:upward()`, `:xpath()`, `:matches-css()` and others) and the
     rules that restyle or remove (`:style()`, `:remove()`, `:remove-attr()`, `:remove-class()`): the engine
