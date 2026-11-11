@@ -54,7 +54,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `███████░░░░░░░░░░░░░` 50 of 147 tasks done (34%) · roadmap updated 2026-11-08
+**Overall:** `███████░░░░░░░░░░░░░` 51 of 148 tasks done (34%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -64,7 +64,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `███████░░░░░░░░░░░░░` | 9/27 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `███████░░░░░░░░░░░░░` | 10/28 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `███████████░░░░░░░░░` | 8/15 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `██████████░░░░░░░░░░` | 4/8 | 🔄 In progress |
@@ -207,7 +207,8 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P5.24** Native ad blocking, hand-over from uBlock Origin: new profiles no longer get the built-in uBlock Origin once native blocking is on by default; a one-time notice when both run; existing profiles untouched
 - [x] **P5.25** Native ad blocking, redirect hops: a request that a server redirects is checked again at each hop, so a redirect to a blocked host is blocked and a redirect to an address with a `$removeparam` parameter is cleaned (uBlock Origin does both; found while building P5.22)
 - [ ] **P5.26** Native ad blocking, the filter syntax still missing: `$urlskip` (238 rules in the bundled lists), `$replace` (76, trusted lists only), `$header` (39), `$uritransform` (14), `$permissions` (11), `:shadow()` (2), HTML filtering
-- [ ] **P5.27** Native ad blocking, the requests that do not pass the request proxy: the main script of a worker and of a service worker, prefetches, preloads announced by early hints, downloads (found while building P5.25)
+- [x] **P5.27** Native ad blocking, the requests that do not pass the request proxy: the main script of a worker and of a service worker, prefetches, preloads announced by early hints, downloads (found while building P5.25)
+- [ ] **P5.28** Native ad blocking, preloads announced by early hints: Chromium fetches them without asking the browser layer or extensions, so a server can make the browser ask a tracker for a script before its page arrives (the script does not run; uBlock Origin cannot see these either)
 
 **Security (S)**
 
