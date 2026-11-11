@@ -1,0 +1,132 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/tabs/tab_style.cc b/chrome/browser/ui/tabs/tab_style.cc
+index 85933a86d08ae008c77b00a1a63867f75640422e..ad814c506f862646c5ae1c7d032e343301f4cf66 100644
+--- a/chrome/browser/ui/tabs/tab_style.cc
++++ b/chrome/browser/ui/tabs/tab_style.cc
+@@ -119,10 +119,20 @@ int TabStyle::GetMinimumInactiveWidth() const {
+ }
+ 
+ int TabStyle::GetTopCornerRadius() const {
++  static const bool rectangular_tabs =
++      base::CommandLine::ForCurrentProcess()->HasSwitch("rectangular-tabs");
++  if (rectangular_tabs) {
++    return 4;
++  }
+   return features::IsThorium2024() ? 8 : 10;
+ }
+ 
+ int TabStyle::GetBottomCornerRadius() const {
++  static const bool rectangular_tabs =
++      base::CommandLine::ForCurrentProcess()->HasSwitch("rectangular-tabs");
++  if (rectangular_tabs) {
++    return 4;
++  }
+   return features::IsThorium2024() ? 8 : 12;
+ }
+ 
+diff --git a/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc b/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
+index f548b8afb4b6186f59fafc0188c1971e1c351965..cac6f1b0081b687d8c23a31ce56be002796e6cfb 100644
+--- a/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
++++ b/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.h"
+ 
+ #include "base/check.h"
++#include "base/command_line.h"
+ #include "base/i18n/rtl.h"
+ #include "base/metrics/user_metrics.h"
+ #include "base/metrics/user_metrics_action.h"
+@@ -98,6 +99,10 @@ TabStripComboButton::TabStripComboButton(BrowserWindowInterface* browser,
+     end_button_->SetUseThorium2024Style(true);
+     end_button_->SetIconSize(kThorium2024TabSearchIconSize);
+   }
++  if (context_ == Context::kHorizontalTabStrip &&
++      base::CommandLine::ForCurrentProcess()->HasSwitch("rectangular-tabs")) {
++    end_button_->SetUseRectangularStyle(true);
++  }
+ 
+   PrefService* prefs = browser_->GetProfile()->GetPrefs();
+   pref_registrar_.Init(prefs);
+diff --git a/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.cc b/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.cc
+index 6943da25868d83cfc6d42fefd9bbf66e9bccbd90..e0ec58d19786407eea3517a1c491178b6f9ff99f 100644
+--- a/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.cc
++++ b/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.cc
+@@ -148,6 +148,20 @@ void TabStripFlatEdgeButton::SetUseThorium2024Style(
+   SchedulePaint();
+ }
+ 
++void TabStripFlatEdgeButton::SetUseRectangularStyle(
++    bool use_rectangular_style) {
++  if (use_rectangular_style_ == use_rectangular_style) {
++    return;
++  }
++  use_rectangular_style_ = use_rectangular_style;
++  SetProperty(views::kHighlightPathGeneratorKey,
++              std::make_unique<views::RoundRectHighlightPathGenerator>(
++                  gfx::Insets(), GetButtonCornerRadii()));
++  views::InkDrop::Get(this)->GetInkDrop()->HostSizeChanged(size());
++
++  SchedulePaint();
++}
++
+ void TabStripFlatEdgeButton::SetExpansionFactor(float factor) {
+   if (expansion_factor_ == factor) {
+     return;
+@@ -329,6 +343,10 @@ ui::ColorId TabStripFlatEdgeButton::GetBackgroundColor() const {
+ }
+ 
+ gfx::RoundedCornersF TabStripFlatEdgeButton::GetButtonCornerRadii() const {
++  if (use_rectangular_style_) {
++    return gfx::RoundedCornersF(4.0f);
++  }
++
+   const float kFlatRadius = use_thorium_2024_style_ ? 4.0f : 2.0f;
+   const float rounded_radius =
+       corner_radius_.value_or(use_thorium_2024_style_ ? 14.0f : 10.0f);
+diff --git a/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h b/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h
+index d9b8f2def16bbe967202dc4dba53349525b57def..361b462348ad79265540f1d41bab8d1870f7802c 100644
+--- a/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h
++++ b/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h
+@@ -43,6 +43,7 @@ class TabStripFlatEdgeButton : public views::LabelButton,
+   void SetInsets(const gfx::Insets& insets);
+   void SetIconOpacity(float opacity);
+   void SetUseThorium2024Style(bool use_thorium_2024_style);
++  void SetUseRectangularStyle(bool use_rectangular_style);
+   void SetPaintTransparent(bool paint_transparent);
+ 
+   void SetExpansionFactor(float factor);
+@@ -98,6 +99,7 @@ class TabStripFlatEdgeButton : public views::LabelButton,
+   bool paint_transparent_ = false;
+   base::CallbackListSubscription paint_as_active_subscription_;
+   bool use_thorium_2024_style_ = false;
++  bool use_rectangular_style_ = false;
+ 
+   base::RepeatingClosureList will_invoke_action_callback_list_;
+ };
+diff --git a/chrome/browser/ui/views/tabs/tab_strip_control_button.cc b/chrome/browser/ui/views/tabs/tab_strip_control_button.cc
+index dfd8e94c702b5ab3f4cd17212fd28fc08ab74ec4..a40ec13e61fed4def73222ff773b81055e4a3d7d 100644
+--- a/chrome/browser/ui/views/tabs/tab_strip_control_button.cc
++++ b/chrome/browser/ui/views/tabs/tab_strip_control_button.cc
+@@ -7,6 +7,7 @@
+ #include <optional>
+ #include <utility>
+ 
++#include "base/command_line.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/views/frame/browser_frame_view.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+@@ -194,7 +195,9 @@ void TabStripControlButton::UpdateIcon() {
+ }
+ 
+ int TabStripControlButton::GetCornerRadius() const {
+-  return TabStripControlButton::kButtonSize.width() / 2;
++  static const bool rectangular_tabs =
++      base::CommandLine::ForCurrentProcess()->HasSwitch("rectangular-tabs");
++  return rectangular_tabs ? 4 : TabStripControlButton::kButtonSize.width() / 2;
+ }
+ 
+ int TabStripControlButton::GetFlatCornerRadius() const {

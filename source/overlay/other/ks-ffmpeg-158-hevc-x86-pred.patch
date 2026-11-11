@@ -1,0 +1,31 @@
+Thoron: build FFmpeg's x86 HEVC intra prediction on Chromium 158.
+
+Chromium 158's FFmpeg moved the x86 HEVC intra prediction into libavcodec/x86/hevc/pred_init.c and
+pred.asm (FFmpeg's own Makefile lists both for the HEVC decoder). The HEVC decoder patch was written for an
+older FFmpeg and does not add them, so linking stops on ff_hevc_pred_init_x86.
+Applies after the HEVC/AC3 FFmpeg patches.
+
+Origin: Thoron
+Author: KuchiSofts
+License: BSD-3-Clause
+
+diff --git a/ffmpeg_generated.gni b/ffmpeg_generated.gni
+index a984404db593c8f92f30ff80dbab2bcecababd21..121258b5acc9a8df35efe2e0422778866755d1d6 100644
+--- a/ffmpeg_generated.gni
++++ b/ffmpeg_generated.gni
+@@ -381,6 +381,7 @@ if ((current_cpu == "x64" && ffmpeg_branding == "Chrome") ||
+ 
+   ffmpeg_c_sources += [
+     "libavcodec/x86/hevc/dsp_init.c",
++    "libavcodec/x86/hevc/pred_init.c",
+     "libavcodec/x86/h26x/h2656dsp.c",
+     "libavcodec/x86/ac3dsp_init.c",
+   ]
+@@ -392,6 +393,7 @@ if ((current_cpu == "x64" && ffmpeg_branding == "Chrome") ||
+       "libavcodec/x86/hevc/dequant.asm",
+       "libavcodec/x86/hevc/idct.asm",
+       "libavcodec/x86/hevc/mc.asm",
++      "libavcodec/x86/hevc/pred.asm",
+       "libavcodec/x86/hevc/sao.asm",
+       "libavcodec/x86/hevc/sao_10bit.asm",
+       "libavcodec/x86/h26x/h2656_inter.asm",

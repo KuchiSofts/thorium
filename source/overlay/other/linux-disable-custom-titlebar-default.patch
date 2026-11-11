@@ -1,0 +1,53 @@
+Origin: chromium-ubuntu-build (saiarcot895), Thorium
+Author: chromium-ubuntu-build (saiarcot895), Thorium
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/ui/base/x/x11_util.cc b/ui/base/x/x11_util.cc
+index b70d8a9fd57bac7576da99a8ab226fdb501ef92f..beed460f2732f86fac6b0f61cf52493ef5c8119e 100644
+--- a/ui/base/x/x11_util.cc
++++ b/ui/base/x/x11_util.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2012 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -369,14 +369,9 @@ bool GetCustomFramePrefDefault() {
+     return false;
+   }
+ 
+-  ui::WindowManagerName wm = GuessWindowManager();
+-  // If we don't know which WM is active, conservatively disable custom frames.
+-  if (wm == WM_OTHER || wm == WM_UNNAMED) {
+-    return false;
+-  }
+-
+-  // Stacking WMs should use custom frames.
+-  return !IsWmTiling(wm);
++  // Never default to using the custom title bar. Thorium should integrate with
++  // the desktop environment instead of using a special frame by default.
++  return false;
+ }
+ 
+ bool IsWmTiling(WindowManagerName window_manager) {
+diff --git a/ui/ozone/platform/wayland/ozone_platform_wayland.cc b/ui/ozone/platform/wayland/ozone_platform_wayland.cc
+index 9e0af3dfcc8dec8728b4a60bd314258de8519870..998a76d0bf5e5e6e8e3b33cdf4de122b66efceba 100644
+--- a/ui/ozone/platform/wayland/ozone_platform_wayland.cc
++++ b/ui/ozone/platform/wayland/ozone_platform_wayland.cc
+@@ -342,11 +342,10 @@ class OzonePlatformWayland : public OzonePlatform,
+     static bool initialised = false;
+     if (!initialised) {
+       // Server-side decorations on Wayland require support of xdg-decoration or
+-      // some other protocol extensions specific for the particular environment.
+-      // Whether the environment has any support only gets known at run time, so
+-      // we use the custom frame by default.  If there is support, the user will
+-      // be able to enable the system frame.
+-      properties->custom_frame_pref_default = true;
++      // another environment-specific protocol. Prefer system decorations when
++      // they are available; BrowserNativeWidgetAuraLinux still forces a custom
++      // frame at runtime when the compositor does not support them.
++      properties->custom_frame_pref_default = false;
+ 
+       // Wayland uses sub-surfaces to show tooltips, and sub-surfaces must be
+       // bound to their root surfaces always, but finding the correct root

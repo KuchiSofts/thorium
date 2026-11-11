@@ -1,0 +1,572 @@
+Thoron: vendor adblock-rust and the crates it needs (native ad blocking).
+
+Adds adblock 0.13.3 (MPL-2.0) and its dependencies to Chromium's Rust crates: Cargo.toml, the
+pinned and checksummed Cargo.lock, gnrt_config.toml entries and two crate patches (the MIT text that
+seahash does not ship; FlatBuffers never enabling nightly-only features). regex and aho-corasick are
+allowed outside tests: memory-safe Rust with linear-time matching. The crate sources and their
+BUILD.gn files are produced by tools/build/rust_crates.py in the Thoron repository (gnrt vendor and gen).
+
+Origin: Thoron
+Author: KuchiSofts
+License: BSD-3-Clause
+
+diff --git a/third_party/rust/chromium_crates_io/Cargo.lock b/third_party/rust/chromium_crates_io/Cargo.lock
+index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f2939079f4db54 100644
+--- a/third_party/rust/chromium_crates_io/Cargo.lock
++++ b/third_party/rust/chromium_crates_io/Cargo.lock
+@@ -2,6 +2,39 @@
+ # It is not intended for manual editing.
+ version = 4
+ 
++[[package]]
++name = "adblock"
++version = "0.13.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "addr",
++ "arrayvec",
++ "base64",
++ "bitflags",
++ "flatbuffers",
++ "idna",
++ "itertools",
++ "memchr",
++ "percent-encoding",
++ "precomputed-hash",
++ "regex",
++ "rustc-hash",
++ "seahash",
++ "serde",
++ "serde_json",
++ "thiserror 1.0.69",
++ "url",
++]
++
++[[package]]
++name = "addr"
++version = "0.15.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "psl",
++ "psl-types",
++]
++
+ [[package]]
+ name = "addr2line"
+ version = "0.25.1"
+@@ -78,6 +111,11 @@ name = "array-init"
+ version = "2.1.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ 
++[[package]]
++name = "arrayvec"
++version = "0.7.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
+ [[package]]
+ name = "autocfg"
+ version = "1.5.1"
+@@ -152,6 +190,9 @@ dependencies = [
+ name = "bitflags"
+ version = "2.13.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "serde_core",
++]
+ 
+ [[package]]
+ name = "build_id2"
+@@ -234,6 +275,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ name = "chromium"
+ version = "0.1.0"
+ dependencies = [
++ "adblock",
+  "antlr4rust",
+  "anyhow",
+  "base64",
+@@ -344,7 +386,7 @@ name = "cobs"
+ version = "0.3.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ dependencies = [
+- "thiserror",
++ "thiserror 2.0.21",
+ ]
+ 
+ [[package]]
+@@ -659,6 +701,15 @@ dependencies = [
+  "writeable",
+ ]
+ 
++[[package]]
++name = "flatbuffers"
++version = "25.12.19"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "bitflags",
++ "rustc_version",
++]
++
+ [[package]]
+ name = "flate2"
+ version = "1.1.10"
+@@ -682,6 +733,14 @@ dependencies = [
+  "bytemuck",
+ ]
+ 
++[[package]]
++name = "form_urlencoded"
++version = "1.2.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "percent-encoding",
++]
++
+ [[package]]
+ name = "fs2"
+ version = "0.4.3"
+@@ -730,7 +789,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ [[package]]
+ name = "harfrust"
+ version = "0.14.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+ dependencies = [
+  "bitflags",
+  "bytemuck",
+@@ -1207,6 +1265,25 @@ name = "icu_time_data"
+ version = "2.4.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ 
++[[package]]
++name = "idna"
++version = "1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "idna_adapter",
++ "smallvec",
++ "utf8_iter",
++]
++
++[[package]]
++name = "idna_adapter"
++version = "1.2.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "icu_normalizer",
++ "icu_properties",
++]
++
+ [[package]]
+ name = "image"
+ version = "0.25.10"
+@@ -1286,7 +1363,7 @@ dependencies = [
+  "jxl_transforms",
+  "num-derive",
+  "num-traits",
+- "thiserror",
++ "thiserror 2.0.21",
+ ]
+ 
+ [[package]]
+@@ -1755,6 +1832,11 @@ dependencies = [
+  "windows-link",
+ ]
+ 
++[[package]]
++name = "percent-encoding"
++version = "2.3.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
+ [[package]]
+ name = "pin-project-lite"
+ version = "0.2.17"
+@@ -1798,6 +1880,11 @@ dependencies = [
+  "zerovec",
+ ]
+ 
++[[package]]
++name = "precomputed-hash"
++version = "0.1.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
+ [[package]]
+ name = "primal-check"
+ version = "0.3.4"
+@@ -1835,6 +1922,19 @@ dependencies = [
+  "syn 2.0.119",
+ ]
+ 
++[[package]]
++name = "psl"
++version = "2.1.245"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "psl-types",
++]
++
++[[package]]
++name = "psl-types"
++version = "2.0.11"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
+ [[package]]
+ name = "pxfm"
+ version = "0.1.30"
+@@ -1953,6 +2053,19 @@ dependencies = [
+  "rustc-demangle",
+ ]
+ 
++[[package]]
++name = "rustc-hash"
++version = "2.1.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
++[[package]]
++name = "rustc_version"
++version = "0.4.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "semver",
++]
++
+ [[package]]
+ name = "rustfft"
+ version = "6.4.1"
+@@ -1994,6 +2107,16 @@ name = "scratch"
+ version = "1.0.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ 
++[[package]]
++name = "seahash"
++version = "4.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
++[[package]]
++name = "semver"
++version = "1.0.28"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++
+ [[package]]
+ name = "serde"
+ version = "1.0.229"
+@@ -2141,7 +2264,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ dependencies = [
+  "hashbrown",
+  "skrifa",
+- "thiserror",
++ "thiserror 2.0.21",
+  "write-fonts",
+ ]
+ 
+@@ -2429,12 +2552,30 @@ dependencies = [
+  "winapi-util",
+ ]
+ 
++[[package]]
++name = "thiserror"
++version = "1.0.69"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "thiserror-impl 1.0.69",
++]
++
+ [[package]]
+ name = "thiserror"
+ version = "2.0.21"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ dependencies = [
+- "thiserror-impl",
++ "thiserror-impl 2.0.21",
++]
++
++[[package]]
++name = "thiserror-impl"
++version = "1.0.69"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.119",
+ ]
+ 
+ [[package]]
+@@ -2578,6 +2719,17 @@ name = "unty"
+ version = "0.0.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ 
++[[package]]
++name = "url"
++version = "2.5.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++dependencies = [
++ "form_urlencoded",
++ "idna",
++ "percent-encoding",
++ "serde",
++]
++
+ [[package]]
+ name = "utf16_iter"
+ version = "1.0.5"
+diff --git a/third_party/rust/chromium_crates_io/Cargo.toml b/third_party/rust/chromium_crates_io/Cargo.toml
+index 42902d62b6d2305ecf799950961de8449402ff42..94615df060930210cc576f2ef2cbe8b706f3da00 100644
+--- a/third_party/rust/chromium_crates_io/Cargo.toml
++++ b/third_party/rust/chromium_crates_io/Cargo.toml
+@@ -16,6 +16,7 @@ version = "0.1.0"
+ [workspace]
+ 
+ [dependencies]
++adblock = { version = "0.13.3", default-features = false, features = ["full-regex-handling", "embedded-domain-resolver"] }
+ antlr4rust = "0.5.2"
+ anyhow = "1.0.98"
+ base64 = "0.22"
+@@ -219,3 +220,6 @@ features = ["std"]
+ [dependencies.zune-jpeg]
+ version = "=0.5.16-rc2"
+ features = ["arith"]
++
++[patch.crates-io]
++harfrust = { path = "vendor/harfrust-v0_14" }
+diff --git a/third_party/rust/chromium_crates_io/gnrt_config.toml b/third_party/rust/chromium_crates_io/gnrt_config.toml
+index 836ffbe1524ec8f6bb44d6e5898b4ef296e00430..6e625c7a414cb53d0d5a6cca8339d2365ab94a79 100644
+--- a/third_party/rust/chromium_crates_io/gnrt_config.toml
++++ b/third_party/rust/chromium_crates_io/gnrt_config.toml
+@@ -121,6 +121,12 @@ removed_librs_template = "removed_lib.rs.hbs"
+ remove_crates = []
+ root = "chromium"
+ 
++[crate.adblock]
++extra_kv = { allow_unsafe = true }
++
++[crate.addr]
++extra_kv = { allow_unsafe = false }
++
+ [crate.addr2line]
+ allow_first_party_usage = false
+ extra_kv = { allow_unsafe = true }
+@@ -136,7 +142,8 @@ extra_kv = { allow_unsafe = true }
+ [crate.aho-corasick]
+ group = 'safe'
+ allow_first_party_usage = false
+-extra_kv = { allow_unsafe = false }
++# Thoron: shipped now (regex, for native ad blocking); its unsafe code is the audited SIMD string search.
++extra_kv = { allow_unsafe = true }
+ 
+ [crate.android_system_properties]
+ extra_kv = { allow_unsafe = true }
+@@ -160,6 +167,9 @@ allow_unsafe = true
+ [crate.array-init]
+ extra_kv = { allow_unsafe = true }
+ 
++[crate.arrayvec]
++extra_kv = { allow_unsafe = true }
++
+ [crate.autocfg.extra_kv]
+ allow_unsafe = false
+ 
+@@ -374,6 +384,12 @@ allow_unsafe = false
+ [crate.fixed_decimal.extra_kv]
+ allow_unsafe = true
+ 
++# Thoron: native ad blocking (adblock-rust and the crates it needs).
++[crate.flatbuffers]
++# The crate is Google's FlatBuffers (Apache-2.0); its published package has no license file.
++license_files = ["../../../../flatbuffers/src/LICENSE"]
++extra_kv = { allow_unsafe = true }
++
+ [crate.flate2]
+ ban_features = [
+     # `any_zlib` feature is banned because Chromium does not use the `zlib`
+@@ -396,6 +412,9 @@ allow_unsafe = true
+ [crate.font-types.extra_kv]
+ allow_unsafe = true
+ 
++[crate.form_urlencoded]
++extra_kv = { allow_unsafe = true }
++
+ [crate.fs2]
+ group = 'test'
+ allow_first_party_usage = false
+@@ -569,6 +588,12 @@ group = 'safe'
+ allow_first_party_usage = true
+ extra_kv = { allow_unsafe = false }
+ 
++[crate.idna]
++extra_kv = { allow_unsafe = true }
++
++[crate.idna_adapter]
++extra_kv = { allow_unsafe = false }
++
+ [crate.image]
+ extra_input_roots = ['../README.md']
+ extra_kv = { allow_unsafe = true }
+@@ -792,6 +817,9 @@ extra_kv = { allow_unsafe = true }
+ [crate.parking_lot_core]
+ extra_kv = { allow_unsafe = true }
+ 
++[crate.percent-encoding]
++extra_kv = { allow_unsafe = true }
++
+ [crate.png.extra_kv]
+ allow_unsafe = false
+ # Web tests (aka WPT tests, also formerly known as Layout Tests) require fast
+@@ -813,6 +841,9 @@ extra_kv = { allow_unsafe = true }
+ [crate.potential_utf.extra_kv]
+ allow_unsafe = true
+ 
++[crate.precomputed-hash]
++extra_kv = { allow_unsafe = false }
++
+ [crate.primal-check]
+ extra_kv = { allow_unsafe = false }
+ 
+@@ -828,6 +859,12 @@ group = 'test'
+ extra_kv = { allow_unsafe = false }
+ group = 'test'
+ 
++[crate.psl]
++extra_kv = { allow_unsafe = false }
++
++[crate.psl-types]
++extra_kv = { allow_unsafe = false }
++
+ [crate.pxfm]
+ extra_kv = { allow_unsafe = true }
+ 
+@@ -853,7 +890,10 @@ extra_kv = { allow_unsafe = true }
+ extra_kv = { allow_unsafe = false }
+ 
+ [crate.regex]
+-group = 'test'
++# Thoron: allowed outside tests for the native ad-blocking engine (adblock-rust needs it). The crate is
++# memory-safe Rust with guaranteed linear-time matching, so untrusted filter lists cannot cause
++# catastrophic backtracking (design: docs/design/2026-11-09-native-adblock-design.md in Thoron).
++group = 'safe'
+ allow_first_party_usage = false
+ extra_kv = { allow_unsafe = true }
+ 
+@@ -876,6 +916,12 @@ allow_unsafe = false
+ extra_kv = { allow_unsafe = true }
+ shipped = false
+ 
++[crate.rustc-hash]
++extra_kv = { allow_unsafe = false }
++
++[crate.rustc_version]
++extra_kv = { allow_unsafe = false }
++
+ [crate.rustfft]
+ extra_kv = { allow_unsafe = true }
+ 
+@@ -895,6 +941,14 @@ extra_kv = { allow_unsafe = true }
+ [crate.scopeguard]
+ extra_kv = { allow_unsafe = true }
+ 
++[crate.seahash]
++# MIT per Cargo.toml; the text is added by patches/seahash-v4.
++license_files = ["LICENSE"]
++extra_kv = { allow_unsafe = true }
++
++[crate.semver]
++extra_kv = { allow_unsafe = true }
++
+ [crate.serde]
+ build_script_outputs = [ "private.rs" ]
+ extra_kv = { allow_unsafe = false }
+@@ -1047,10 +1101,14 @@ allow_unsafe = false
+ [crate.termcolor.extra_kv]
+ allow_unsafe = false
+ 
+-[crate.thiserror]
++[crate."thiserror@v2"]
+ build_script_outputs = [ "private.rs" ]
+ extra_kv = { allow_unsafe = false }
+ 
++# Thoron: thiserror 1.x for adblock-rust; its build script only probes the compiler and writes no file.
++[crate."thiserror@v1"]
++extra_kv = { allow_unsafe = false }
++
+ [crate.thiserror-impl]
+ extra_kv = { allow_unsafe = false }
+ 
+@@ -1115,6 +1173,9 @@ extra_kv = { allow_unsafe = false }
+ allow_first_party_usage = false
+ extra_kv = { allow_unsafe = true }
+ 
++[crate.url]
++extra_kv = { allow_unsafe = true }
++
+ [crate.utf16_iter]
+ license_files = ["LICENSE-APACHE"]
+ 
+diff --git a/third_party/rust/chromium_crates_io/patches/flatbuffers-v25/0001-Never-enable-nightly-only-features.patch b/third_party/rust/chromium_crates_io/patches/flatbuffers-v25/0001-Never-enable-nightly-only-features.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..dec9451f749d64d2c1495b2804a1a498bd8bf870
+--- /dev/null
++++ b/third_party/rust/chromium_crates_io/patches/flatbuffers-v25/0001-Never-enable-nightly-only-features.patch
+@@ -0,0 +1,23 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: KuchiSofts <32385966+KuchiSofts@users.noreply.github.com>
++Date: Mon, 9 Nov 2026 00:00:00 +0000
++Subject: [PATCH] Never enable nightly-only features
++
++Chromium builds Rust with a nightly toolchain but allows only listed unstable
++features; use the stable code paths.
++
++diff --git a/third_party/rust/chromium_crates_io/vendor/flatbuffers-v25/build.rs b/third_party/rust/chromium_crates_io/vendor/flatbuffers-v25/build.rs
++index ed82da90992..b7a7987b80f 100644
++--- a/third_party/rust/chromium_crates_io/vendor/flatbuffers-v25/build.rs
+++++ b/third_party/rust/chromium_crates_io/vendor/flatbuffers-v25/build.rs
++@@ -7,7 +7,7 @@ fn main() {
++     // #[cfg(nightly)]
++     // for nightly only features
++     println!("cargo:rustc-check-cfg=cfg(nightly)");
++-    if version_meta.channel == Channel::Nightly {
++-        println!("cargo:rustc-cfg=nightly")
++-    }
+++    // Chromium (Thoron): its toolchain is a nightly build, but only allow-listed unstable features
+++    // may be used, so the stable code paths are always taken.
+++    let _ = version_meta.channel == Channel::Nightly;
++ }
+diff --git a/third_party/rust/chromium_crates_io/patches/seahash-v4/0001-Add-the-MIT-license-text.patch b/third_party/rust/chromium_crates_io/patches/seahash-v4/0001-Add-the-MIT-license-text.patch
+new file mode 100644
+index 0000000000000000000000000000000000000000..472e344f49c21dddee114ddcbbe97b85a7da2651
+--- /dev/null
++++ b/third_party/rust/chromium_crates_io/patches/seahash-v4/0001-Add-the-MIT-license-text.patch
+@@ -0,0 +1,37 @@
++From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
++From: KuchiSofts <32385966+KuchiSofts@users.noreply.github.com>
++Date: Mon, 9 Nov 2026 00:00:00 +0000
++Subject: [PATCH] Add the MIT license text
++
++seahash declares the MIT license in Cargo.toml but does not ship the text.
++
++diff --git a/third_party/rust/chromium_crates_io/vendor/seahash-v4/LICENSE b/third_party/rust/chromium_crates_io/vendor/seahash-v4/LICENSE
++new file mode 100644
++index 00000000000..669ba1cccc0
++--- /dev/null
+++++ b/third_party/rust/chromium_crates_io/vendor/seahash-v4/LICENSE
++@@ -0,0 +1,24 @@
+++MIT License
+++
+++Copyright (c) ticki, Tom Almeida and the seahash contributors
+++
+++The seahash crate declares the MIT license in its Cargo.toml but does not ship
+++the license text; this is the standard MIT license text.
+++
+++Permission is hereby granted, free of charge, to any person obtaining a copy
+++of this software and associated documentation files (the "Software"), to deal
+++in the Software without restriction, including without limitation the rights
+++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+++copies of the Software, and to permit persons to whom the Software is
+++furnished to do so, subject to the following conditions:
+++
+++The above copyright notice and this permission notice shall be included in all
+++copies or substantial portions of the Software.
+++
+++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+++SOFTWARE.

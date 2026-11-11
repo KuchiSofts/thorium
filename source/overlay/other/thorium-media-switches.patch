@@ -1,0 +1,61 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/media/base/media_switches.cc b/media/base/media_switches.cc
+index 62544ade4c610eaefbe94aee96a45428b517b523..5606d1c354dedb3bbebb9e8253eb016c284f6ed0 100644
+--- a/media/base/media_switches.cc
++++ b/media/base/media_switches.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2012 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -399,6 +399,7 @@ BASE_FEATURE(kAutoPictureInPictureSurveys, base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE(kAutoplayBypassForMicCamera, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ // Whether we should show a setting to disable autoplay policy.
++// TODO: Alex313031 Possibly re-disable? Causes Profile picker crash
+ BASE_FEATURE(kAutoplayDisableSettings, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // Enables the Enterprise Autoplay policies (AutoplayAllowed and
+@@ -564,7 +565,7 @@ BASE_FEATURE(kDocumentPictureInPictureReparenting,
+ BASE_FEATURE(kEnableRtcpReporting, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ // Enables user control over muting tab audio from the tab strip.
+-BASE_FEATURE(kEnableTabMuting, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kEnableTabMuting, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ // Enables tracking the occlusion of HW secure encrypted video elements.
+ // The HW secure check is OS agnostic, but this switch is currently only
+@@ -1213,7 +1214,7 @@ BASE_FEATURE(kOpenH264SoftwareEncoder, base::FEATURE_ENABLED_BY_DEFAULT);
+ // Otherwise, this feature has no effect and neither encrypted nor clear Dolby
+ // Vision is allowed.
+ BASE_FEATURE(kAllowClearDolbyVisionInMseWhenPlatformEncryptedDvEnabled,
+-             base::FEATURE_DISABLED_BY_DEFAULT);
++             base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ // When ENABLE_PLATFORM_ENCRYPTED_DOLBY_VISION is enabled at build time, allow
+ // the support of encrypted Dolby Vision. Have no effect when
+@@ -1222,7 +1223,7 @@ BASE_FEATURE(kPlatformEncryptedDolbyVision,
+ #if BUILDFLAG(IS_WIN)
+              base::FEATURE_ENABLED_BY_DEFAULT
+ #else
+-             base::FEATURE_DISABLED_BY_DEFAULT
++             base::FEATURE_ENABLED_BY_DEFAULT
+ #endif
+ );
+ 
+@@ -1811,7 +1812,9 @@ std::string GetEffectiveAutoplayPolicy(const base::CommandLine& command_line) {
+     return command_line.GetSwitchValueASCII(switches::kAutoplayPolicy);
+   }
+ 
+-  if (base::FeatureList::IsEnabled(media::kUnifiedAutoplay)) {
++  if (command_line.HasSwitch("no-autoplay")) {
++    return switches::autoplay::kUserGestureRequiredPolicy;
++  } else if (base::FeatureList::IsEnabled(media::kUnifiedAutoplay)) {
+     return switches::autoplay::kDocumentUserActivationRequiredPolicy;
+   }
+ 

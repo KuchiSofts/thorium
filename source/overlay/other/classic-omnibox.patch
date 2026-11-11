@@ -1,0 +1,136 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
+index 6d06067921deac430bb681183092c8be4375732d..5cd2302ac6403fc0425a5558eedf06a4f76f5bfe 100644
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/layout_constants.h"
+ 
++#include "base/command_line.h"
+ #include "base/notreached.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/ui/tabs/features.h"
+@@ -19,6 +20,8 @@
+ 
+ int GetLayoutConstant(LayoutConstant constant) {
+   const bool touch_ui = ui::TouchUiController::Get()->touch_ui();
++  static const bool classic_omnibox =
++      base::CommandLine::ForCurrentProcess()->HasSwitch("classic-omnibox");
+   const bool thorium_2024 = features::IsThorium2024();
+   switch (constant) {
+     case LayoutConstant::kAppMenuProfileRowAvatarIconSize:
+@@ -57,7 +60,7 @@ int GetLayoutConstant(LayoutConstant constant) {
+     case LayoutConstant::kLocationBarChildInternalSpacing:
+       return touch_ui ? 10 : 4;
+     case LayoutConstant::kLocationBarChildCornerRadius:
+-      return thorium_2024 ? 8 : 12;
++      return classic_omnibox ? 4 : (thorium_2024 ? 8 : 12);
+     case LayoutConstant::kLocationBarChipIconSize:
+       return 16;
+     case LayoutConstant::kLocationBarChipPadding:
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index ee01c5f27340a372ec60ce0ad142b8a40385500e..30148bd818916bbb78cea41c4a6f42bb0733eaab 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -11,6 +11,7 @@
+ #include <utility>
+ 
+ #include "base/auto_reset.h"
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+@@ -265,7 +266,11 @@ LocationBarView::LocationBarView(BrowserWindowInterface* browser,
+           }));
+       views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
+     }
+-    views::InstallPillHighlightPathGenerator(this);
++    static const bool classic_omnibox =
++        base::CommandLine::ForCurrentProcess()->HasSwitch("classic-omnibox");
++    if (!classic_omnibox) {
++      views::InstallPillHighlightPathGenerator(this);
++    }
+ 
+ #if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+     if (features::IsOsLevelGeolocationPermissionSupportEnabled()) {
+@@ -542,6 +547,11 @@ bool LocationBarView::IsInitialized() const {
+ }
+ 
+ int LocationBarView::GetBorderRadius() const {
++  static const bool classic_omnibox =
++      base::CommandLine::ForCurrentProcess()->HasSwitch("classic-omnibox");
++  if (classic_omnibox) {
++    return 4;
++  }
+   return ComputeBorderRadius(size());
+ }
+ 
+@@ -1459,6 +1469,12 @@ void LocationBarView::RefreshBackground() {
+   }
+ 
+   SkColor border_color = SK_ColorTRANSPARENT;
++  static const bool classic_omnibox =
++      base::CommandLine::ForCurrentProcess()->HasSwitch("classic-omnibox");
++  if (classic_omnibox && !is_caret_visible) {
++    border_color = color_provider->GetColor(kColorLocationBarBorderOnMismatch);
++  }
++
+ 
+   // The custom focus border is disabled on macOS to avoid conflicting with
+   // native omnibox rendering.
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_suggestion_button_row_view.cc b/chrome/browser/ui/views/omnibox/omnibox_suggestion_button_row_view.cc
+index 295a5d18fa4b4749ca85d0266426c3aeb94856fa..d8936a48a6f8e7258821ca29dc6cfdef5af1a54b 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_suggestion_button_row_view.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_suggestion_button_row_view.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <algorithm>
+ 
++#include "base/command_line.h"
+ #include "base/functional/bind.h"
+ #include "base/memory/raw_ptr.h"
+ #include "chrome/browser/ui/color/chrome_color_id.h"
+@@ -299,7 +300,10 @@ class OmniboxSuggestionRowButton : public views::MdTextButton {
+     SetImageLabelSpacing(8);
+     SetCustomPadding(ChromeLayoutProvider::Get()->GetInsetsMetric(
+         INSETS_OMNIBOX_PILL_BUTTON));
+-    SetCornerRadius(GetLayoutConstant(LayoutConstant::kToolbarCornerRadius));
++    static const bool classic_omnibox =
++        base::CommandLine::ForCurrentProcess()->HasSwitch("classic-omnibox");
++    static const int kCornerRadius = classic_omnibox ? 4 : 8;
++    SetCornerRadius(kCornerRadius);
+ 
+     auto* const ink_drop = views::InkDrop::Get(this);
+     SetAnimationDuration(base::TimeDelta());
+diff --git a/chrome/browser/ui/views/chrome_layout_provider.cc b/chrome/browser/ui/views/chrome_layout_provider.cc
+index 277870e4f72c38383455f60ad83e0a44229a5293..292e7287613dfdc3fc56fec718cd3492a44fa04c 100644
+--- a/chrome/browser/ui/views/chrome_layout_provider.cc
++++ b/chrome/browser/ui/views/chrome_layout_provider.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <algorithm>
+ 
++#include "base/command_line.h"
+ #include "base/containers/fixed_flat_map.h"
+ #include "base/feature_list.h"
+ #include "chrome/browser/ui/ui_features.h"
+@@ -367,8 +368,12 @@ int ChromeLayoutProvider::GetCornerRadiusMetric(views::ShapeContextToken token,
+       case kExtensionsMenuButtonRadius:
+       case kFindBarViewRadius:
+         return GetCornerRadiusMetric(views::Emphasis::kMedium, size);
+-      case kOmniboxExpandedRadius:
+-        return 16;
++      case kOmniboxExpandedRadius: {
++        static const bool classic_omnibox =
++            base::CommandLine::ForCurrentProcess()->HasSwitch(
++                "classic-omnibox");
++        return classic_omnibox ? 8 : 16;
++      }
+       default:
+         break;
+     }

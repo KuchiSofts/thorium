@@ -1,0 +1,18 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/bookmarks/bookmark_utils_desktop.cc b/chrome/browser/ui/bookmarks/bookmark_utils_desktop.cc
+index 1ea324c91042a7c5bc0a90f6e09d0c9a33807999..a0a8b938a34e36291b988bc69329e55872c31a21 100644
+--- a/chrome/browser/ui/bookmarks/bookmark_utils_desktop.cc
++++ b/chrome/browser/ui/bookmarks/bookmark_utils_desktop.cc
+@@ -65,7 +65,7 @@ using bookmarks::BookmarkNode;
+ 
+ namespace bookmarks {
+ 
+-size_t kNumBookmarkUrlsBeforePrompting = 15;
++size_t kNumBookmarkUrlsBeforePrompting = 50;
+ 
+ static BookmarkNavigationWrapper* g_nav_wrapper_test_instance = nullptr;
+ 

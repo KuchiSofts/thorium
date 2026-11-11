@@ -1,0 +1,8 @@
+other/GPC.patch
+other/add-flag-for-auto-dark-mode.patch
+other/android-extensions-opt-in-ui.patch
+other/android-extensions-support.patch
+other/android-thorium-branding.patch
+other/enable-android-devtools-frontend.patch
+other/enable-ctrl-tab-mru.patch
+other/enable-extension-in-incognito.patch

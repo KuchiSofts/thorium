@@ -1,0 +1,224 @@
+Thoron: remove the chrome://eggs and chrome://robot pages.
+
+Thorium adds two hidden pages that only show pictures. Thoron is a product for everyday use, and every
+WebUI page is attack surface, so both pages, their URL constants, their permission to make network
+requests and their images are removed. chrome://authors, which credits the Thorium authors, stays.
+
+Origin: Thoron
+Author: KuchiSofts
+License: BSD-3-Clause
+
+diff --git a/chrome/app/theme/webui_theme_resources.grd b/chrome/app/theme/webui_theme_resources.grd
+index 942eb8bd87ed7a9943ace330ceae4414ebe6ea3c..3443b94356b3ba580c3430a22357e27d8eb5d27e 100644
+--- a/chrome/app/theme/webui_theme_resources.grd
++++ b/chrome/app/theme/webui_theme_resources.grd
+@@ -31,14 +31,7 @@
+         <structure type="chrome_scaled_image" name="IDR_LOGO_GOOGLE_COLOR_90" file="cros/logo_google_color_90.png" />
+       </if>
+       <if expr="not _google_chrome and not _is_chrome_for_testing_branded">
+-        <structure type="chrome_scaled_image" name="IDR_PRODUCT_AI_CHROME" file="chromium/ai_chrome.png" />
+-        <structure type="chrome_scaled_image" name="IDR_PRODUCT_CHROMIUM_BLANK" file="chromium/chromium_blank.png" />
+-        <structure type="chrome_scaled_image" name="IDR_PRODUCT_CHROMIUM_QUESTION" file="chromium/chromium_question.png" />
+         <structure type="chrome_scaled_image" name="IDR_PRODUCT_MASCOT" file="chromium/thorium_mascot.png" />
+-        <structure type="chrome_scaled_image" name="IDR_PRODUCT_ROBOT" file="chromium/technical_error.png" />
+-        <structure type="chrome_scaled_image" name="IDR_PRODUCT_THORIUM_ATOMIC" file="chromium/thorium_atomic.png" />
+-        <structure type="chrome_scaled_image" name="IDR_PRODUCT_THORIUM_ELEMENT" file="chromium/thorium_element.png" />
+-        <structure type="chrome_scaled_image" name="IDR_PRODUCT_THORIUM_GUY" file="chromium/thorium_guy.png" />
+       </if>
+       <if expr="not is_android">
+         <structure type="chrome_scaled_image" name="IDR_PROFILE_AVATAR_0" file="common/profile_avatar_generic.png" />
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+index e373abe2961dcd5dc18a5e584c743384ea3ad64d..aee2aaf3e11b078a7bf6cce51a44e22942a8246c 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -332,8 +332,6 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<SuggestInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SyncInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<ThoriumAuthorsUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<ThoriumWebUILoadUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<ThoriumRobotUIConfig>());
+   map.AddWebUIConfig(std::make_unique<TranslateInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<UsbInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<user_actions_ui::UserActionsUIConfig>());
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+index aa9b95a30bcc3157a1cb15e7c0ba78bc02b7c6fa..830136b6456f62ca1be5a6defa8d0b068f5be4c6 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+@@ -353,8 +353,6 @@ bool ChromeWebUIControllerFactory::IsWebUIAllowedToMakeNetworkRequests(
+       // https://crbug.com/376417346
+       origin.host() == chrome::kChromeUIExtensionsHost ||
+       origin.host() == chrome::kChromeUIAuthorsHost ||
+-      origin.host() == chrome::kChromeUIEggsHost ||
+-      origin.host() == chrome::kChromeUIRobotHost ||
+       // https://crbug.com/509216218
+       origin.host() == chrome::kChromeUIDrivePickerHostHost;
+ }
+diff --git a/chrome/browser/ui/webui/thorium_easter_eggs.h b/chrome/browser/ui/webui/thorium_easter_eggs.h
+index e183c1f64b82a3b1466d7995af82519603307311..7ada13c66c574063e83bb76300c34f427bd23724 100644
+--- a/chrome/browser/ui/webui/thorium_easter_eggs.h
++++ b/chrome/browser/ui/webui/thorium_easter_eggs.h
+@@ -17,136 +17,6 @@
+ #include "ui/base/resource/resource_bundle.h"
+ #include "ui/webui/resources/grit/webui_resources.h"
+ 
+-class ThoriumDataSource : public content::URLDataSource {
+- public:
+-  ThoriumDataSource() {}
+-  ThoriumDataSource(const ThoriumDataSource&) = delete;
+-  ThoriumDataSource& operator=(const ThoriumDataSource&) = delete;
+-  std::string GetSource() override;
+-  std::string GetMimeType(const GURL& url) override;
+-  std::string GetContentSecurityPolicy(network::mojom::CSPDirectiveName directive) override;
+-  void StartDataRequest(const GURL& url,
+-                        const content::WebContents::Getter& wc_getter,
+-                        GotDataCallback callback) override;
+-};
+-
+-std::string ThoriumDataSource::GetSource() { return chrome::kChromeUIEggsHost; }
+-std::string ThoriumDataSource::GetMimeType(const GURL& url) { return "text/html"; }
+-std::string ThoriumDataSource::GetContentSecurityPolicy(network::mojom::CSPDirectiveName directive) {
+-  if (directive == network::mojom::CSPDirectiveName::ScriptSrc)
+-    return "script-src 'unsafe-inline'";
+-  return std::string();
+-}
+-void ThoriumDataSource::StartDataRequest(const GURL& url,
+-                      const content::WebContents::Getter& wc_getter,
+-                      GotDataCallback callback) {
+-  std::string source = R"(
+-    <html>
+-    <head>
+-      <title>Thorium Easter Eggs</title>
+-      <meta name="color-scheme" content="light dark">
+-      <meta name="viewport" content="width=device-width, initial-scale=1">
+-      <link rel="shortcut icon" type="image/x-icon" href="chrome://theme/current-channel-logo@2x">
+-    <style>
+-      @import url(chrome://resources/css/text_defaults_md.css);
+-      body { text-align: center; align-content: center; max-width: 75%; margin: auto;}
+-      img { max-width: 75%; height: auto; }
+-    </style>
+-    </head>
+-    <body>
+-      <h2><u>Thorium Easter Eggs WebUI Page</u></h3>
+-      <hr>
+-      <p>
+-        <img src="chrome://theme/IDR_PRODUCT_THORIUM_ELEMENT">
+-        <hr>
+-        <img src="chrome://theme/IDR_PRODUCT_THORIUM_ATOMIC">
+-        <img src="chrome://theme/IDR_PRODUCT_CHROMIUM_QUESTION">
+-        <img src="chrome://theme/IDR_PRODUCT_THORIUM_GUY">
+-        <img src="chrome://theme/IDR_PRODUCT_CHROMIUM_BLANK">
+-        <img src="chrome://theme/IDR_PRODUCT_AI_CHROME">
+-      </p>
+-    </body>
+-    </html>
+-  )";
+-  std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(std::move(source)));
+-}
+-
+-class ThoriumWebUILoad;
+-class ThoriumWebUILoadUIConfig : public content::DefaultWebUIConfig<ThoriumWebUILoad> {
+-  public:
+-   ThoriumWebUILoadUIConfig() : DefaultWebUIConfig("chrome", chrome::kChromeUIEggsHost) {}
+-};
+-
+-class ThoriumWebUILoad : public content::WebUIController {
+- public:
+-  ThoriumWebUILoad(content::WebUI* web_ui) : content::WebUIController(web_ui) {
+-    content::URLDataSource::Add(Profile::FromWebUI(web_ui), std::make_unique<ThoriumDataSource>());
+-  }
+-  ThoriumWebUILoad(const ThoriumWebUILoad&) = delete;
+-  ThoriumWebUILoad& operator=(const ThoriumWebUILoad&) = delete;
+-};
+-
+-class ThoriumRobotDataSource : public content::URLDataSource {
+- public:
+-  ThoriumRobotDataSource() {}
+-  ThoriumRobotDataSource(const ThoriumRobotDataSource&) = delete;
+-  ThoriumRobotDataSource& operator=(const ThoriumRobotDataSource&) = delete;
+-  std::string GetSource() override;
+-  std::string GetMimeType(const GURL& url) override;
+-  void StartDataRequest(const GURL& url,
+-                        const content::WebContents::Getter& wc_getter,
+-                        GotDataCallback callback) override;
+-};
+-
+-std::string ThoriumRobotDataSource::GetSource() {
+-  return chrome::kChromeUIRobotHost;
+-}
+-
+-std::string ThoriumRobotDataSource::GetMimeType(const GURL& url) {
+-  return "text/html";
+-}
+-
+-void ThoriumRobotDataSource::StartDataRequest(
+-    const GURL& url,
+-    const content::WebContents::Getter& wc_getter,
+-    GotDataCallback callback) {
+-  std::string source = R"(
+-      <html>
+-      <head>
+-        <title>Thorium Robot</title>
+-        <meta name="color-scheme" content="light dark">
+-        <meta name="viewport" content="width=device-width, initial-scale=1">
+-        <link rel="shortcut icon" type="image/x-icon" href="chrome://theme/current-channel-logo@2x">
+-        <style>
+-          @import url(chrome://resources/css/text_defaults_md.css);
+-          body { text-align: center; align-content: center; min-height: 100vh; margin: auto; }
+-          img { max-width: min(90vw, 512px); height: auto; }
+-        </style>
+-      </head>
+-      <body>
+-        <img alt="Thorium Robot" src="chrome://theme/IDR_PRODUCT_ROBOT">
+-      </body>
+-      </html>
+-    )";
+-  std::move(callback).Run(
+-      base::MakeRefCounted<base::RefCountedString>(std::move(source)));
+-}
+-
+-class ThoriumRobotUI;
+-class ThoriumRobotUIConfig : public content::DefaultWebUIConfig<ThoriumRobotUI> {
+-  public:
+-   ThoriumRobotUIConfig() : DefaultWebUIConfig("chrome", chrome::kChromeUIRobotHost) {}
+-};
+-
+-class ThoriumRobotUI : public content::WebUIController {
+- public:
+-  ThoriumRobotUI(content::WebUI* web_ui) : content::WebUIController(web_ui) {
+-    content::URLDataSource::Add(Profile::FromWebUI(web_ui), std::make_unique<ThoriumRobotDataSource>());
+-  }
+-  ThoriumRobotUI(const ThoriumRobotUI&) = delete;
+-  ThoriumRobotUI& operator=(const ThoriumRobotUI&) = delete;
+-};
+-
+ class ThoriumAuthorsDataSource : public content::URLDataSource {
+  public:
+   ThoriumAuthorsDataSource() {}
+diff --git a/chrome/common/webui_url_constants.cc b/chrome/common/webui_url_constants.cc
+index 5f0c42e3deb7422a055133784a449225a82b8ebd..a1a37ae476db8cfafbe6947ba77064b3f4eb25cf 100644
+--- a/chrome/common/webui_url_constants.cc
++++ b/chrome/common/webui_url_constants.cc
+@@ -123,8 +123,6 @@ base::span<const base::cstring_view> ChromeURLHosts() {
+       kChromeUIAccessibilityHost,
+       kChromeUIActorInternalsHost,
+       kChromeUIAuthorsHost,
+-      kChromeUIEggsHost,
+-      kChromeUIRobotHost,
+ #if !BUILDFLAG(IS_ANDROID)
+       kChromeUIAppServiceInternalsHost,
+ #endif
+diff --git a/chrome/common/webui_url_constants.h b/chrome/common/webui_url_constants.h
+index cd00ece5885721b36c25276644e52809b154f5c6..26603bef361cd5177a058d0d4cb20d2ae8a06d37 100644
+--- a/chrome/common/webui_url_constants.h
++++ b/chrome/common/webui_url_constants.h
+@@ -35,10 +35,6 @@ namespace chrome {
+ // Please keep in alphabetical order, with OS/feature specific sections below.
+ inline constexpr char kChromeUIAuthorsHost[] = "authors";
+ inline constexpr char kChromeUIAuthorsURL[] = "chrome://authors/";
+-inline constexpr char kChromeUIEggsHost[] = "eggs";
+-inline constexpr char kChromeUIEggsURL[] = "chrome://eggs/";
+-inline constexpr char kChromeUIRobotHost[] = "robot";
+-inline constexpr char kChromeUIRobotURL[] = "chrome://robot/";
+ inline constexpr char kChromeUIAboutHost[] = "about";
+ inline constexpr char kChromeUIAboutURL[] = "chrome://about/";
+ inline constexpr char kChromeUIAccessCodeCastHost[] = "access-code-cast";

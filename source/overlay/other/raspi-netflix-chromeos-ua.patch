@@ -1,0 +1,30 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/components/embedder_support/user_agent_utils.cc b/components/embedder_support/user_agent_utils.cc
+index 3c042e1af651e..985a192bb0c99 100644
+--- a/components/embedder_support/user_agent_utils.cc
++++ b/components/embedder_support/user_agent_utils.cc
+@@ -438,6 +438,8 @@ std::string GetOSVersion(IncludeAndroidBuildNumber include_android_build_number,
+ #elif BUILDFLAG(IS_ANDROID)
+                       "%s%s", android_version_str.c_str(),
+                       android_info_str.c_str()
++#elif BUILDFLAG(IS_LINUX) && defined(ARCH_CPU_ARM64)
++                      "13597.84.0"
+ #else
+                       ""
+ #endif
+@@ -829,6 +831,11 @@ std::string BuildOSCpuInfoFromOSVersionAndCpuType(const std::string& os_version,
+ #elif BUILDFLAG(IS_IOS)
+                       "CPU %s OS %s like Mac OS X", cpu_type.c_str(),
+                       os_version.c_str()
++#elif BUILDFLAG(IS_LINUX) && defined(ARCH_CPU_ARM64)
++                      "CrOS "
++                      "%s %s",
++                      cpu_type.c_str(),
++                      os_version.c_str()
+ #elif BUILDFLAG(IS_POSIX)
+                       "%s %s",
+                       unixinfo.sysname,  // e.g. Linux

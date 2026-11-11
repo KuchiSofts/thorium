@@ -1,0 +1,20 @@
+Origin: Thorium
+Author: Thorium
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/BUILD.gn b/BUILD.gn
+index d0531ca88958cabd830c45dd8ee4248c7d3ffbac..f931de0187817a89fe776683d7b091c1d367af6b 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -1891,10 +1891,6 @@ config("toolchain") {
+ 
+   if (v8_current_cpu == "x86") {
+     defines += [ "V8_TARGET_ARCH_IA32" ]
+-    if (is_win) {
+-      # Ensure no surprising artifacts from 80bit double math with x86.
+-      cflags += [ "/arch:SSE2" ]
+-    }
+   }
+   if (v8_current_cpu == "x64") {
+     defines += [ "V8_TARGET_ARCH_X64" ]

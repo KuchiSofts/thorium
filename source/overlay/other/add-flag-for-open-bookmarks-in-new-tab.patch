@@ -1,0 +1,73 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/bookmarks/bookmark_utils_desktop.cc b/chrome/browser/ui/bookmarks/bookmark_utils_desktop.cc
+index a0a8b938a34e36291b988bc69329e55872c31a21..abd6d8a57e7817684fda84e3e6068d39b7b732aa 100644
+--- a/chrome/browser/ui/bookmarks/bookmark_utils_desktop.cc
++++ b/chrome/browser/ui/bookmarks/bookmark_utils_desktop.cc
+@@ -8,6 +8,7 @@
+ #include <numeric>
+ 
+ #include "base/containers/flat_set.h"
++#include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback.h"
+ #include "base/memory/raw_ptr.h"
+@@ -380,6 +381,20 @@ void OpenAllIfAllowed(
+     bookmarks::OpenAllBookmarksContext context,
+     std::optional<page_load_metrics::NavigationInitiator> navigation_initiator,
+     std::optional<BookmarkLaunchAction> launch_action) {
++  // Convert single-bookmark left clicks from current-tab navigation to a new
++  // foreground/background tab when the feature is enabled. Folder opens and
++  // explicit dispositions such as middle-click are left unchanged.
++  if (base::FeatureList::IsEnabled(features::kOpenBookmarksInNewTab) &&
++      initial_disposition == WindowOpenDisposition::kCurrentTab &&
++      nodes.size() == 1 && nodes[0]->is_url()) {
++    const std::string mode = features::kOpenBookmarksInNewTabMode.Get();
++    if (mode == "background") {
++      initial_disposition = WindowOpenDisposition::kNewBackgroundTab;
++    } else {
++      initial_disposition = WindowOpenDisposition::kNewForegroundTab;
++    }
++  }
++
+   std::vector<UrlAndId> url_and_ids = GetURLsToOpen(
+       nodes, initial_disposition == WindowOpenDisposition::kOffTheRecord);
+ 
+diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
+index 3f26aa23bb001b6ee37c69327b7c52ce7583588e..e781d7a9088b4c463dece132728b05ed18a3e797 100644
+--- a/chrome/browser/ui/ui_features.cc
++++ b/chrome/browser/ui/ui_features.cc
+@@ -266,6 +266,16 @@ BASE_FEATURE_PARAM(int,
+                    "hover_delay_ms",
+                    500);
+ 
++// When enabled, single bookmark clicks open in a new tab instead of the current
++// tab.
++BASE_FEATURE(kOpenBookmarksInNewTab,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE_PARAM(std::string,
++                   kOpenBookmarksInNewTabMode,
++                   &kOpenBookmarksInNewTab,
++                   "mode",
++                   "foreground");
++
+ #if BUILDFLAG(IS_WIN)
+ // Enables the UI for Process Isolation in chrome://settings/system.
+ BASE_FEATURE(kProcessIsolationSettings, base::FEATURE_DISABLED_BY_DEFAULT);
+diff --git a/chrome/browser/ui/ui_features.h b/chrome/browser/ui/ui_features.h
+index 51737935f8998b89a172fb875718037cc923365a..69ecae1ef2df4b8c968f078a744835e29e020896 100644
+--- a/chrome/browser/ui/ui_features.h
++++ b/chrome/browser/ui/ui_features.h
+@@ -414,6 +414,9 @@ BASE_DECLARE_FEATURE(kRightClickToCloseTab);
+ BASE_DECLARE_FEATURE(kHoverActivateTab);
+ BASE_DECLARE_FEATURE_PARAM(int, kHoverActivateTabDelayMs);
+ 
++BASE_DECLARE_FEATURE(kOpenBookmarksInNewTab);
++BASE_DECLARE_FEATURE_PARAM(std::string, kOpenBookmarksInNewTabMode);
++
+ BASE_DECLARE_FEATURE(kTabGroupRibbon);
+ bool IsTabGroupRibbonEnabled();
+ 

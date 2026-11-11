@@ -1,0 +1,41 @@
+Origin: Thorium (Alex313031, gz83); idea from ungoogled-chromium
+Author: Thorium (Alex313031, gz83); idea from ungoogled-chromium
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/views/toolbar/reload_button.cc b/chrome/browser/ui/views/toolbar/reload_button.cc
+index fc7e3975e7765bbbdd8f1ae61870e5e9bdb48486..1b2f1b58488e62845c3df3887e783190e43e0655 100644
+--- a/chrome/browser/ui/views/toolbar/reload_button.cc
++++ b/chrome/browser/ui/views/toolbar/reload_button.cc
+@@ -177,7 +177,7 @@ void ReloadButton::UpdateCachedTooltipText() {
+ }
+ 
+ bool ReloadButton::ShouldShowMenu() {
+-  return is_dev_tools_connected_ && (visible_mode_ == Mode::kReload);
++  return visible_mode_ == Mode::kReload;
+ }
+ 
+ void ReloadButton::ShowDropDownMenu(ui::mojom::MenuSourceType source_type) {
+diff --git a/chrome/browser/ui/views/toolbar/webui_reload_control.cc b/chrome/browser/ui/views/toolbar/webui_reload_control.cc
+index a93c61f24e8c3d14a552f79d0fd330791370b648..5f535d9695b3e32b8d654f883c0ce45663f97c08 100644
+--- a/chrome/browser/ui/views/toolbar/webui_reload_control.cc
++++ b/chrome/browser/ui/views/toolbar/webui_reload_control.cc
+@@ -61,7 +61,7 @@ void WebUIReloadControl::SetDevToolsStatus(bool is_dev_tools_connected) {
+ bool WebUIReloadControl::HandleContextMenu(views::Widget* widget,
+                                            const gfx::Rect& screen_rect,
+                                            ui::mojom::MenuSourceType source) {
+-  if (is_dev_tools_connected_) {
++  if (mode_ == ReloadControl::Mode::kReload) {
+     menu_runner_->RunMenuAt(widget, nullptr, screen_rect,
+                             views::MenuAnchorPosition::kTopLeft, source);
+     UpdateState();
+@@ -91,8 +91,7 @@ void WebUIReloadControl::SetDoubleClickIntervalForTesting(
+ void WebUIReloadControl::UpdateState() {
+   auto state = toolbar_ui_api::mojom::ReloadControlState::New();
+   state->double_click_interval = double_click_interval_;
+-  state->can_show_menu =
+-      is_dev_tools_connected_ && (mode_ == ReloadControl::Mode::kReload);
++  state->can_show_menu = (mode_ == ReloadControl::Mode::kReload);
+   state->is_navigation_loading = (mode_ == ReloadControl::Mode::kStop);
+   state->is_context_menu_visible = menu_runner_->IsRunning();
+   state->state_token = state_token_;

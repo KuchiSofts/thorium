@@ -1,0 +1,90 @@
+Origin: Thorium (Alex313031, gz83); idea from ungoogled-chromium
+Author: Thorium (Alex313031, gz83); idea from ungoogled-chromium
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/startup/google_api_keys_infobar_delegate.cc b/chrome/browser/ui/startup/google_api_keys_infobar_delegate.cc
+index 78ba37b9401375ada35af171fac156b74dd93257..0733416f0981c2f71a80b2f2f1b73ad584d36853 100644
+--- a/chrome/browser/ui/startup/google_api_keys_infobar_delegate.cc
++++ b/chrome/browser/ui/startup/google_api_keys_infobar_delegate.cc
+@@ -1,26 +1,17 @@
+-// Copyright 2013 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/ui/startup/google_api_keys_infobar_delegate.h"
+ 
+-#include <memory>
+-
+-#include "chrome/browser/infobars/confirm_infobar_creator.h"
+ #include "chrome/grit/branded_strings.h"
+-#include "components/infobars/content/content_infobar_manager.h"
+-#include "components/infobars/core/infobar.h"
+ #include "components/strings/grit/components_strings.h"
+ #include "google_apis/google_api_keys.h"
+ #include "ui/base/l10n/l10n_util.h"
+ 
+ // static
+ void GoogleApiKeysInfoBarDelegate::Create(
+-    infobars::ContentInfoBarManager* infobar_manager) {
+-  infobar_manager->AddInfoBar(
+-      CreateConfirmInfoBar(std::unique_ptr<ConfirmInfoBarDelegate>(
+-          new GoogleApiKeysInfoBarDelegate())));
+-}
++    infobars::ContentInfoBarManager*) {}
+ 
+ GoogleApiKeysInfoBarDelegate::GoogleApiKeysInfoBarDelegate() = default;
+ 
+diff --git a/chrome/browser/ui/startup/infobar_utils.cc b/chrome/browser/ui/startup/infobar_utils.cc
+index 94d977bdfcc44454f27542ac3cd8d7f72055d7da..af6199c5ea7d4367146ee55cf0ea39eb2a16437a 100644
+--- a/chrome/browser/ui/startup/infobar_utils.cc
++++ b/chrome/browser/ui/startup/infobar_utils.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2021 The Chromium Authors
++// Copyright 2026 The Chromium Authors and Alex313031
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -250,41 +250,6 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
+     ShowBadFlagsPrompt(web_contents);
+   }
+ 
+-  infobars::ContentInfoBarManager* infobar_manager =
+-      infobars::ContentInfoBarManager::FromWebContents(web_contents);
+-
+-  if (!google_apis::HasAPIKeyConfigured()) {
+-    if (infobars::IsInfoBarMigrated(
+-            infobars::InfoBarDelegate::GOOGLE_API_KEYS_INFOBAR_DELEGATE)) {
+-      if (auto* manager =
+-              infobars::BrowserInfoBarManager::From(g_browser_process)) {
+-        manager->Show(
+-            tabs::TabInterface::GetFromContents(web_contents),
+-            infobars::InfoBarDelegate::GOOGLE_API_KEYS_INFOBAR_DELEGATE);
+-      }
+-    } else {
+-      GoogleApiKeysInfoBarDelegate::Create(infobar_manager);
+-    }
+-  }
+-
+-  if (ObsoleteSystem::IsObsoleteNowOrSoon()) {
+-    PrefService* local_state = g_browser_process->local_state();
+-    if (!local_state ||
+-        !local_state->GetBoolean(prefs::kSuppressUnsupportedOSWarning)) {
+-      if (infobars::IsInfoBarMigrated(
+-              infobars::InfoBarDelegate::OBSOLETE_SYSTEM_INFOBAR_DELEGATE)) {
+-        if (auto* manager =
+-                infobars::BrowserInfoBarManager::From(g_browser_process)) {
+-          manager->Show(
+-              tabs::TabInterface::GetFromContents(web_contents),
+-              infobars::InfoBarDelegate::OBSOLETE_SYSTEM_INFOBAR_DELEGATE);
+-        }
+-      } else {
+-        ObsoleteSystemInfoBarDelegate::Create(infobar_manager);
+-      }
+-    }
+-  }
+-
+   MaybeShowOSCryptAsyncAvailabilityInfoBar(browser);
+ 
+ #if BUILDFLAG(IS_WIN)

@@ -1,0 +1,73 @@
+Thoron: send Global Privacy Control with Chromium's own implementation.
+
+Chromium 158 implements GPC (the Sec-GPC header and navigator.globalPrivacyControl) with a settings toggle.
+Turn it on by default, as Thorium's GPC patch did, and always show the toggle instead of only in some
+locations, so it can be switched back on after switching it off. Replaces the Cromite GPC patch.
+
+Origin: Thoron
+Author: KuchiSofts
+License: BSD-3-Clause
+
+diff --git a/chrome/browser/ui/webui/settings/settings_ui.cc b/chrome/browser/ui/webui/settings/settings_ui.cc
+index 1437a643e275ba752f482464c3a24a2e83cd6026..1a4256e4edcdceddb389e530dfbb019428db31c9 100644
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -737,18 +737,12 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
+       "webuiRefresh2026",
+       features::IsWebuiRefresh2026Enabled() ? "webui-refresh-2026" : "");
+ 
+-  universal_optout::UniversalOptOutService* universal_optout_service =
+-      universal_optout::UniversalOptOutServiceFactory::GetForProfile(profile);
+   html_source->AddBoolean(
+       "showUniversalOptOutSettings",
+       base::FeatureList::IsEnabled(
+           universal_optout::features::kUniversalOptOut) &&
+           base::FeatureList::IsEnabled(
+-              universal_optout::features::kUniversalOptOutSettings) &&
+-          (profile->GetPrefs()->GetBoolean(
+-               universal_optout::prefs::kUniversalOptOutEnabled) ||
+-           (universal_optout_service &&
+-            universal_optout_service->IsEligible())));
++              universal_optout::features::kUniversalOptOutSettings));
+ 
+   ui::TrackedElementHandlerDocumentSingleton::Register(
+       this, std::vector<ui::ElementIdentifier>{
+diff --git a/components/universal_optout/features.cc b/components/universal_optout/features.cc
+index 45aa2b278c0c483b4e0213deb944c09079bbc9e0..667383da5cebf5b5c3d27868b72292145c144ea3 100644
+--- a/components/universal_optout/features.cc
++++ b/components/universal_optout/features.cc
+@@ -26,7 +26,7 @@ BASE_FEATURE(kUniversalOptOutExtension, base::FEATURE_ENABLED_BY_DEFAULT);
+ BASE_FEATURE(kUniversalOptOutExtensionSilent,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+-BASE_FEATURE(kUniversalOptOutSettings, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kUniversalOptOutSettings, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kUniversalOptOutUpdateOnGeoLocationChanged,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+diff --git a/components/universal_optout/prefs.cc b/components/universal_optout/prefs.cc
+index 035643c77bc22f994808a0321f2a742c6debd071..5a1c652a9d0480d3efa47edac18a4cfb23a642da 100644
+--- a/components/universal_optout/prefs.cc
++++ b/components/universal_optout/prefs.cc
+@@ -12,7 +12,7 @@ namespace universal_optout::prefs {
+ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
+   registry->RegisterDictionaryPref(prefs::kUniversalOptOutEligibilityHistory);
+   registry->RegisterBooleanPref(prefs::kUniversalOptOutEligible, false);
+-  registry->RegisterBooleanPref(prefs::kUniversalOptOutEnabled, false);
++  registry->RegisterBooleanPref(prefs::kUniversalOptOutEnabled, true);
+ }
+ 
+ }  // namespace universal_optout::prefs
+diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+index 7fa945d18afb39b258b04f85703592266ecf1ef4..63e62ca88860bb51aa6dac28c2dec18c372fb610 100644
+--- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
++++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
+@@ -3665,7 +3665,7 @@
+     {
+       // Gates the navigator.globalPrivacyControl JavaScript API.
+       name: "GlobalPrivacyControlApi",
+-      status: "experimental",
++      status: "stable",
+     },
+     {
+       name: "GlobalPrivacyControlForce",

@@ -1,0 +1,84 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/ui/base/ui_base_features.cc b/ui/base/ui_base_features.cc
+index 34c3d92ea8678953dd40ec9e0554677626b88b81..c36c3187b441e5b8e0736980d845ca9f6ca476d4 100644
+--- a/ui/base/ui_base_features.cc
++++ b/ui/base/ui_base_features.cc
+@@ -25,6 +25,9 @@
+ 
+ namespace features {
+ 
++// Restores Thorium's legacy menu timing when enabled.
++BASE_FEATURE(kThoriumInstantMenus, base::FEATURE_DISABLED_BY_DEFAULT);
++
+ // If enabled, generates an empty GestureScrollUpdate if the preceding TouchMove
+ // event had no gestures and sends both events together.
+ BASE_FEATURE(kSendEmptyGestureScrollUpdate, base::FEATURE_ENABLED_BY_DEFAULT);
+diff --git a/ui/base/ui_base_features.h b/ui/base/ui_base_features.h
+index 4a3dae96be1f06e5bd195e6438f62302f8f53efc..af6e6b0d9273cef519126526c244de9e2f2c4973 100644
+--- a/ui/base/ui_base_features.h
++++ b/ui/base/ui_base_features.h
+@@ -13,6 +13,9 @@
+ 
+ namespace features {
+ 
++// Restores Thorium's legacy menu timing when enabled.
++COMPONENT_EXPORT(UI_BASE_FEATURES) BASE_DECLARE_FEATURE(kThoriumInstantMenus);
++
+ COMPONENT_EXPORT(UI_BASE_FEATURES)
+ BASE_DECLARE_FEATURE(kSendEmptyGestureScrollUpdate);
+ COMPONENT_EXPORT(UI_BASE_FEATURES)
+diff --git a/ui/views/controls/menu/menu_config.cc b/ui/views/controls/menu/menu_config.cc
+index a711c503287a7e58e4719a6c061bc7b70641f336..c0bb621bd44e6fbaa538bf919e5e6e492a0fe9e9 100644
+--- a/ui/views/controls/menu/menu_config.cc
++++ b/ui/views/controls/menu/menu_config.cc
+@@ -5,6 +5,7 @@
+ #include "ui/views/controls/menu/menu_config.h"
+ 
+ #include "base/debug/dump_without_crashing.h"
++#include "base/feature_list.h"
+ #include "base/no_destructor.h"
+ #include "ui/base/ui_base_features.h"
+ #include "ui/views/controls/menu/menu_controller.h"
+@@ -22,6 +23,11 @@ namespace views {
+ MenuConfig::MenuConfig() {
+   InitCommon();
+   InitPlatform();
++
++  // Preserve the legacy 1 ms submenu delay only when explicitly requested.
++  if (base::FeatureList::IsEnabled(features::kThoriumInstantMenus)) {
++    show_delay = 1;
++  }
+ }
+ 
+ MenuConfig::~MenuConfig() = default;
+diff --git a/ui/views/metrics_aura.cc b/ui/views/metrics_aura.cc
+index 63e9c8530135b55de01b95b6449b13c23b3d0928..7af8b359bd4a131f8edd7a0693edf8701ad0488b 100644
+--- a/ui/views/metrics_aura.cc
++++ b/ui/views/metrics_aura.cc
+@@ -2,8 +2,10 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++#include "base/feature_list.h"
+ #include "base/time/time.h"
+ #include "build/build_config.h"
++#include "ui/base/ui_base_features.h"
+ #include "ui/views/metrics.h"
+ 
+ #if BUILDFLAG(IS_WIN)
+@@ -25,6 +27,11 @@ base::TimeDelta GetDoubleClickInterval() {
+ 
+ base::TimeDelta GetMenuShowDelay() {
+ #if BUILDFLAG(IS_WIN)
++  // Preserve the legacy Windows bookmark drag-and-drop hover delay.
++  if (base::FeatureList::IsEnabled(features::kThoriumInstantMenus)) {
++    return kDefaultMenuShowDelay;
++  }
++
+   static base::TimeDelta delay = []() {
+     DWORD show_delay;
+     return SystemParametersInfo(SPI_GETMENUSHOWDELAY, 0, &show_delay, 0)

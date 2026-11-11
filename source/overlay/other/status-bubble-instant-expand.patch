@@ -1,0 +1,18 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/status_bubble.h b/chrome/browser/ui/status_bubble.h
+index e1b85d1ae87d85226b26464540029bbe784002e9..fbb4a6107a619fea8572dddd72a16587b19e5bfc 100644
+--- a/chrome/browser/ui/status_bubble.h
++++ b/chrome/browser/ui/status_bubble.h
+@@ -17,7 +17,7 @@ class GURL;
+ class StatusBubble {
+  public:
+   // On hover, expand status bubble to fit long URL after this delay.
+-  static const int kExpandHoverDelayMS = 1600;
++  static constexpr int kExpandHoverDelayMS = 1;
+ 
+   virtual ~StatusBubble() = default;
+ 

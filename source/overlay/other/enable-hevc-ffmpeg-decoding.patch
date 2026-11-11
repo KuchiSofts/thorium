@@ -1,0 +1,148 @@
+Origin: enable-chromium-hevc-hardware-decoding
+Author: enable-chromium-hevc-hardware-decoding
+License: MIT
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/media/base/supported_types.cc b/media/base/supported_types.cc
+index efc7246c8cd3eb05e245c2ee97f616bb1b630c55..49f9e7b3fcba1c999c14cdcf6ecd0c6b1981e017 100644
+--- a/media/base/supported_types.cc
++++ b/media/base/supported_types.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2017 The Chromium Authors
++// Copyright 2026 The Chromium Authors, Alex313031, and midzer
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -229,25 +229,12 @@ bool IsAudioCodecProprietary(AudioCodec codec) {
+ #endif  // !BUILDFLAG(USE_PROPRIETARY_CODECS)
+ 
+ bool IsDecoderHevcProfileSupported(const VideoType& type) {
+-  if (!IsColorSpaceSupported(type.color_space)) {
+-    return false;
+-  }
+-
+-#if BUILDFLAG(ENABLE_PLATFORM_HEVC)
+-#if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT)
+-#if BUILDFLAG(IS_CHROMEOS)
+-  if (!base::FeatureList::IsEnabled(kPlatformHEVCDecoderSupport)) {
+-    return false;
+-  }
+-#endif  // BUILDFLAG(IS_CHROMEOS)
+-  return GetSupplementalDecoderVideoProfileCache()->IsProfileSupported(
+-      type.profile);
+-#else
++#if BUILDFLAG(ENABLE_FFMPEG_VIDEO_DECODERS)
+   return true;
+-#endif  // BUIDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT)
+ #else
+-  return false;
+-#endif  // BUILDFLAG(ENABLE_PLATFORM_HEVC)
++  return GetSupplementalDecoderVideoProfileCache()->IsProfileSupported(
++      type.profile);
++#endif  // BUILDFLAG(ENABLE_FFMPEG_VIDEO_DECODERS)
+ }
+ 
+ bool IsDecoderVp9ProfileSupported(const VideoType& type) {
+@@ -580,7 +567,7 @@ bool IsEncoderOptionalVideoType(const media::VideoType& type) {
+ 
+ bool IsDecoderBuiltInVideoCodec(VideoCodec codec) {
+ #if BUILDFLAG(ENABLE_FFMPEG_VIDEO_DECODERS) && BUILDFLAG(USE_PROPRIETARY_CODECS)
+-  if (codec == VideoCodec::kH264) {
++  if (codec == VideoCodec::kH264 || codec == VideoCodec::kHEVC) {
+     return true;
+   }
+ #endif  // BUILDFLAG(ENABLE_FFMPEG_VIDEO_DECODERS) &&
+diff --git a/media/ffmpeg/ffmpeg_common.cc b/media/ffmpeg/ffmpeg_common.cc
+index e4c443001dba3beafeb64d88a492ea52bf39679c..21b7cd434219d5538dcd29bcfa18c15df921eaf0 100644
+--- a/media/ffmpeg/ffmpeg_common.cc
++++ b/media/ffmpeg/ffmpeg_common.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2012 The Chromium Authors
++// Copyright 2026 The Chromium Authors, Alex313031, and midzer
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+@@ -65,7 +65,7 @@ VideoColorSpace GetGuessedColorSpace(const VideoColorSpace& color_space) {
+ const char* GetAllowedVideoDecoders() {
+   // This should match the configured lists in //third_party/ffmpeg.
+ #if BUILDFLAG(USE_PROPRIETARY_CODECS) && BUILDFLAG(ENABLE_FFMPEG_VIDEO_DECODERS)
+-  return "h264";
++  return "h264,hevc";
+ #else
+   return "";
+ #endif
+diff --git a/media/filters/ffmpeg_video_decoder.cc b/media/filters/ffmpeg_video_decoder.cc
+index 3e351538d12f075224fa840d24a75ca99f117faf..d1feb70cab3625d759bdb8720296c589a80a51e5 100644
+--- a/media/filters/ffmpeg_video_decoder.cc
++++ b/media/filters/ffmpeg_video_decoder.cc
+@@ -1,4 +1,4 @@
+-// Copyright 2012 The Chromium Authors
++// Copyright 2026 The Chromium Authors, Alex313031, and RobRich999
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ #include "media/filters/ffmpeg_video_decoder.h"
+@@ -71,19 +71,19 @@ static int GetFFmpegVideoDecoderThreadCount(const VideoDecoderConfig& config) {
+   // Only add more threads for those codecs that we know will benefit.
+   switch (config.codec()) {
+     case VideoCodec::kUnknown:
++      // We do not compile ffmpeg with support for any of these codecs.
++      NOTREACHED();
++
++    case VideoCodec::kH264:
++    case VideoCodec::kHEVC:
+     case VideoCodec::kVC1:
+     case VideoCodec::kMPEG2:
+-    case VideoCodec::kHEVC:
+     case VideoCodec::kVP9:
+     case VideoCodec::kAV1:
+     case VideoCodec::kDolbyVision:
+     case VideoCodec::kTheora:
+     case VideoCodec::kMPEG4:
+     case VideoCodec::kVP8:
+-      // We do not compile ffmpeg with support for any of these codecs.
+-      NOTREACHED();
+-
+-    case VideoCodec::kH264:
+       // Normalize to three threads for 1080p content, then scale linearly
+       // with number of pixels.
+       // Examples:
+@@ -117,8 +117,9 @@ static void ReleaseVideoBufferImpl(void* opaque, uint8_t* data) {
+ 
+ // static
+ bool FFmpegVideoDecoder::IsCodecSupported(VideoCodec codec) {
+-  // We only build support for H.264.
+-  return codec == VideoCodec::kH264 && IsDecoderBuiltInVideoCodec(codec);
++  // We only build support for H.264 / H.265.
++  return (codec == VideoCodec::kH264 || codec == VideoCodec::kHEVC) &&
++         IsDecoderBuiltInVideoCodec(codec);
+ }
+ 
+ FFmpegVideoDecoder::FFmpegVideoDecoder(std::unique_ptr<MediaLog> media_log)
+diff --git a/third_party/ffmpeg b/third_party/ffmpeg
+index 42a2a7a2b2ceb0b1554af1e99a8cdaae189404bb..66d7841c24e9c9a473b8e85d98765bc739217c14 160000
+--- a/third_party/ffmpeg
++++ b/third_party/ffmpeg
+@@ -1 +1 @@
+-Subproject commit 42a2a7a2b2ceb0b1554af1e99a8cdaae189404bb
++Subproject commit 66d7841c24e9c9a473b8e85d98765bc739217c14
+diff --git a/third_party/search_engines_data/resources b/third_party/search_engines_data/resources
+index 5dc9f1afd38a8ac2b26b1972eb4fc1bbd5754e8c..4f6d630780a0bbb15a7e2f154502c73bdc317b5c 160000
+--- a/third_party/search_engines_data/resources
++++ b/third_party/search_engines_data/resources
+@@ -1 +1 @@
+-Subproject commit 5dc9f1afd38a8ac2b26b1972eb4fc1bbd5754e8c
++Subproject commit 4f6d630780a0bbb15a7e2f154502c73bdc317b5c
+diff --git a/third_party/zstd/src b/third_party/zstd/src
+index 10da6ba6de05e29169261fa4b68eb99239f770dd..4a78c8aa5d0104180ca9120e22abee29b614930b 160000
+--- a/third_party/zstd/src
++++ b/third_party/zstd/src
+@@ -1 +1 @@
+-Subproject commit 10da6ba6de05e29169261fa4b68eb99239f770dd
++Subproject commit 4a78c8aa5d0104180ca9120e22abee29b614930b
+diff --git a/v8 b/v8
+index 9b541eb94d20adaeba3724188b53943860de3ea3..4191b8e0a3f7301f684d3d8873e37ef443052abe 160000
+--- a/v8
++++ b/v8
+@@ -1 +1 @@
+-Subproject commit 9b541eb94d20adaeba3724188b53943860de3ea3
++Subproject commit 4191b8e0a3f7301f684d3d8873e37ef443052abe

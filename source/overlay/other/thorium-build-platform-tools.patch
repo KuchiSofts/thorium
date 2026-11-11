@@ -1,0 +1,138 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/build/install-build-deps.py b/build/install-build-deps.py
+index 8fe0643f47698e84d796fb89a7369cd6553ee927..5c9216721d7376540651f84135bcc4b34a8659a9 100755
+--- a/build/install-build-deps.py
++++ b/build/install-build-deps.py
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env python3
+ 
+-# Copyright 2023 The Chromium Authors
++# Copyright 2026 The Chromium Authors, Alex313031, and gz83
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
+@@ -242,6 +242,7 @@ def apt_update(options):
+ # Packages needed for development
+ def dev_list():
+     packages = [
++        "advancecomp",
+         "autoconf",
+         "binutils",
+         "bison",
+@@ -257,6 +258,7 @@ def dev_list():
+         "flex",
+         "git-core",
+         "gperf",
++        "icoutils",
+         "libasound2-dev",
+         "libatspi2.0-dev",
+         "libbrlapi-dev",
+@@ -298,15 +300,18 @@ def dev_list():
+         "lighttpd",
+         "locales",
+         "openbox",
++        "optipng",
+         "p7zip",
+         "patch",
+         "perl",
+         "pkgconf",
++        "pngcrush",
+         "ripgrep",
+         "rpm",
+         "ruby",
+         "uuid-dev",
+         "wdiff",
++        "wget",
+         "x11-utils",
+         "xcompmgr",
+         "xz-utils",
+@@ -412,12 +417,14 @@ def lib_list():
+         "libpango-1.0-0",
+         "libpangocairo-1.0-0",
+         "libpci3",
++        "libpcre3",
+         "libpixman-1-0",
+         "libspeechd2",
+         "libstdc++6",
+         "libsqlite3-0",
+         "libuuid1",
+         "libwayland-egl1",
++        "libwayland-egl1-mesa",
+         "libx11-6",
+         "libx11-xcb1",
+         "libxau6",
+@@ -535,6 +542,7 @@ def lib32_list(options):
+         "zlib1g:i386",
+         # 32-bit libraries needed e.g. to compile V8 snapshot for Android or armhf
+         "linux-libc-dev:i386",
++        "linux-libc-dev-i386-cross",
+         "libexpat1:i386",
+         "libpci3:i386",
+     ]
+@@ -739,7 +747,9 @@ def arm_list(options):
+         "g++-arm-linux-gnueabihf",
+         "gcc-arm-linux-gnueabihf",
+         "libc6-dev-armhf-cross",
++        "libc6-dev-arm64-cross",
+         "linux-libc-dev-armhf-cross",
++        "linux-libc-dev-arm64-cross",
+     ]
+ 
+     # Work around an Ubuntu dependency issue.
+diff --git a/build/win/reorder-imports.py b/build/win/reorder-imports.py
+index 11602df2777ec3fdecb319bce04110488f329b32..d0195fbe1e5008758e6e4380c30bed551b8c0fa8 100755
+--- a/build/win/reorder-imports.py
++++ b/build/win/reorder-imports.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-# Copyright 2014 The Chromium Authors
++# Copyright 2026 The Chromium Authors, Alex313031, and gz83
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
+@@ -19,7 +19,7 @@ import pefile
+ 
+ 
+ def reorder_imports(input_dir, output_dir, architecture):
+-    """Swap chrome_elf.dll to be the first import of chrome.exe.
++    """Swap chrome_elf.dll to be the first import of thorium.exe.
+     Also copy over any related files that might be needed
+     (pdbs, manifests etc.).
+     """
+@@ -27,8 +27,8 @@ def reorder_imports(input_dir, output_dir, architecture):
+     # correct executable in the first place, so that this script
+     # only needs to verify that and not write a whole new exe.
+ 
+-    input_image = os.path.join(input_dir, 'chrome.exe')
+-    output_image = os.path.join(output_dir, 'chrome.exe')
++    input_image = os.path.join(input_dir, 'thorium.exe')
++    output_image = os.path.join(output_dir, 'thorium.exe')
+ 
+     # pefile mmap()s the whole executable, and then parses parts of
+     # it into python data structures for ease of processing.
+@@ -90,7 +90,7 @@ def reorder_imports(input_dir, output_dir, architecture):
+ 
+     pe.write(filename=output_image)
+ 
+-    for fname in glob.iglob(os.path.join(input_dir, 'chrome.exe.*')):
++    for fname in glob.iglob(os.path.join(input_dir, 'thorium.exe.*')):
+         shutil.copy(fname, os.path.join(output_dir, os.path.basename(fname)))
+     return 0
+ 
+@@ -99,10 +99,10 @@ def main(argv):
+     usage = 'reorder_imports.py -i <input_dir> -o <output_dir> -a <target_arch>'
+     parser = optparse.OptionParser(usage=usage)
+     parser.add_option(
+-        '-i', '--input', help='reorder chrome.exe in DIR', metavar='DIR'
++        '-i', '--input', help='reorder thorium.exe in DIR', metavar='DIR'
+     )
+     parser.add_option(
+-        '-o', '--output', help='write new chrome.exe to DIR', metavar='DIR'
++        '-o', '--output', help='write new thorium.exe to DIR', metavar='DIR'
+     )
+     parser.add_option(
+         '-a', '--arch', help='architecture of build (optional)', default='ia32'

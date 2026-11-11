@@ -1,0 +1,275 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/BUILD.gn b/chrome/browser/ui/BUILD.gn
+index 88668a0b3e98099a62afc4cd0e9858ed7f4676e4..436f4cbd1a625ca64eb9aecfb90df9755c68a3b6 100644
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -345,6 +345,7 @@ if (!is_android) {
+       "//chrome/browser/ui/fuzzy_search",
+       "//chrome/browser/ui/interaction",
+       "//chrome/browser/ui/lens",
++      "//chrome/browser/ui/omnibox",
+       "//chrome/browser/ui/page_action",
+       "//chrome/browser/ui/page_info",
+       "//chrome/browser/ui/page_info:about_this_site_icon",
+diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
+index d716fe0590cf29c376bbdc3b75e2751e88239ee4..cbf4a6b5596c2f32ab9e52a0fd122ee229845940 100644
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -131,6 +131,7 @@
+ #include "chrome/browser/ui/lens/lens_string_utils.h"
+ #include "chrome/browser/ui/location_bar/location_bar.h"
+ #include "chrome/browser/ui/omnibox/ai_mode_page_action_controller.h"
++#include "chrome/browser/ui/omnibox/omnibox_pedal_implementations.h"
+ #include "chrome/browser/ui/page_action/page_action_controller.h"
+ #include "chrome/browser/ui/page_action/page_action_triggers.h"
+ #include "chrome/browser/ui/page_info/page_info_dialog.h"
+@@ -4656,6 +4657,13 @@ void BrowserActions::InitializeToolbarAndMiscActions() {
+               },
+               bwi))
+           .SetActionId(kActionSharingHub)
++          .SetText(GetCleanTitleText(
++              l10n_util::GetStringUTF16(IDS_SHARING_HUB_TITLE)))
++          .SetTooltipText(GetCleanTooltipText(
++              l10n_util::GetStringUTF16(IDS_SHARING_HUB_TOOLTIP)))
++          .SetImage(ui::ImageModel::FromVectorIcon(GetSharingHubVectorIcon(),
++                                                   ui::kColorIcon))
++          .SetVisible(!sharing_hub::SharingIsDisabledByPolicy(profile))
+           .Build());
+ 
+   root_action_item_->AddChild(
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index e12e43ef640a903410e359182094cd53f66f119e..d03ae605e6e0e24dddf9951cd37393d57c860777 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -2955,9 +2955,9 @@ void BrowserCommandController::UpdateCommandsForProfile() {
+ 
+ void BrowserCommandController::UpdateActionsForSharingHubPolicy() {
+ #if !BUILDFLAG(IS_CHROMEOS)
+-  // Update the visibility of the QR code generator, send tab to self, and copy
+-  // link actions based on the sharing hub policy. This matches the fact that
+-  // these actions' visibility in the app menu.
++  // Update the visibility of the Sharing Hub and its related actions based on
++  // the sharing hub policy. This matches their visibility in the app menu and
++  // address bar.
+   const bool sharing_enabled =
+       profile()->GetPrefs()->GetBoolean(prefs::kDesktopSharingHubEnabled);
+ 
+@@ -2967,6 +2967,7 @@ void BrowserCommandController::UpdateActionsForSharingHubPolicy() {
+           action_item->SetVisible(sharing_enabled);
+         }
+       };
++  update_action_visibility(kActionSharingHub);
+   update_action_visibility(kActionQrCodeGenerator);
+   update_action_visibility(kActionSendTabToSelf);
+   update_action_visibility(kActionCopyUrl);
+diff --git a/chrome/browser/ui/omnibox/omnibox_pedal_implementations.h b/chrome/browser/ui/omnibox/omnibox_pedal_implementations.h
+index 9d96f8a0c0bd2baee0a45164524dee53d4ba63d5..730f7ec9ef8f55b6b013ca73fd93c47a816e0714 100644
+--- a/chrome/browser/ui/omnibox/omnibox_pedal_implementations.h
++++ b/chrome/browser/ui/omnibox/omnibox_pedal_implementations.h
+@@ -35,9 +35,8 @@ GetPedalImplementations(
+     OmniboxPedalOtrType otr_type = OmniboxPedalOtrType::kIncognito,
+     bool testing = false);
+ 
+-// This utility method is used by `SharingHubIconView` and its related Pedal
+-// (Chrome Action button) in the omnibox. It returns the sharing hub icon,
+-// taking platform into account.
++// Returns the platform-appropriate Sharing Hub icon for the page action and
++// its related Pedal (Chrome Action button) in the omnibox.
+ const gfx::VectorIcon& GetSharingHubVectorIcon();
+ 
+ #endif  // CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_PEDAL_IMPLEMENTATIONS_H_
+diff --git a/chrome/browser/ui/page_action/BUILD.gn b/chrome/browser/ui/page_action/BUILD.gn
+index 6204f0b8268d973524dd87ea74831361dd3cf7ec..ef512bf865e53290f61d960a39bd089769154177 100644
+--- a/chrome/browser/ui/page_action/BUILD.gn
++++ b/chrome/browser/ui/page_action/BUILD.gn
+@@ -70,6 +70,7 @@ if (!is_android) {
+       "//chrome/browser/ui:browser_element_identifiers",
+       "//chrome/browser/ui:ui_features",
+       "//chrome/browser/ui/browser_window",
++      "//chrome/browser/ui/sharing_hub",
+       "//chrome/browser/user_education",
+       "//components/user_education/product_messaging",
+       "//content/public/browser",
+diff --git a/chrome/browser/ui/page_action/action_ids.h b/chrome/browser/ui/page_action/action_ids.h
+index 31b76346aad5520407205c6f4d33a2f737df1c82..407ad8ed81a8c6deab89fe769281d1e1ba25a506 100644
+--- a/chrome/browser/ui/page_action/action_ids.h
++++ b/chrome/browser/ui/page_action/action_ids.h
+@@ -52,6 +52,7 @@ inline constexpr auto kActionIds = std::to_array<actions::ActionId>({
+     kActionMultistepFilter,
+     kActionFederation,
+     kActionAutofillPayment,
++    kActionSharingHub,
+     kActionShowPaymentsChurnedUsersBubble,
+     kActionFakePageActionForDebug,
+     kActionWalletReminderNotice,
+diff --git a/chrome/browser/ui/page_action/page_action_icon_type.h b/chrome/browser/ui/page_action/page_action_icon_type.h
+index 3f3af819540f83c6e5531a2c9b202121add64629..7d4b7a1842b004ac6cf758b18c1eb9ce7420466d 100644
+--- a/chrome/browser/ui/page_action/page_action_icon_type.h
++++ b/chrome/browser/ui/page_action/page_action_icon_type.h
+@@ -29,7 +29,7 @@ enum class PageActionIconType {
+   kAutofillAddress = 14,
+   kSaveCard = 15,
+   // DEPRECATED: kSendTabToSelf = 16,
+-  // DEPRECATED: kSharingHub = 17,
++  kSharingHub = 17,
+   // DEPRECATED: kSideSearch = 18,
+   // DEPRECATED: kSmsRemoteFetcher = 19,
+   kTranslate = 20,
+diff --git a/chrome/browser/ui/page_action/page_action_properties_provider.cc b/chrome/browser/ui/page_action/page_action_properties_provider.cc
+index 127fbb81e61100fd95ce5423c92b4512dadb10d3..9f21a7e0a48dbfc2b32cb32e0ef1b5f50563f450 100644
+--- a/chrome/browser/ui/page_action/page_action_properties_provider.cc
++++ b/chrome/browser/ui/page_action/page_action_properties_provider.cc
+@@ -12,6 +12,7 @@
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/browser/ui/page_action/page_action_controller.h"
+ #include "chrome/browser/ui/page_action/page_action_icon_type.h"
++#include "chrome/browser/ui/sharing_hub/sharing_hub_bubble_controller.h"
+ #include "ui/actions/action_id.h"
+ 
+ namespace {
+@@ -317,6 +318,18 @@ constexpr auto kPageActionProperties = base::MakeFixedFlatMap<
+                 page_actions::PageActionPriorityCategory::kContextualCue,
+         },
+     },
++    {
++        kActionSharingHub,
++        {
++            .histogram_name = "SharingHub",
++            .is_ephemeral = false,
++            .type = PageActionIconType::kSharingHub,
++            .element_identifier =
++                sharing_hub::SharingHubBubbleController::kIconElementId,
++            .priority =
++                page_actions::PageActionPriorityCategory::kCoreSiteUtility,
++        },
++    },
+     {
+         kActionShowPaymentsChurnedUsersBubble,
+         {
+diff --git a/chrome/browser/ui/sharing_hub/BUILD.gn b/chrome/browser/ui/sharing_hub/BUILD.gn
+index 50849de0ca3a9c5e00e31fdcba907ce0b6ab1022..2aa901774fde6c2ecd5030d7af2123595ea42e21 100644
+--- a/chrome/browser/ui/sharing_hub/BUILD.gn
++++ b/chrome/browser/ui/sharing_hub/BUILD.gn
+@@ -46,6 +46,7 @@ source_set("impl") {
+     ":sharing_hub",
+     "//chrome/browser/image_editor",
+     "//chrome/browser/profiles:profile",
++    "//chrome/browser/ui/actions:actions_headers",
+     "//chrome/browser/ui:browser_commands",
+     "//chrome/browser/ui:browser_window_header",
+     "//chrome/browser/ui/browser_window",
+diff --git a/chrome/browser/ui/sharing_hub/sharing_hub_window_controller.cc b/chrome/browser/ui/sharing_hub/sharing_hub_window_controller.cc
+index dd8784f81c36e382eb03f2458f42b73b26ebacce..3c81a38629f6ddc6bcb52c3e1bda7fa3ae75593a 100644
+--- a/chrome/browser/ui/sharing_hub/sharing_hub_window_controller.cc
++++ b/chrome/browser/ui/sharing_hub/sharing_hub_window_controller.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/share/share_attempt.h"
++#include "chrome/browser/ui/actions/chrome_action_id.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/sharing_hub/sharing_hub_bubble_controller.h"
+@@ -42,8 +43,13 @@ SharingHubWindowController::~SharingHubWindowController() = default;
+ #if !BUILDFLAG(IS_CHROMEOS)
+ SharingHubBubbleView* SharingHubWindowController::ShowSharingHubBubble(
+     share::ShareAttempt attempt) {
++  ToolbarButtonProvider* const toolbar =
++      ToolbarButtonProvider::From(&*browser_);
+   views::BubbleAnchor anchor =
+-      ToolbarButtonProvider::From(&*browser_)->GetBubbleAnchor(std::nullopt);
++      toolbar->GetPageActionBubbleAnchor(kActionSharingHub);
++  if (anchor.IsNull()) {
++    anchor = toolbar->GetBubbleAnchor(std::nullopt);
++  }
+   auto bubble = std::make_unique<SharingHubBubbleViewImpl>(
+       anchor, attempt,
+       SharingHubBubbleController::CreateOrGetFromWebContents(
+diff --git a/chrome/browser/ui/tabs/BUILD.gn b/chrome/browser/ui/tabs/BUILD.gn
+index bf88dff65dd1a42b5a34a2f93f160a032242e794..b828bc6e0978cbe769aad58c683ccc68680fb51c 100644
+--- a/chrome/browser/ui/tabs/BUILD.gn
++++ b/chrome/browser/ui/tabs/BUILD.gn
+@@ -613,6 +613,7 @@ if (!is_android) {
+       "//chrome/browser/safe_browsing",
+       "//chrome/browser/search",
+       "//chrome/browser/sessions",
++      "//chrome/browser/sharing_hub",
+       "//chrome/browser/signin",
+       "//chrome/browser/site_protection",
+       "//chrome/browser/skills:public",
+diff --git a/chrome/browser/ui/tabs/tab_features.cc b/chrome/browser/ui/tabs/tab_features.cc
+index 5b0269fbf610314036f884b08407fc65c182ce60..9261d295dd165847f88ec6e04b6dde8a09acf6db 100644
+--- a/chrome/browser/ui/tabs/tab_features.cc
++++ b/chrome/browser/ui/tabs/tab_features.cc
+@@ -93,6 +93,7 @@
+ #include "chrome/browser/profiles/profile_key.h"
+ #include "chrome/browser/resource_coordinator/tab_helper.h"
+ #include "chrome/browser/sessions/session_tab_helper_factory.h"
++#include "chrome/browser/sharing_hub/sharing_hub_features.h"
+ #include "chrome/browser/signin/identity_manager_factory.h"
+ #include "chrome/browser/site_protection/site_protection_metrics_observer.h"
+ #include "chrome/browser/ssl/ask_before_http_dialog_controller.h"
+@@ -517,6 +518,12 @@ void TabFeatures::Init(TabInterface& tab, Profile* profile) {
+               page_actions::PageActionPropertiesProvider(),
+               pinned_actions_model);
+ 
++  if (tab.IsInNormalWindow() &&
++      page_action_controller_->ActionExists(kActionSharingHub) &&
++      sharing_hub::HasPageAction(profile, /*is_popup_mode=*/false)) {
++    page_action_controller_->Show(kActionSharingHub);
++  }
++
+   if (page_action_controller_->ActionExists(kActionShowTranslate)) {
+     translate_page_action_controller_ =
+         std::make_unique<TranslatePageActionController>(tab);
+diff --git a/chrome/browser/ui/webui/webui_toolbar/utils/toolbar_button_utils.cc b/chrome/browser/ui/webui/webui_toolbar/utils/toolbar_button_utils.cc
+index 57f46e7aa5c2d5a4594834e66dae325f3dbdb420..dcd09f6cd57686acaededd12dc85714f38549235 100644
+--- a/chrome/browser/ui/webui/webui_toolbar/utils/toolbar_button_utils.cc
++++ b/chrome/browser/ui/webui/webui_toolbar/utils/toolbar_button_utils.cc
+@@ -553,6 +553,8 @@ actions::ActionId MojomPageActionIdToActionId(
+       return kActionAnchoredContextualCue;
+     case MojomPageActionId::kActionAutofillPayment:
+       return kActionAutofillPayment;
++    case MojomPageActionId::kActionSharingHub:
++      return kActionSharingHub;
+     case MojomPageActionId::kActionShowPaymentsChurnedUsersBubble:
+       return kActionShowPaymentsChurnedUsersBubble;
+     case MojomPageActionId::kActionFakePageActionForDebug:
+@@ -631,6 +633,8 @@ MojomPageActionId ActionIdToMojomPageActionId(actions::ActionId action_id) {
+       return MojomPageActionId::kActionAnchoredContextualCue;
+     case kActionAutofillPayment:
+       return MojomPageActionId::kActionAutofillPayment;
++    case kActionSharingHub:
++      return MojomPageActionId::kActionSharingHub;
+     case kActionShowPaymentsChurnedUsersBubble:
+       return MojomPageActionId::kActionShowPaymentsChurnedUsersBubble;
+     case kActionFakePageActionForDebug:
+diff --git a/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom b/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
+index e1a68cd2bb1b47e9a4da63671fa1d3488ace34ee..462324e3ec144cca7df5925e1761d6315967a130 100644
+--- a/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
++++ b/components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom
+@@ -523,6 +523,7 @@ enum PageActionId {
+   kActionGlicContextualCueing,
+   kActionAnchoredContextualCue,
+   kActionAutofillPayment,
++  kActionSharingHub,
+   kActionShowPaymentsChurnedUsersBubble,
+   kActionFakePageActionForDebug,
+   kActionWalletReminderNotice,
+diff --git a/tools/metrics/histograms/metadata/page/enums.xml b/tools/metrics/histograms/metadata/page/enums.xml
+index 0a64ec0f79d4e4a0b130c7633be6350cf8f13504..c49b3f080596d59982363d281853e7398ef8f7d4 100644
+--- a/tools/metrics/histograms/metadata/page/enums.xml
++++ b/tools/metrics/histograms/metadata/page/enums.xml
+@@ -259,7 +259,7 @@ chromium-metrics-reviews@google.com.
+   <int value="14" label="Autofill Address"/>
+   <int value="15" label="Save Card"/>
+   <int value="16" label="(Deprecated) Send Tab to Self"/>
+-  <int value="17" label="(Deprecated) Sharing Hub"/>
++  <int value="17" label="Sharing Hub"/>
+   <int value="18" label="(Deprecated) Side Search"/>
+   <int value="19" label="(Deprecated) SMS Remote Fetcher"/>
+   <int value="20" label="Translate"/>

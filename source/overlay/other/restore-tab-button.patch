@@ -1,0 +1,288 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index 6c3c8c0c86c761947c12a92e64761f3773d75e33..343727c8d23964e1a217ff92b6b9dfd4a7d595d8 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -10360,6 +10360,9 @@ Keep your key file in a safe place. You will need it to create new versions of y
+       <message name="IDS_TOOLTIP_STOP" desc="The tooltip for the stop button">
+         Stop loading this page
+       </message>
++      <message name="IDS_RESTORE_TAB_BUTTON_TOOLTIP" desc="Tooltip when hovering over the restore tab button.">
++        Restore Tab
++      </message>
+       <message name="IDS_TOOLTIP_EXTENSIONS_BUTTON" desc="The tooltip for the extensions button">
+         Extensions
+       </message>
+@@ -11134,6 +11137,9 @@ Keep your key file in a safe place. You will need it to create new versions of y
+       <message name="IDS_ACCNAME_RELOAD" desc="The accessible name for the reload/stop button.">
+         Reload
+       </message>
++      <message name="IDS_RESTORE_TAB_BUTTON_NAME" desc="Accessible title for the restore tab button.">
++        Restore Tab
++      </message>
+       <message name="IDS_ACCNAME_SPLIT_TABS_TOOLBAR_BUTTON_PINNED" desc="The accessible name for the toolbar button for the split tabs feature, when it is pinned and disabled.">
+         Open tab in split view
+       </message>
+diff --git a/chrome/browser/ui/view_ids.h b/chrome/browser/ui/view_ids.h
+index 7d5cc80a558e37a906e156ba56f78bc231066699..0b1df97785136af769f9bbace8ece9785bdd879b 100644
+--- a/chrome/browser/ui/view_ids.h
++++ b/chrome/browser/ui/view_ids.h
+@@ -51,6 +51,7 @@ enum ViewID {
+   VIEW_ID_FORWARD_BUTTON,
+   VIEW_ID_RELOAD_BUTTON,
+   VIEW_ID_HOME_BUTTON,
++  VIEW_ID_RESTORE_TAB_BUTTON,
+   VIEW_ID_STAR_BUTTON,
+   VIEW_ID_EXTENSIONS_MENU_BUTTON,
+   VIEW_ID_APP_MENU,
+diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/toolbar/BUILD.gn
+index fcc7a5305173df4d0bb99357e72fdb0b9981a7d7..e4696aab4ad81244e702e205901840ca5dd9e338 100644
+--- a/chrome/browser/ui/views/toolbar/BUILD.gn
++++ b/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -29,6 +29,7 @@ source_set("toolbar") {
+     "pinned_toolbar_actions_container_layout.h",
+     "pinned_toolbar_button_status_indicator.h",
+     "reload_button.h",
++    "restore_tab_button.h",
+     "reload_control.h",
+     "split_tabs_button.h",
+     "toolbar_action_hover_card_bubble_view.h",
+@@ -187,6 +188,7 @@ source_set("impl") {
+     "pinned_toolbar_actions_container_layout.cc",
+     "pinned_toolbar_button_status_indicator.cc",
+     "reload_button.cc",
++    "restore_tab_button.cc",
+     "split_tabs_button.cc",
+     "toolbar_action_hover_card_bubble_view.cc",
+     "toolbar_action_hover_card_controller.cc",
+diff --git a/chrome/browser/ui/views/toolbar/restore_tab_button.cc b/chrome/browser/ui/views/toolbar/restore_tab_button.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..de888fba814021ddf9484e934563954edd7ddb35
+--- /dev/null
++++ b/chrome/browser/ui/views/toolbar/restore_tab_button.cc
+@@ -0,0 +1,72 @@
++// Copyright 2026 The Chromium Authors and Alex313031
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/views/toolbar/restore_tab_button.h"
++
++#include "base/command_line.h"
++#include "base/logging.h"
++#include "base/strings/string_number_conversions.h"
++#include "chrome/app/chrome_command_ids.h"
++#include "chrome/browser/command_updater.h"
++#include "chrome/browser/external_protocol/external_protocol_handler.h"
++#include "chrome/browser/ui/browser.h"
++#include "chrome/browser/ui/view_ids.h"
++#include "chrome/grit/generated_resources.h"
++#include "components/vector_icons/vector_icons.h"
++#include "ui/base/l10n/l10n_util.h"
++#include "ui/base/metadata/metadata_impl_macros.h"
++#include "ui/base/ui_base_features.h"
++#include "ui/views/accessibility/view_accessibility.h"
++#include "ui/views/controls/button/button_controller.h"
++
++RestoreTabButton::RestoreTabButton(CommandUpdater* command_updater)
++    : ToolbarButton(base::BindRepeating(&RestoreTabButton::ButtonPressed,
++                                        base::Unretained(this))),
++      command_updater_(command_updater) {
++
++  SetIcon();
++
++  SetTooltipText(l10n_util::GetStringUTF16(IDS_RESTORE_TAB_BUTTON_TOOLTIP));
++  SetAccessibleName(l10n_util::GetStringUTF16(IDS_RESTORE_TAB_BUTTON_NAME));
++  button_controller()->set_notify_action(
++      views::ButtonController::NotifyAction::kOnPress);
++  SetID(VIEW_ID_RESTORE_TAB_BUTTON);
++  SizeToPreferredSize();
++}
++
++RestoreTabButton::~RestoreTabButton() = default;
++
++void RestoreTabButton::ButtonPressed() {
++  ExternalProtocolHandler::PermitLaunchUrl();
++
++  int command;
++  // See chrome/app/chrome_command_ids.h for all possible commands
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("button-command")) {
++    const std::string button_command =
++        base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("button-command");
++    command = base::StringToInt(button_command, &command);
++    LOG(ERROR) << command;
++  } else {
++    command = IDC_RESTORE_TAB;
++  }
++  const int command_to_exec = command;
++
++  ExecuteBrowserCommand(command_to_exec);
++}
++
++void RestoreTabButton::SetIcon() {
++  const gfx::VectorIcon& restore_icon =
++      vector_icons::kRestoreTabIcon;
++  SetVectorIcons(restore_icon, restore_icon);
++}
++
++void RestoreTabButton::ExecuteBrowserCommand(int command) {
++  if (!command_updater_) {
++    return;
++  }
++  command_updater_->ExecuteCommand(command);
++}
++
++BEGIN_METADATA(RestoreTabButton)
++END_METADATA
+diff --git a/chrome/browser/ui/views/toolbar/restore_tab_button.h b/chrome/browser/ui/views/toolbar/restore_tab_button.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..f9c5e97781b989fe940b29ecd14f5590d3d2f482
+--- /dev/null
++++ b/chrome/browser/ui/views/toolbar/restore_tab_button.h
+@@ -0,0 +1,31 @@
++// Copyright 2026 The Chromium Authors and Alex313031
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_VIEWS_TOOLBAR_RESTORE_TAB_BUTTON_H_
++#define CHROME_BROWSER_UI_VIEWS_TOOLBAR_RESTORE_TAB_BUTTON_H_
++
++#include "base/memory/raw_ptr.h"
++#include "chrome/browser/ui/views/toolbar/toolbar_button.h"
++#include "ui/base/metadata/metadata_header_macros.h"
++
++class CommandUpdater;
++
++class RestoreTabButton : public ToolbarButton {
++  METADATA_HEADER(RestoreTabButton, ToolbarButton)
++
++ public:
++  explicit RestoreTabButton(CommandUpdater* command_updater);
++  RestoreTabButton(const RestoreTabButton&) = delete;
++  RestoreTabButton& operator=(const RestoreTabButton&) = delete;
++  ~RestoreTabButton() override;
++
++ private:
++  void SetIcon();
++  void ButtonPressed();
++  void ExecuteBrowserCommand(int command);
++
++  raw_ptr<CommandUpdater, DanglingUntriaged> command_updater_;
++};
++
++#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_RESTORE_TAB_BUTTON_H_
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+index 7f404c6864ec9434f14400daddbd571ae18c617c..bcf60bdb07a289ef9bc050bd709fee7249a2fc62 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -109,6 +109,7 @@
+ #include "chrome/browser/ui/views/toolbar/overflow_menu.h"
+ #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
+ #include "chrome/browser/ui/views/toolbar/reload_button.h"
++#include "chrome/browser/ui/views/toolbar/restore_tab_button.h"
+ #include "chrome/browser/ui/views/toolbar/split_tabs_button.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_controller.h"
+@@ -458,6 +459,15 @@ void ToolbarView::Init() {
+         browser_, base::BindRepeating(callback, browser_, IDC_HOME)));
+   }
+ 
++  if (features::EnableRestoreTabButton()) {
++    toolbar_divider2_ = AddChildView(std::make_unique<ToolbarDivider>());
++    toolbar_divider2_->SetPreferredSize(gfx::Size(
++        GetLayoutConstant(LayoutConstant::kToolbarDividerWidth),
++        GetLayoutConstant(LayoutConstant::kToolbarDividerHeight)));
++    restore_ = AddChildView(std::make_unique<RestoreTabButton>(
++        chrome::BrowserCommandController::From(browser_)));
++  }
++
+   if (!features::IsWebUISplitTabsButtonEnabled()) {
+     split_tabs_ =
+         AddChildView(std::make_unique<SplitTabsToolbarButton>(browser_));
+@@ -1626,6 +1636,13 @@ void ToolbarView::InitLayout() {
+             0, GetLayoutConstant(LayoutConstant::kToolbarDividerSpacing)));
+   }
+ 
++  if (toolbar_divider2_) {
++    toolbar_divider2_->SetProperty(
++        views::kMarginsKey,
++        gfx::Insets::VH(
++            0, GetLayoutConstant(LayoutConstant::kToolbarDividerSpacing)));
++  }
++
+   if (glic_button_view_ &&
+       base::FeatureList::IsEnabled(features::kToolbarGlicButtonResizing)) {
+     glic_button_view_->SetProperty(
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.h b/chrome/browser/ui/views/toolbar/toolbar_view.h
+index e38c93e2c6631afd002349a85ce288f72c33e453..7cacff77b86865867a9be05f4c92875f5c16e61f 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.h
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
+@@ -58,6 +58,7 @@ class HomeButton;
+ class ExtensionsToolbarCoordinator;
+ class MediaToolbarButton;
+ class ReloadButton;
++class RestoreTabButton;
+ class WebUIToolbarWebView;
+ class PinnedToolbarActionsContainer;
+ class ToolbarButton;
+@@ -189,6 +190,7 @@ class ToolbarView : public views::AccessiblePaneView,
+   // features::IsWebUIExtensionsContainerEnabled()).
+   ExtensionsToolbarButton* GetExtensionsButton() const;
+   ReloadButton* reload_button() const { return reload_; }
++  RestoreTabButton* restore_tab_button() const { return restore_; }
+   LocationBarView* location_bar_view() const { return location_bar_view_; }
+   LocationBar* location_bar() const { return location_bar_; }
+   CustomTabBarView* custom_tab_bar() { return custom_tab_bar_; }
+@@ -412,6 +414,7 @@ class ToolbarView : public views::AccessiblePaneView,
+   raw_ptr<ToolbarButton> back_ = nullptr;
+   raw_ptr<ToolbarButton> forward_ = nullptr;
+   raw_ptr<ReloadButton> reload_ = nullptr;
++  raw_ptr<RestoreTabButton> restore_ = nullptr;
+   raw_ptr<WebUIToolbarWebView> toolbar_webview_ = nullptr;
+   raw_ptr<HomeButton> home_ = nullptr;
+   raw_ptr<SplitTabsToolbarButton> split_tabs_ = nullptr;
+@@ -422,6 +425,7 @@ class ToolbarView : public views::AccessiblePaneView,
+   raw_ptr<LocationBar> location_bar_ = nullptr;
+   raw_ptr<ExtensionsToolbarDesktop> extensions_container_ = nullptr;
+   raw_ptr<ToolbarDivider> toolbar_divider_ = nullptr;
++  raw_ptr<ToolbarDivider> toolbar_divider2_ = nullptr;
+   raw_ptr<BatterySaverButton> battery_saver_button_ = nullptr;
+   raw_ptr<PerformanceInterventionButton> performance_intervention_button_ =
+       nullptr;
+diff --git a/ui/base/ui_base_features.cc b/ui/base/ui_base_features.cc
+index c243f543052e5df1faec680ad9aa26bc0f606f14..4068b9333ec01a11dcd5a5370e20a508e88ff43b 100644
+--- a/ui/base/ui_base_features.cc
++++ b/ui/base/ui_base_features.cc
+@@ -421,6 +421,14 @@ bool IsThorium2024() {
+   return base::FeatureList::IsEnabled(kThorium2024) || th24_flag;
+ }
+ 
++BASE_FEATURE(kRestoreTabButton,
++             "RestoreTabButton",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
++bool EnableRestoreTabButton() {
++  return base::FeatureList::IsEnabled(kRestoreTabButton);
++}
++
+ BASE_FEATURE(kBubbleMetricsApi, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ #if BUILDFLAG(IS_WIN)
+diff --git a/ui/base/ui_base_features.h b/ui/base/ui_base_features.h
+index 5cc1b44add60bc91ccd07ed18b5b9b849796be60..720e4b2e539f6470646f920dc849a62a3d253b74 100644
+--- a/ui/base/ui_base_features.h
++++ b/ui/base/ui_base_features.h
+@@ -252,6 +252,10 @@ COMPONENT_EXPORT(UI_BASE_FEATURES) bool IsVariableRefreshRateAlwaysOn();
+ COMPONENT_EXPORT(UI_BASE_FEATURES) BASE_DECLARE_FEATURE(kThorium2024);
+ COMPONENT_EXPORT(UI_BASE_FEATURES) bool IsThorium2024();
+ 
++// Whether to use the Restore Tab toolbar button.
++COMPONENT_EXPORT(UI_BASE_FEATURES) BASE_DECLARE_FEATURE(kRestoreTabButton);
++COMPONENT_EXPORT(UI_BASE_FEATURES) bool EnableRestoreTabButton();
++
+ COMPONENT_EXPORT(UI_BASE_FEATURES)
+ BASE_DECLARE_FEATURE(kBubbleMetricsApi);
+ 

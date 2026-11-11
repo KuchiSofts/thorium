@@ -1,0 +1,96 @@
+Origin: ungoogled-chromium
+Author: ungoogled-chromium
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/browser/ui/qrcode_generator/qrcode_generator_bubble_controller.cc b/chrome/browser/ui/qrcode_generator/qrcode_generator_bubble_controller.cc
+index 535739f80be02cb6b645964af96d8fd8a814ee2c..01d87646f1b7a78c970a6688037eba8b0bbb9e78 100644
+--- a/chrome/browser/ui/qrcode_generator/qrcode_generator_bubble_controller.cc
++++ b/chrome/browser/ui/qrcode_generator/qrcode_generator_bubble_controller.cc
+@@ -11,6 +11,7 @@
+ #include "chrome/browser/ui/actions/chrome_action_id.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
++#include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/sharing_hub/sharing_hub_bubble_controller.h"
+ #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
+ #include "chrome/browser/ui/views/qrcode_generator/qrcode_generator_bubble.h"
+@@ -27,10 +28,15 @@ PrefService* GetPrefService() {
+   return g_browser_process ? g_browser_process->local_state() : nullptr;
+ }
+ 
+-// Returns whether the QR code generator is enabled by policy.
+-bool IsQRCodeGeneratorEnabledByPolicy() {
++// Returns whether the QR code generator is enabled by policy and Thorium's
++// user-facing flag.
++bool IsQRCodeGeneratorEnabled() {
+   const PrefService* prefs = GetPrefService();
+-  return !prefs || prefs->GetBoolean(prefs::kQRCodeGeneratorEnabled);
++  const bool enabled_by_policy =
++      !prefs || prefs->GetBoolean(prefs::kQRCodeGeneratorEnabled);
++  return enabled_by_policy &&
++         !base::FeatureList::IsEnabled(
++             features::kThoriumDisableQRCodeGenerator);
+ }
+ 
+ }  // namespace
+@@ -47,8 +53,8 @@ bool QRCodeGeneratorBubbleController::IsGeneratorAvailable(const GURL& url) {
+     return false;
+   }
+ 
+-  // Check policy.
+-  if (!IsQRCodeGeneratorEnabledByPolicy()) {
++  // Check policy and the user-facing feature.
++  if (!IsQRCodeGeneratorEnabled()) {
+     return false;
+   }
+ 
+@@ -71,8 +77,8 @@ void QRCodeGeneratorBubbleController::ShowBubble(const GURL& url,
+     return;
+   }
+ 
+-  // Check policy.
+-  if (!IsQRCodeGeneratorEnabledByPolicy()) {
++  // Check policy and the user-facing feature.
++  if (!IsQRCodeGeneratorEnabled()) {
+     return;
+   }
+ 
+@@ -150,7 +156,7 @@ void QRCodeGeneratorBubbleController::OnBackButtonPressed() {
+ }
+ 
+ void QRCodeGeneratorBubbleController::OnPolicyPrefChanged() {
+-  if (!IsQRCodeGeneratorEnabledByPolicy()) {
++  if (!IsQRCodeGeneratorEnabled()) {
+     HideBubble();
+   }
+ }
+diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
+index c37f9748684a4f1fe1ac39f210013c134a08c772..49cac7015e4ae3b47463893c8514756619c6df23 100644
+--- a/chrome/browser/ui/ui_features.cc
++++ b/chrome/browser/ui/ui_features.cc
+@@ -286,6 +286,10 @@ BASE_FEATURE_PARAM(std::string,
+                    "mode",
+                    "foreground");
+ 
++// Disables the QR code generator entry points for sharing page links.
++BASE_FEATURE(kThoriumDisableQRCodeGenerator,
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ #if BUILDFLAG(IS_WIN)
+ // Enables the UI for Process Isolation in chrome://settings/system.
+ BASE_FEATURE(kProcessIsolationSettings, base::FEATURE_DISABLED_BY_DEFAULT);
+diff --git a/chrome/browser/ui/ui_features.h b/chrome/browser/ui/ui_features.h
+index da1678b0e195e4faa45e2ec69182b88721de9eea..a9912285eb84ab770a3e787d46ce6fd55601c9dd 100644
+--- a/chrome/browser/ui/ui_features.h
++++ b/chrome/browser/ui/ui_features.h
+@@ -420,6 +420,9 @@ BASE_DECLARE_FEATURE_PARAM(std::string, kOpenBookmarksInNewTabMode);
+ BASE_DECLARE_FEATURE(kOpenOmniboxUrlInNewTab);
+ BASE_DECLARE_FEATURE_PARAM(std::string, kOpenOmniboxUrlInNewTabMode);
+ 
++// Disables the QR code generator entry points for sharing page links.
++BASE_DECLARE_FEATURE(kThoriumDisableQRCodeGenerator);
++
+ BASE_DECLARE_FEATURE(kTabGroupRibbon);
+ bool IsTabGroupRibbonEnabled();
+ 

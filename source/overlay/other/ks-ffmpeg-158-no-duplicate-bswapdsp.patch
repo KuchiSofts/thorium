@@ -1,0 +1,38 @@
+Thoron: do not build FFmpeg's bswapdsp twice on Chromium 158.
+
+Chromium 158's FFmpeg build already compiles bswapdsp (C, x86 init and asm) for every target that the
+HEVC decoder patch adds it to, so the second copies make GN stop with "duplicate object file".
+Applies after the HEVC/AC3 FFmpeg patches.
+
+Origin: Thoron
+Author: KuchiSofts
+License: BSD-3-Clause
+
+diff --git a/ffmpeg_generated.gni b/ffmpeg_generated.gni
+index 982aa92afcbcd2e0423b25712c424774f62eb7c0..a984404db593c8f92f30ff80dbab2bcecababd21 100644
+--- a/ffmpeg_generated.gni
++++ b/ffmpeg_generated.gni
+@@ -315,7 +315,6 @@ if (((current_cpu == "arm64" || current_cpu == "arm64e") &&
+     (use_linux_config && ffmpeg_branding == "Chrome")) {
+ 
+   ffmpeg_c_sources += [
+-    "libavcodec/bswapdsp.c",
+     "libavcodec/hevc/autorename_libavcodec_hevc_parse.c",
+     "libavcodec/hevc/autorename_libavcodec_hevc_parser.c",
+     "libavcodec/hevc/autorename_libavcodec_hevc_cabac.c",
+@@ -381,7 +380,6 @@ if ((current_cpu == "x64" && ffmpeg_branding == "Chrome") ||
+     (use_linux_config && current_cpu == "x86" && ffmpeg_branding == "Chrome")) {
+ 
+   ffmpeg_c_sources += [
+-    "libavcodec/x86/bswapdsp_init.c",
+     "libavcodec/x86/hevc/dsp_init.c",
+     "libavcodec/x86/h26x/h2656dsp.c",
+     "libavcodec/x86/ac3dsp_init.c",
+@@ -389,7 +387,6 @@ if ((current_cpu == "x64" && ffmpeg_branding == "Chrome") ||
+ 
+   if (!(is_android && current_cpu == "x86")) {
+     ffmpeg_asm_sources += [
+-      "libavcodec/x86/bswapdsp.asm",
+       "libavcodec/x86/hevc/add_res.asm",
+       "libavcodec/x86/hevc/deblock.asm",
+       "libavcodec/x86/hevc/dequant.asm",

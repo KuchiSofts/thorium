@@ -1,0 +1,381 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabHoverCardView.java b/chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabHoverCardView.java
+index 7fca4a9b3ee53016c65bcd1dd713303655426594..7a028d59b564f38ed64589e2263b4541aa9e4a16 100644
+--- a/chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabHoverCardView.java
++++ b/chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabHoverCardView.java
+@@ -28,6 +28,7 @@ import org.chromium.base.MathUtils;
+ import org.chromium.build.annotations.NullMarked;
+ import org.chromium.build.annotations.Nullable;
+ import org.chromium.chrome.R;
++import org.chromium.chrome.browser.flags.ChromeFeatureList;
+ import org.chromium.chrome.browser.tab.Tab;
+ import org.chromium.chrome.browser.tab.TabObserver;
+ import org.chromium.chrome.browser.tab.TabUtils;
+@@ -322,6 +323,11 @@ public class TabHoverCardView extends FrameLayout {
+         // chrome://newtab instead of just newtab on the hover card.
+         if (UrlUtilities.isInternalScheme(hoveredTab.getUrl())) {
+             url = UrlUtilities.stripTrailingSlash(hoveredTab.getUrl().getSpec());
++            if (ChromeFeatureList.isEnabled(
++                            ChromeFeatureList.THORIUM_INTERNAL_URL_SCHEME_BRANDING)
++                    && url.startsWith("chrome://")) {
++                url = "thorium://" + url.substring("chrome://".length());
++            }
+         }
+         mUrlView.setText(url);
+     }
+diff --git a/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc b/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
+index 6f696e5d951ee747436f2187e563d83e7d551f5d..f9dce56aedec2f26785366477e7ff42159c7b119 100644
+--- a/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
++++ b/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
+@@ -52,6 +52,7 @@
+ #include "chrome/browser/sync/session_sync_service_factory.h"
+ #include "chrome/browser/sync/sync_service_factory.h"
+ #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
++#include "chrome/browser/thorium_url_utils.h"
+ #include "chrome/browser/translate/chrome_translate_client.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/lens/lens_overlay_entry_point_controller.h"
+@@ -430,7 +431,9 @@ std::string ChromeAutocompleteProviderClient::GetAcceptLanguages() const {
+ std::string
+ ChromeAutocompleteProviderClient::GetEmbedderRepresentationOfAboutScheme()
+     const {
+-  return content::kChromeUIScheme;
++  return thorium::IsInternalURLSchemeBrandingEnabled()
++             ? content::kThoriumUIScheme
++             : content::kChromeUIScheme;
+ }
+ 
+ std::vector<std::u16string> ChromeAutocompleteProviderClient::GetBuiltinURLs() {
+@@ -468,6 +471,10 @@ ChromeAutocompleteProviderClient::GetBuiltinsToProvideAsUserTypes() {
+   builtins_to_provide.push_back(chrome::kChromeUISettingsURL16);
+ #endif
+   builtins_to_provide.push_back(chrome::kChromeUIVersionURL16);
++  for (std::u16string& builtin : builtins_to_provide) {
++    const GURL url(base::UTF16ToUTF8(builtin));
++    builtin = thorium::GetInternalURLTextForDisplay(url, builtin);
++  }
+   return builtins_to_provide;
+ }
+ 
+diff --git a/chrome/browser/flags/android/chrome_feature_list.cc b/chrome/browser/flags/android/chrome_feature_list.cc
+index ed9b00953409fe7b724d3349982a9c12a29df9d2..beeeb677fd164bbf4f31a7afa3e841ac1d51a836 100644
+--- a/chrome/browser/flags/android/chrome_feature_list.cc
++++ b/chrome/browser/flags/android/chrome_feature_list.cc
+@@ -233,6 +233,7 @@ const base::Feature* const kFeaturesExposedToJava[] = {
+     &features::kSafetyHubWeakAndReusedPasswords,
+     &features::kTaskManagerClank,
+     &features::kTaskManagerToolbar,
++    &features::kThoriumInternalUrlSchemeBranding,
+     &feed::kAndroidOpenIncognitoAsWindow,
+     &feed::kFeedAudioOverviews,
+     &feed::kFeedContainment,
+diff --git a/chrome/browser/flags/android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java b/chrome/browser/flags/android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java
+index 11414328abd8eb73e16ef51e09b7f2d96b3e2eb3..b5dcabcbc0c06d8321eb04398d197846d54d4760 100644
+--- a/chrome/browser/flags/android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java
++++ b/chrome/browser/flags/android/java/src/org/chromium/chrome/browser/flags/ChromeFeatureList.java
+@@ -859,6 +859,8 @@ public abstract class ChromeFeatureList {
+     public static final String TASK_MANAGER_TOOLBAR = "TaskManagerToolbar";
+     public static final String TEST_DEFAULT_DISABLED = "TestDefaultDisabled";
+     public static final String TEST_DEFAULT_ENABLED = "TestDefaultEnabled";
++    public static final String THORIUM_INTERNAL_URL_SCHEME_BRANDING =
++            "ThoriumInternalUrlSchemeBranding";
+     public static final String TEXT_HIGHLIGHT_FULL_LINK = "TextHighlightFullLink";
+     public static final String THREE_DOT_MENU_BACK_BUTTON = "ThreeDotMenuBackButton";
+     public static final String TIPS_SELF_SERVICE = "TipsSelfService";
+diff --git a/chrome/browser/resources/tab_search/tab_search_item.ts b/chrome/browser/resources/tab_search/tab_search_item.ts
+index e42896207d5ede943896689e887a9bfa256d5620..ef5c019be97cec444f4755c43091ba31255b3c07 100644
+--- a/chrome/browser/resources/tab_search/tab_search_item.ts
++++ b/chrome/browser/resources/tab_search/tab_search_item.ts
+@@ -214,10 +214,14 @@ export class TabSearchItemElement extends TabSearchItemBase {
+           }
+         });
+ 
+-    // Show chrome:// if it's a chrome internal url
++    // Restore the scheme omitted from the displayed internal URL.
+     const protocol = new URL(normalizeURL(data.tab.url)).protocol;
+-    if (protocol === 'chrome:') {
+-      this.$.secondaryTextInner.prepend(document.createTextNode('chrome://'));
++    if (protocol === 'chrome:' || protocol === 'thorium:') {
++      const scheme =
++          loadTimeData.getBoolean('thoriumInternalUrlSchemeBranding') ?
++          'thorium://' :
++          'chrome://';
++      this.$.secondaryTextInner.prepend(document.createTextNode(scheme));
+     }
+   }
+ 
+diff --git a/chrome/browser/thorium_url_utils.cc b/chrome/browser/thorium_url_utils.cc
+index b4b3f12c97d14906def73a3fafbdece7fa1dba16..08b14d3e49f994ca604db1a2840fe4e66cbfce1d 100644
+--- a/chrome/browser/thorium_url_utils.cc
++++ b/chrome/browser/thorium_url_utils.cc
+@@ -4,6 +4,9 @@
+ 
+ #include "chrome/browser/thorium_url_utils.h"
+ 
++#include "base/feature_list.h"
++#include "base/strings/string_util.h"
++#include "chrome/common/chrome_features.h"
+ #include "content/public/common/url_constants.h"
+ #include "url/gurl.h"
+ 
+@@ -23,4 +26,47 @@ void RewriteInternalURLAlias(GURL* url, content::BrowserContext*) {
+   *url = CanonicalizeInternalURL(*url);
+ }
+ 
++GURL GetInternalURLForDisplay(const GURL& url) {
++  const GURL canonical_url = CanonicalizeInternalURL(url);
++  if (!IsInternalURLSchemeBrandingEnabled() ||
++      !canonical_url.SchemeIs(content::kChromeUIScheme)) {
++    return canonical_url;
++  }
++
++  GURL::Replacements replacements;
++  replacements.SetSchemeStr(content::kThoriumUIScheme);
++  return canonical_url.ReplaceComponents(replacements);
++}
++
++std::u16string GetInternalURLTextForDisplay(const GURL& url,
++                                            std::u16string_view formatted_url) {
++  constexpr std::u16string_view kChromeScheme = u"chrome:";
++  constexpr std::u16string_view kThoriumScheme = u"thorium:";
++  if (!url.SchemeIs(content::kChromeUIScheme) &&
++      !url.SchemeIs(content::kThoriumUIScheme)) {
++    return std::u16string(formatted_url);
++  }
++
++  std::u16string_view source_scheme;
++  if (base::StartsWith(formatted_url, kChromeScheme,
++                       base::CompareCase::INSENSITIVE_ASCII)) {
++    source_scheme = kChromeScheme;
++  } else if (base::StartsWith(formatted_url, kThoriumScheme,
++                              base::CompareCase::INSENSITIVE_ASCII)) {
++    source_scheme = kThoriumScheme;
++  } else {
++    return std::u16string(formatted_url);
++  }
++
++  std::u16string result =
++      IsInternalURLSchemeBrandingEnabled() ? u"thorium" : u"chrome";
++  result.append(formatted_url.substr(source_scheme.size() - 1));
++  return result;
++}
++
++bool IsInternalURLSchemeBrandingEnabled() {
++  return base::FeatureList::IsEnabled(
++      features::kThoriumInternalUrlSchemeBranding);
++}
++
+ }  // namespace thorium
+diff --git a/chrome/browser/thorium_url_utils.h b/chrome/browser/thorium_url_utils.h
+index 5b32f2d6254d497368ecb24cdbf5796eb27f9afa..4a8584955d1d6602755f76f15d0c6428f45c2272 100644
+--- a/chrome/browser/thorium_url_utils.h
++++ b/chrome/browser/thorium_url_utils.h
+@@ -5,6 +5,9 @@
+ #ifndef CHROME_BROWSER_THORIUM_URL_UTILS_H_
+ #define CHROME_BROWSER_THORIUM_URL_UTILS_H_
+ 
++#include <string>
++#include <string_view>
++
+ class GURL;
+ 
+ namespace content {
+@@ -21,6 +24,20 @@ GURL CanonicalizeInternalURL(const GURL& url);
+ // handlers run. This preserves all existing platform and policy rewrites.
+ void RewriteInternalURLAlias(GURL* url, content::BrowserContext*);
+ 
++// Returns the user-facing representation of a canonical internal URL. The
++// returned URL is intended for display or copying only, never for storage or
++// security decisions.
++GURL GetInternalURLForDisplay(const GURL& url);
++
++// Replaces the leading internal scheme in already-formatted text according to
++// the branding feature. Other formatting is preserved.
++std::u16string GetInternalURLTextForDisplay(const GURL& url,
++                                            std::u16string_view formatted_url);
++
++// Returns whether user-facing `thorium://` branding is enabled on this
++// platform. Input support remains enabled independently of this feature.
++bool IsInternalURLSchemeBrandingEnabled();
++
+ }  // namespace thorium
+ 
+ #endif  // CHROME_BROWSER_THORIUM_URL_UTILS_H_
+diff --git a/chrome/browser/ui/browser_commands.cc b/chrome/browser/ui/browser_commands.cc
+index ddc980fedd463cd7031fe0af4b5dd0a89912a133..8feb0f3f23a8fbd64abc59b8b6a4bac5bbab14b4 100644
+--- a/chrome/browser/ui/browser_commands.cc
++++ b/chrome/browser/ui/browser_commands.cc
+@@ -58,6 +58,7 @@
+ #include "chrome/browser/sessions/tab_restore_service_factory.h"
+ #include "chrome/browser/sharing_hub/sharing_hub_features.h"
+ #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
++#include "chrome/browser/thorium_url_utils.h"
+ #include "chrome/browser/translate/chrome_translate_client.h"
+ #include "chrome/browser/ttc/core/entrypoint_controller.h"
+ #include "chrome/browser/ui/accelerator_utils.h"
+@@ -2944,7 +2945,9 @@ bool IsDebuggerAttachedToCurrentTab(BrowserWindowInterface* browser) {
+ void CopyURL(BrowserWindowInterface* browser,
+              content::WebContents* web_contents) {
+   ui::ScopedClipboardWriter scw(ui::ClipboardBuffer::kCopyPaste);
+-  scw.WriteText(base::UTF8ToUTF16(web_contents->GetVisibleURL().spec()));
++  const GURL display_url =
++      thorium::GetInternalURLForDisplay(web_contents->GetVisibleURL());
++  scw.WriteText(base::UTF8ToUTF16(display_url.spec()));
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+   if (toast_features::IsEnabled(toast_features::kLinkCopiedToast)) {
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+index 3c3aaff4f9561fd0025cb31fb6c170569bf97f03..5405cffb491b80b37779cc9ba2d8a0bfea368b99 100644
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -27,6 +27,7 @@
+ #include "chrome/browser/repost_form_warning_controller.h"
+ #include "chrome/browser/search/search.h"
+ #include "chrome/browser/sessions/session_tab_helper_factory.h"
++#include "chrome/browser/thorium_url_utils.h"
+ #include "chrome/browser/ui/blocked_content/chrome_popup_navigation_delegate.h"
+ #include "chrome/browser/ui/blocked_content/framebust_block_tab_helper.h"
+ #include "chrome/browser/ui/browser_command_controller.h"
+@@ -843,6 +844,7 @@ void BrowserWebContentsDelegate::SetContentsBounds(content::WebContents* source,
+ 
+ void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
+                                                  const GURL& url) {
++  const GURL display_url = thorium::GetInternalURLForDisplay(url);
+   std::vector<StatusBubble*> status_bubbles =
+       browser_ui_controller_->GetStatusBubbles();
+   for (StatusBubble* status_bubble : status_bubbles) {
+@@ -851,7 +853,7 @@ void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
+     ContentsWebView* anchor =
+         static_cast<ContentsWebView*>(status_bubble_views->base_view());
+     if (source == anchor->GetWebContents()) {
+-      status_bubble->SetURL(url);
++      status_bubble->SetURL(display_url);
+       break;
+     }
+   }
+diff --git a/chrome/browser/ui/omnibox/omnibox_edit_model.cc b/chrome/browser/ui/omnibox/omnibox_edit_model.cc
+index 7af049b6b6dd3ebc96ce61b43c419c222cd42a13..d33b2f1ded1b1656c7ae5428be6285119925ca42 100644
+--- a/chrome/browser/ui/omnibox/omnibox_edit_model.cc
++++ b/chrome/browser/ui/omnibox/omnibox_edit_model.cc
+@@ -36,6 +36,7 @@
+ #include "chrome/browser/contextual_tasks/contextual_tasks_context_service.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_context_service_factory.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_service_factory.h"
++#include "chrome/browser/thorium_url_utils.h"
+ #include "chrome/browser/ui/omnibox/omnibox_controller.h"
+ #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
+ #include "chrome/browser/ui/omnibox/omnibox_popup_state_manager.h"
+@@ -521,6 +522,9 @@ void OmniboxEditModel::AdjustTextForCopy(int sel_min,
+       controller_->client()->GetPageClassification(/*is_prefetch=*/false),
+       controller_->client()->GetContextualTasksInnerFrameURL(), url_from_text,
+       write_url);
++  if (*write_url) {
++    *text = thorium::GetInternalURLTextForDisplay(*url_from_text, *text);
++  }
+ }
+ 
+ bool OmniboxEditModel::ShouldShowCurrentPageIcon() const {
+diff --git a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
+index bded739dc486b5d7fb7618efe6a656ac4bfa0816..f35b1d243d90b595c055f5d91bedcdee9185739e 100644
+--- a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
++++ b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
+@@ -14,6 +14,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/search/search.h"
+ #include "chrome/browser/search_engines/template_url_service_factory.h"
++#include "chrome/browser/thorium_url_utils.h"
+ #include "chrome/browser/ssl/chrome_security_state_util.h"
+ #include "chrome/browser/ui/login/login_tab_helper.h"
+ #include "chrome/common/pref_names.h"
+@@ -64,9 +65,12 @@ std::u16string
+ ChromeLocationBarModelDelegate::FormattedStringWithEquivalentMeaning(
+     const GURL& url,
+     const std::u16string& formatted_url) const {
++  const GURL display_url = thorium::GetInternalURLForDisplay(url);
++  const std::u16string display_text =
++      thorium::GetInternalURLTextForDisplay(url, formatted_url);
+   return AutocompleteInput::FormattedStringWithEquivalentMeaning(
+-      url, formatted_url, ChromeAutocompleteSchemeClassifier(GetProfile()),
+-      nullptr);
++      display_url, display_text,
++      ChromeAutocompleteSchemeClassifier(GetProfile()), nullptr);
+ }
+ 
+ bool ChromeLocationBarModelDelegate::GetURL(GURL* url) const {
+diff --git a/chrome/browser/ui/views/tabs/hovercard/hover_card_anchor_target.cc b/chrome/browser/ui/views/tabs/hovercard/hover_card_anchor_target.cc
+index d36e0b20cb5dd14facb5774e374c205dc7bc28ff..5121fe57dc5142145e6227eff28592a4771bdacd 100644
+--- a/chrome/browser/ui/views/tabs/hovercard/hover_card_anchor_target.cc
++++ b/chrome/browser/ui/views/tabs/hovercard/hover_card_anchor_target.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/views/tabs/hovercard/hover_card_anchor_target.h"
+ 
++#include "chrome/browser/thorium_url_utils.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
+ #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
+@@ -111,8 +112,9 @@ void HoverCardAnchorTarget::SetHoverCardDataFrom(
+       // Hide the domain when necessary. This leaves an empty space in the
+       // card, but this scenario is very rare. Also, shrinking the card to
+       // remove the space would result in visual noise, so we keep it simple.
++      const GURL display_url = thorium::GetInternalURLForDisplay(domain_url);
+       domain = url_formatter::FormatUrl(
+-          domain_url,
++          display_url,
+           url_formatter::kFormatUrlOmitDefaults |
+               url_formatter::kFormatUrlOmitHTTPS |
+               url_formatter::kFormatUrlOmitTrivialSubdomains |
+diff --git a/chrome/browser/ui/webui/tab_search/tab_search_ui.cc b/chrome/browser/ui/webui/tab_search/tab_search_ui.cc
+index 8fb9cbc28b7e4eaae51581fc65db2b6bec0c9462..c2d78add5163b4dc8c187444c7882f8e5ba1988f 100644
+--- a/chrome/browser/ui/webui/tab_search/tab_search_ui.cc
++++ b/chrome/browser/ui/webui/tab_search/tab_search_ui.cc
+@@ -11,6 +11,7 @@
+ #include "chrome/app/chrome_command_ids.h"
+ #include "chrome/browser/glic/resources/grit/glic_browser_resources.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/thorium_url_utils.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/webui/favicon_source.h"
+@@ -112,6 +113,8 @@ TabSearchUI::TabSearchUI(content::WebUI* web_ui)
+   };
+   source->AddLocalizedStrings(kStrings);
+   source->AddBoolean("useRipples", views::PlatformStyle::kUseRipples);
++  source->AddBoolean("thoriumInternalUrlSchemeBranding",
++                     thorium::IsInternalURLSchemeBrandingEnabled());
+   source->AddBoolean("useTabGroupColorRefresh",
+                      features::IsTabGroupColorRefreshEnabled());
+   source->AddBoolean(
+diff --git a/chrome/common/chrome_features.cc b/chrome/common/chrome_features.cc
+index 4e871ad71e721d1861e7e74536c2138441f1cd89..5f138e5c599e49d98327b8899612e8fe57b03721 100644
+--- a/chrome/common/chrome_features.cc
++++ b/chrome/common/chrome_features.cc
+@@ -1770,6 +1770,9 @@ BASE_FEATURE(kProcessPerSiteForDSE,
+ // from a secure page. As of M89, mixed downloads are blocked on all platforms.
+ BASE_FEATURE(kTreatUnsafeDownloadsAsActive, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++BASE_FEATURE(kThoriumInternalUrlSchemeBranding,
++             base::FEATURE_ENABLED_BY_DEFAULT);
++
+ // TrustSafetySentimentSurvey
+ #if !BUILDFLAG(IS_ANDROID)
+ // Enables surveying of users of Trust & Safety features with HaTS.
+diff --git a/chrome/common/chrome_features.h b/chrome/common/chrome_features.h
+index 0474e08155974747492a5605b1dd382fc514b29f..77df954472a55998c58c0ad2073eadfd28baaa11 100644
+--- a/chrome/common/chrome_features.h
++++ b/chrome/common/chrome_features.h
+@@ -1192,6 +1192,10 @@ COMPONENT_EXPORT(CHROME_FEATURES) BASE_DECLARE_FEATURE(kProcessPerSiteForDSE);
+ COMPONENT_EXPORT(CHROME_FEATURES)
+ BASE_DECLARE_FEATURE(kTreatUnsafeDownloadsAsActive);
+ 
++// Displays canonical chrome:// internal URLs with the thorium:// alias.
++COMPONENT_EXPORT(CHROME_FEATURES)
++BASE_DECLARE_FEATURE(kThoriumInternalUrlSchemeBranding);
++
+ // TrustSafetySentimentSurvey
+ #if !BUILDFLAG(IS_ANDROID)
+ COMPONENT_EXPORT(CHROME_FEATURES)

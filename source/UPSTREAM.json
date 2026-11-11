@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/gz83/thorium",
+  "commit": "efc0fffc256e7402ad4c3dc38ae1e5754221c03d",
+  "chromium": "158.0.8127.30",
+  "tree": "e60b3b3edf80b533aa717cebda1c7fb5e675a677",
+  "executable": [],
+  "withheld": {
+    "other/disable-encryption.patch": "ad9afe0a55bf563f906291ac0f277c71f69a61d3",
+    "other/disable-vulkan-gpu-log-warnings.patch": "3c7a5fc8e2a6f93ed979e6032e57479a3a3ff2b1",
+    "other/enable-mpeg2-ac3-eac3-decoding.patch": "05e564b98b3fa49aefbf63520c0005b69d597099",
+    "other/enable-webrtc-h265-l1t2-l1t3-by-default.patch": "930a4ef10e1810ff799e1e33e75f5c6f9e8a4784",
+    "other/llvm-optimized-toolchain-build.patch": "1925645b8cca0c1be22ecb2183369998c6fe2c31",
+    "other/thorium-build-config-and-simd.patch": "9f4402144aea034a58e16210e13f313a54cdb6fe",
+    "other/thorium-default-api-keys.patch": "2bd71f444e72568758920206982bf237c83a3294"
+  },
+  "changed": 158,
+  "removed": 8
+}

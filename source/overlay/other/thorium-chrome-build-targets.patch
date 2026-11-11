@@ -1,0 +1,59 @@
+Origin: Thorium (Alex313031, gz83)
+Author: Alex313031, gz83
+License: BSD-3-Clause
+Source and evidence: Thoron's licence research, docs/legal/PATCH_ORIGINS.md
+
+diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
+index 00122bff1d46bec1f0d2fec54aceed49f32b2073..fab9fe5f7d94f8aebfd93d5cdd3905f38f3df2c6 100644
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -1,4 +1,4 @@
+-# Copyright 2014 The Chromium Authors
++# Copyright 2026 The Chromium Authors and Alex313031
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
+@@ -87,12 +87,12 @@ if (is_win) {
+     # initialexe/ is used so that the we can reorder imports and write back to
+     # the final destination at $root_out_dir/.
+     inputs = [
+-      "$root_out_dir/initialexe/chrome.exe",
+-      "$root_out_dir/initialexe/chrome.exe.pdb",
++      "$root_out_dir/initialexe/thorium.exe",
++      "$root_out_dir/initialexe/thorium.exe.pdb",
+     ]
+     outputs = [
+-      "$root_out_dir/chrome.exe",
+-      "$root_out_dir/chrome.exe.pdb",
++      "$root_out_dir/thorium.exe",
++      "$root_out_dir/thorium.exe.pdb",
+     ]
+     args = [
+       "-i",
+@@ -155,9 +155,11 @@ if (!is_android && !is_mac) {
+   }
+ 
+   if (is_win) {
+-    _chrome_output_name = "initialexe/chrome"
+-  } else {
++    _chrome_output_name = "initialexe/thorium"
++  } else if (is_chromeos) {
+     _chrome_output_name = "chrome"
++  } else {
++    _chrome_output_name = "thorium"
+   }
+ 
+   executable("chrome_initial") {
+@@ -1903,7 +1905,11 @@ if (is_linux || is_chromeos) {
+     }
+ 
+     extract_symbols("chrome_symbols") {
+-      binary = "$root_out_dir/chrome"
++      if (is_chromeos) {
++        binary = "$root_out_dir/chrome"
++      } else {
++        binary = "$root_out_dir/thorium"
++      }
+ 
+       if (current_cpu == "x86") {
+         # GYP used "ia32" so keep that naming for back-compat.
