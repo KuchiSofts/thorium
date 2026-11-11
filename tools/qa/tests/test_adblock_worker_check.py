@@ -1,5 +1,5 @@
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
-"""Native ad blocking, worker scripts and prefetches: the offline check (ROADMAP P5.27)."""
+"""Native ad blocking, worker scripts, prefetches and WebSockets: the offline check (ROADMAP P5.27, P5.29)."""
 import unittest
 
 from tools.qa import adblock_worker_check as wc
@@ -37,6 +37,8 @@ class PageTests(unittest.TestCase):
         self.assertIn(f"new SharedWorker('{PATH}?kind=shared')", html)
         self.assertIn("serviceWorker.register('/service.js')", html)
         self.assertIn(f'<link rel="prefetch" href="http://{wc.AD_HOST}/prefetch.js"', html)
+        self.assertIn(f"new WebSocket('ws://{wc.AD_HOST}/ad-socket')", html)
+        self.assertIn("new WebSocket('ws://' + location.host + '/plain-socket')", html)
         self.assertIn("/result/page", html)
 
     def test_the_service_worker_imports_from_the_ad_host_and_survives_a_refusal(self):
@@ -48,14 +50,14 @@ class PageTests(unittest.TestCase):
 class ProblemTests(unittest.TestCase):
     def blocked(self):
         result = {"plainWorker": True, "moduleWorker": True, "registered": True, "blockedWorker": "failed",
-                  "blockedShared": "failed"}
+                  "blockedShared": "failed", "plainSocket": "open", "adSocket": "failed"}
         log = seen(page={"/plain-worker.js": [""], "/service.js": [""]})
         return result, log
 
     def untouched(self):
         result = {"plainWorker": True, "moduleWorker": True, "registered": True, "blockedWorker": "ran",
-                  "blockedShared": "ran"}
-        log = seen(ad=["/prefetch.js", "/sw-import.js"],
+                  "blockedShared": "ran", "plainSocket": "open", "adSocket": "open"}
+        log = seen(ad=["/ad-socket", "/prefetch.js", "/sw-import.js"],
                    page={"/plain-worker.js": [""], "/service.js": [""], PATH: ["kind=worker", "kind=shared"]})
         return result, log
 
@@ -63,14 +65,14 @@ class ProblemTests(unittest.TestCase):
         result, log = self.blocked()
         self.assertEqual(wc.problems("native", PATH, result, log), [])
         result, log = self.untouched()
-        self.assertEqual(len(wc.problems("native", PATH, result, log)), 4)
+        self.assertEqual(len(wc.problems("native", PATH, result, log)), 5)
 
     def test_with_blocking_off_everything_runs(self):
         for mode in ("control", "site-off"):
             result, log = self.untouched()
             self.assertEqual(wc.problems(mode, PATH, result, log), [], mode)
             result, log = self.blocked()
-            self.assertEqual(len(wc.problems(mode, PATH, result, log)), 4, mode)
+            self.assertEqual(len(wc.problems(mode, PATH, result, log)), 5, mode)
 
     def test_each_kind_is_named(self):
         result, log = self.blocked()
@@ -105,6 +107,26 @@ class ProblemTests(unittest.TestCase):
             found = wc.problems(mode, PATH, result, log)
             self.assertEqual(len(found), 1, mode)
             self.assertIn("service worker", found[0])
+
+    def test_a_socket_to_the_ad_host_is_named(self):
+        result, log = self.blocked()
+        log["ad"] = ["/ad-socket"]
+        result["adSocket"] = "open"
+        found = wc.problems("native", PATH, result, log)
+        self.assertEqual(len(found), 1)
+        self.assertIn("WebSocket", found[0])
+
+    def test_a_plain_socket_must_open_in_every_mode(self):
+        for mode, case in (("native", self.blocked()), ("control", self.untouched())):
+            result, log = case
+            result["plainSocket"] = "failed"
+            found = wc.problems(mode, PATH, result, log)
+            self.assertEqual(len(found), 1, mode)
+            self.assertIn("plain WebSocket", found[0])
+
+    def test_the_server_answers_a_websocket_handshake(self):
+        # RFC 6455, section 1.3: the example key and its accept value
+        self.assertEqual(wc.websocket_accept("dGhlIHNhbXBsZSBub25jZQ=="), "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=")
 
     def test_no_result_is_a_problem(self):
         self.assertEqual(wc.problems("native", PATH, None, seen()), ["the page gave no result"])

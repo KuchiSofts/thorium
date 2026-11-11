@@ -33,13 +33,17 @@ Each release lists:
   offline with `tools/qa/adblock_redirect_check.py`. The extra look costs nothing that the measurement
   shows: 6.1 % faster page loads than uBlock Origin on the test pages, measured in turns (6.4 % on the
   build before).
+- Native ad blocking (off by default) does not open a WebSocket to an address the lists block (ROADMAP
+  **P5.29**). A WebSocket is not a request for a file, so the blocker never saw it, and ad scripts use
+  sockets for what they may not fetch. Every other WebSocket opens as before. Checked offline with
+  `tools/qa/adblock_worker_check.py`, whose server answers a real handshake, and on 96 real sites.
 - Native ad blocking (off by default) also checks the scripts that workers, shared workers and service
   workers start from, and the scripts a service worker imports (ROADMAP **P5.27**). A service worker may
   import a script from another site, which is how push-advertising networks get onto a site; that import
   is now stopped when the lists block it, and the site's own service worker still works. Checked offline
   with `tools/qa/adblock_worker_check.py`. One site of the 99 real sites (digicert.com) was flagged for
-  showing less text on this build and could not be rechecked, because the site then refused the test
-  machine; it stays open.
+  showing less text on that run; it turned out to be the site's own protection against automated visits,
+  and on the next run it gave both blockers the same page again.
 - `tools/qa/adblock_proof.py --turns N` measures the configurations in turns instead of one after the
   other (ROADMAP **P5.17**). On a machine that is also used for other things, the old order gave the same
   build 10.2 % in one run and 8.6 % in the next. In turns: the native blocker loads the test pages 6.1 %

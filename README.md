@@ -6,7 +6,7 @@
 
 **A fast, secure, Thorium-based browser for Windows 11 and Ubuntu.**
 
-[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-34%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
+[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-35%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%2011%20%7C%20Ubuntu-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
 
 [Why Thoron](#why-thoron) · [Features](#features) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits)
 
@@ -44,7 +44,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 |---|---|---|
 | **Smart updater** | Small delta downloads for installed **and** portable copies, staged in the background, applied on relaunch, with one-step rollback. Full installers stay available. | [P3](ROADMAP.md#p3---updater-v1--import) · [P4](ROADMAP.md#p4---updater-v2) |
 | **Import from your browser** | Brings over **open tabs and tab groups** (names, colours, pinned tabs), bookmarks, history, passwords, settings and extensions from Thorium, Chrome, Edge, Brave, Vivaldi, Opera and later Firefox. Your old browser is never modified. | [P3](ROADMAP.md#p3---updater-v1--import) |
-| **Built-in ad blocking** | Today: the genuine, unmodified uBlock Origin, pinned and signature-verified. Being built: a blocker inside the browser itself that reads the same lists and replaces it (off until it measures better). | [P5](ROADMAP.md#p5---quality) |
+| **Built-in ad blocking** | Today: the genuine, unmodified uBlock Origin, pinned and signature-verified. Being built: a blocker inside the browser itself that reads the same lists and replaces it. It already measures faster and lighter than uBlock Origin with the same blocking, and stays off by default until its last correctness checks are done. | [P5](ROADMAP.md#p5---quality) |
 | **Protected portable mode** | Saved passwords and cookies in the portable version are encrypted with your passphrase, so they work on any PC and stay safe if the folder is lost. | [P4](ROADMAP.md#p4---updater-v2) |
 | **Right build, automatically** | The installer picks the fastest build your CPU supports (AVX2, SSE4 or ARM64). | [P4](ROADMAP.md#p4---updater-v2) |
 | **Measured performance** | Every release is benchmarked (Speedometer, JetStream, MotionMark, startup, memory, idle CPU). A regression blocks the release. | [Q track](ROADMAP.md#quality--performance-q) |
@@ -54,7 +54,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `███████░░░░░░░░░░░░░` 51 of 148 tasks done (34%) · roadmap updated 2026-11-08
+**Overall:** `███████░░░░░░░░░░░░░` 52 of 149 tasks done (35%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -64,7 +64,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `███████░░░░░░░░░░░░░` | 10/28 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `████████░░░░░░░░░░░░` | 11/29 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `███████████░░░░░░░░░` | 8/15 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `██████████░░░░░░░░░░` | 4/8 | 🔄 In progress |
@@ -209,6 +209,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [ ] **P5.26** Native ad blocking, the filter syntax still missing: `$urlskip` (238 rules in the bundled lists), `$replace` (76, trusted lists only), `$header` (39), `$uritransform` (14), `$permissions` (11), `:shadow()` (2), HTML filtering
 - [x] **P5.27** Native ad blocking, the requests that do not pass the request proxy: the main script of a worker and of a service worker, prefetches, preloads announced by early hints, downloads (found while building P5.25)
 - [ ] **P5.28** Native ad blocking, preloads announced by early hints: Chromium fetches them without asking the browser layer or extensions, so a server can make the browser ask a tracker for a script before its page arrives (the script does not run; uBlock Origin cannot see these either)
+- [x] **P5.29** Native ad blocking, WebSocket connections: a WebSocket is not a request for a file, so the request proxy never saw it; uBlock Origin blocks such connections
 
 **Security (S)**
 
