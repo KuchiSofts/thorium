@@ -10,7 +10,7 @@ BUILD.gn files are too large for a patch, so this tool produces them:
      backslashes, which git rejects as invalid);
   3. `gnrt gen` writes the BUILD.gn files;
   4. files gnrt rewrites by mistake (Chromium's hand-written README notes) are put back.
-    py -3 -I tools/build/rust_crates.py --src J:\\thoron-build\\chromium158\\src
+    py -3 -I tools/build/rust_crates.py --src C:\\thoron-build\\chromium158\\src
 """
 import argparse
 import os

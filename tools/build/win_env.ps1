@@ -1,10 +1,10 @@
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 # Thoron Windows build environment. Dot-source it in a PowerShell window:
-#     . .\tools\build\win_env.ps1            (build root defaults to J:\thoron-build)
+#     . .\tools\build\win_env.ps1            (build root defaults to C:\thoron-build)
 # It changes only this shell's environment. Nothing machine-wide, and the user's global git config is
 # never modified: a build-only git config includes it (so hooks still apply) and overrides only
 # the settings a Chromium checkout needs.
-param([string]$BuildRoot = $(if ($env:THORON_BUILD_ROOT) { $env:THORON_BUILD_ROOT } else { 'J:\thoron-build' }))
+param([string]$BuildRoot = $(if ($env:THORON_BUILD_ROOT) { $env:THORON_BUILD_ROOT } else { 'C:\thoron-build' }))
 
 $env:THORON_BUILD_ROOT = $BuildRoot
 foreach ($sub in 'tmp', 'vpython') { New-Item -ItemType Directory -Force -Path (Join-Path $BuildRoot $sub) | Out-Null }

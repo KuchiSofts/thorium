@@ -23,7 +23,7 @@ configurations and a flag counts only when it repeats. Flags are leads for a per
     py -3 -I tools/qa/adblock_breakage.py list --tranco top.csv --list-id Y895G --date 2026-11-10 --n 100
         --out tools/qa/sites/tranco-Y895G-top100.txt [--exclude a.example,b.example]
     py -3 -I tools/qa/adblock_breakage.py run --browser <out>\\thoron.exe --extension <unpacked uBO>
-        --sites tools/qa/sites/tranco-Y895G-top99.txt --work J:\\thoron-build\\breakage
+        --sites tools/qa/sites/tranco-Y895G-top99.txt --work C:\\thoron-build\\breakage
         --out docs/perf/<name>.json --md docs/perf/<name>.md
 """
 import argparse

@@ -37,11 +37,11 @@ class BuildInfoTests(unittest.TestCase):
         self.assertNotEqual(buildinfo.gn_args_digest(a), buildinfo.gn_args_digest(c))
 
     def test_redact_relativizes_and_hides_user_paths(self):
-        self.assertEqual(buildinfo.redact("J:\\thoron-build\\chromium\\src", "J:\\thoron-build"),
+        self.assertEqual(buildinfo.redact("C:\\thoron-build\\chromium\\src", "C:\\thoron-build"),
                          "<build_root>/chromium/src")
-        self.assertEqual(buildinfo.redact("C:\\Users\\Someone\\x", "J:\\thoron-build"), "<redacted>")  # privacy-check: allow
+        self.assertEqual(buildinfo.redact("C:\\Users\\Someone\\x", "C:\\thoron-build"), "<redacted>")  # privacy-check: allow
         self.assertEqual(buildinfo.redact("/home/someone/x", "/opt/b"), "<redacted>")  # privacy-check: allow
-        self.assertEqual(buildinfo.redact("C:\\Program Files\\VS\\18", "J:\\thoron-build"), "C:\\Program Files\\VS\\18")
+        self.assertEqual(buildinfo.redact("C:\\Program Files\\VS\\18", "C:\\thoron-build"), "C:\\Program Files\\VS\\18")
 
     def test_collect_has_schema_and_no_personal_paths(self):
         repo = GitRepo()

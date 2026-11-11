@@ -314,6 +314,12 @@ Each release lists:
   and it writes its temporary git objects to a scratch folder instead of the Chromium checkout.
 
 ### Security
+- Privacy of the repository: no file of ours describes one particular PC any more. Example paths use
+  `C:\thoron-build` (set `THORON_BUILD_ROOT` for another folder; the WSL swap file follows it), the build
+  budget names the class of its reference machine instead of the model, and the network notes no longer
+  name programs that were installed on the test PC. The docs linter (`tools/docs/check_docs.py --private`)
+  now also reports a path on a drive other than C: and an exact CPU or GPU model, and scans scripts and
+  every doc folder of ours (ROADMAP **P0.3**).
 - Native ad blocking (off by default): a list update is now put on record before the new lists are read.
   Reading runs inside the browser, and a list that made the parser abort would have closed the browser 2
   minutes after every start for as long as the list host served it. Now the next attempt is 4 days away

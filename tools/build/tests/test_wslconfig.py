@@ -10,10 +10,10 @@ from unittest import mock
 
 from tools.build import wslconfig
 
-HEBREW = "".join(chr(c) for c in (0x5D4, 0x2D, 0x5D5, 0x5D0, 0x20, 0x5DC, 0x5D0))  # a short Hebrew comment
-ORIGINAL = ("[wsl2]\r\n# " + HEBREW + "\r\nvmIdleTimeout=2000000000\r\nmemory=24GB\r\nswap=8GB\r\n\r\n"
+NOT_ASCII = "".join(chr(c) for c in (0x3B1, 0x3B2, 0x3B3, 0x20, 0x3B4, 0x3B5))  # a short comment outside ASCII
+ORIGINAL = ("[wsl2]\r\n# " + NOT_ASCII + "\r\nvmIdleTimeout=2000000000\r\nmemory=24GB\r\nswap=8GB\r\n\r\n"
             "[experimental]\r\nautoMemoryReclaim=dropCache\r\n").encode("utf-8")
-SWAP_FILE_LINE = b"swapFile=J:\\\\thoron-build\\\\wsl\\\\swap.vhdx"
+SWAP_FILE_LINE = b"swapFile=C:\\\\thoron-build\\\\wsl\\\\swap.vhdx"
 
 
 class WslConfigTests(unittest.TestCase):
@@ -31,7 +31,7 @@ class WslConfigTests(unittest.TestCase):
         self.assertIn(b"memory=48GB\r\n", raised)
         self.assertIn(b"swap=32GB\r\n", raised)
         self.assertNotIn(b"memory=24GB", raised)
-        for kept in (b"# " + HEBREW.encode("utf-8") + b"\r\n", b"vmIdleTimeout=2000000000\r\n",
+        for kept in (b"# " + NOT_ASCII.encode("utf-8") + b"\r\n", b"vmIdleTimeout=2000000000\r\n",
                      b"[experimental]\r\nautoMemoryReclaim=dropCache\r\n"):
             self.assertIn(kept, raised)
         wslconfig.restore(self.cfg, backup)
@@ -80,9 +80,14 @@ class WslConfigTests(unittest.TestCase):
         self.assertFalse(self.cfg.exists())
         self.assertFalse(backup.exists())
 
+    def test_swap_file_follows_the_build_root(self):
+        self.assertEqual(wslconfig.default_swap_file({}), "C:\\\\thoron-build\\\\wsl\\\\swap.vhdx")
+        self.assertEqual(wslconfig.default_swap_file({"THORON_BUILD_ROOT": "X:\\work\\"}),      # privacy-check: allow
+                         "X:\\\\work\\\\wsl\\\\swap.vhdx")                                       # privacy-check: allow
+
     def test_swap_file_set_on_build_drive_and_restored(self):
         self.cfg.write_bytes(ORIGINAL)
-        backup = wslconfig.raise_limits(self.cfg)
+        backup = wslconfig.raise_limits(self.cfg, swap_file=wslconfig.default_swap_file({}))
         self.assertIn(SWAP_FILE_LINE, self.cfg.read_bytes())
         wslconfig.restore(self.cfg, backup)
         self.assertNotIn(b"swapFile", self.cfg.read_bytes())

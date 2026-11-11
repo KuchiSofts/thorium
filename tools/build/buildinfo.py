@@ -4,7 +4,7 @@
 
 Every path is written relative to the build root (`<build_root>/...`); any path inside a user
 directory is replaced by `<redacted>`.
-    py -3 -I tools/build/buildinfo.py --root J:\\thoron-build --src J:\\thoron-build\\chromium\\src
+    py -3 -I tools/build/buildinfo.py --root C:\\thoron-build --src C:\\thoron-build\\chromium\\src
         --repo . --upstream-ref "gz83 M156.0.8078.28 de9a1bc6" --variant win-x64-avx2
         --args out\\thoron\\args.gn --toolchain toolchain.json --started EPOCH --finished EPOCH --out BUILDINFO.json
 """

@@ -6,7 +6,9 @@ Checks: relative links (inline, reference-style, nested badges, HTML href/src) r
 exist with exact case, inside the repository and not git-ignored; CHANGELOG has [Unreleased] and
 well-formed releases; ROADMAP has its date, legend and unique task IDs; with --private, every text
 file we author contains no personal paths, personal e-mails or entries from the owner's
-private-strings list (never echoed). A line containing "privacy-check: allow" is skipped (test
+private-strings list (never echoed), and nothing that describes one particular PC: no path on a
+drive other than C: (examples use the C: drive or a <placeholder>) and no exact CPU or GPU model (a build
+note names the class: cores and memory). A line containing "privacy-check: allow" is skipped (test
 fixtures only).
     py -3 -I tools/docs/check_docs.py [--root REPO] [--private]
 """
@@ -44,13 +46,20 @@ EMAIL_ALLOWED_RE = re.compile(
     r"(@users\.noreply\.github\.com|@chromium\.org|@example\.(com|org|net)|^git@github\.com|"
     r"^alex313031@gmail\.com)$", re.I)
 
+# A Windows path on a drive other than C: is somebody's own disk layout.
+OTHER_DRIVE_RE = re.compile(r"(?<![A-Za-z0-9])[ABD-Zabd-z]:[\\/]+(?=[A-Za-z0-9_.])")
+# An exact CPU or GPU model describes one PC.
+HARDWARE_RE = re.compile(r"(?i)\b(?:ryzen\s+[3579]\b|threadripper|core\s+i[3579]-?\d|core\s+ultra\s+\d|xeon\s+[a-z]?\d|"  # privacy-check: allow
+                         r"epyc\s+\d|geforce|[rg]tx\s?\d{3,4}|radeon\s+rx|arc\s+a\d{3})")  # privacy-check: allow
+
 # Files we author. Upstream docs are reference material: they legitimately contain upstream
 # maintainers' public paths/emails and some pre-existing broken links (tracked in ROADMAP D.3).
 OWNED_DOC_GLOBS = ("README.md", "ROADMAP.md", "CHANGELOG.md", "CREDITS.md", "SECURITY.md",
                    "CONTRIBUTING.md", "docs/design/**/*.md", "docs/legal/**/*.md", "docs/build/**/*.md",
                    "tools/**/*.md", "branding/**/*.md")
-OWNED_PRIVATE_GLOBS = OWNED_DOC_GLOBS + ("NOTICE", ".gitignore", "tools/**/*.py", "branding/**/*.svg",
-                                         "branding/**/*.html")
+OWNED_PRIVATE_GLOBS = OWNED_DOC_GLOBS + ("NOTICE", ".gitignore", "tools/**/*.py", "tools/**/*.ps1", "tools/**/*.sh",
+                                         "docs/**/*.md", "branding/**/*.svg", "branding/**/*.html")
+NOT_OURS = ("docs/upstream/",)      # reference copies of upstream's docs
 LINK_GLOBS = OWNED_DOC_GLOBS + ("docs/upstream/**/*.md",)
 
 
@@ -219,6 +228,10 @@ def check_private(root: Path, files: list[Path], private_list: Path | None) -> l
             lowered = line.lower()
             if any(s in lowered for s in secrets):
                 kinds.append("private-strings entry")
+            if OTHER_DRIVE_RE.search(line):
+                kinds.append("path on a drive other than C: (use C:\\ or a <placeholder>)")
+            if HARDWARE_RE.search(line):
+                kinds.append("hardware model (name the class, not the model)")
             for kind in kinds:
                 problems.append(f"{_rel(root, path)}:{number}: private data ({kind})")
     return problems
@@ -272,7 +285,8 @@ def main(argv: list[str]) -> int:
         private_list = Path.home() / ".githooks" / "private-strings.txt"
         if not private_list.is_file():
             print(f"note: no private-strings list at {private_list}; only built-in patterns are checked")
-        problems += check_private(root, _glob(root, OWNED_PRIVATE_GLOBS), private_list)
+        ours = [f for f in _glob(root, OWNED_PRIVATE_GLOBS) if not _rel(root, f).startswith(NOT_OURS)]
+        problems += check_private(root, ours, private_list)
 
     for problem in problems:
         print(problem)

@@ -7,7 +7,7 @@ local server on 127.0.0.1, so nothing leaves the machine and no real profile is 
 measured --runs times; the report gives the median and the spread ((max - min) / median), and marks a
 value repeatable when the spread is within 3 %. The online suites (Speedometer 3, JetStream 2,
 MotionMark) are a later step.
-    py -3 -I tools/qa/bench.py --browser <out>\\thoron.exe --work J:\\thoron-build\\bench --runs 5
+    py -3 -I tools/qa/bench.py --browser <out>\\thoron.exe --work C:\\thoron-build\\bench --runs 5
         --out docs/perf/<name>.json --md docs/perf/<name>.md
 """
 import argparse

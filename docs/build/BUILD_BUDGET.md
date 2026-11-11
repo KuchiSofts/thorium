@@ -7,8 +7,8 @@ variant is a separate full build (ROADMAP **P1.10**).
 
 ## Reference machine
 
-- 16-core / 32-thread desktop CPU (AMD Ryzen 9 7950X), 64 GB RAM (63 GB usable).
-- Build drive: SATA SSD, NTFS, not cloud-synced. Windows 11, Microsoft Defender real-time
+- A 16-core / 32-thread desktop CPU with 64 GB of RAM.
+- Build drive: an SSD, NTFS, not cloud-synced. Windows 11, Microsoft Defender real-time
   protection on.
 
 ## Measured builds
@@ -32,12 +32,12 @@ Other steps, measured on the same machine:
 - **The CPU is the limit.** During compilation the CPU stayed at 100% while the build drive was
   almost idle; Defender's own process used about 2% of the CPU. A faster disk would not help much;
   more cores would.
-- **Memory caps the parallelism.** With 32 parallel jobs, the heaviest compile steps plus about
-  17 GB held by other WSL workloads exhausted the 63 GB of RAM, and the build was stopped at 96% of
-  compilation. On this machine, while other WSL services run, build with `-j 12`. A stopped build
+- **Memory caps the parallelism.** With 32 parallel jobs, the heaviest compile steps plus the
+  memory other programs held exhausted the 64 GB of RAM, and the build was stopped at 96% of
+  compilation. While other programs need memory too, build with `-j 12`. A stopped build
   loses nothing: running the same command again continues where it stopped.
 - **WSL memory must be shared carefully.** The Linux build runs in the WSL virtual machine, which
-  also holds other WSL services. With a 44 GB WSL limit and 16 jobs, Windows itself ran low on
+  may hold other work too. With a 44 GB WSL limit and 16 jobs, Windows itself ran low on
   memory because WSL kept its file cache. What worked: a 36 GB limit, 32 GB of swap on the build
   drive, `autoMemoryReclaim=dropCache` (WSL returns its cache to Windows) and 10 jobs, all set
   only for the build and restored afterwards (`tools/build/wslconfig.py`).
