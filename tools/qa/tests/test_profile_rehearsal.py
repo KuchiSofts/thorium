@@ -18,8 +18,9 @@ from tools.qa.tests.test_profile_check import snss, tab_window
 SESSION = snss(tab_window(1, 1), tab_window(1, 2))
 
 
-def make_user_data(root: Path) -> Path:
-    """A small closed `User Data` folder: 2 bookmarks, 3 passwords, 2 cookies, 1 extension, 2 open tabs."""
+def make_user_data(root: Path, startup: int = 1) -> Path:
+    """A small closed `User Data` folder: 2 bookmarks, 3 passwords, 2 cookies, 1 extension, 2 open tabs.
+    It continues where it left off, unless `startup` says otherwise (5: a new tab page)."""
     ud = root / "User Data"
     prof = ud / "Default"
     (prof / "Sessions").mkdir(parents=True)
@@ -35,7 +36,8 @@ def make_user_data(root: Path) -> Path:
         db.execute("CREATE TABLE cookies (host_key TEXT, encrypted_value BLOB)")
         db.executemany("INSERT INTO cookies VALUES (?, ?)", [("a", b"v10abc"), ("b", b"v10def")])
     (prof / "Secure Preferences").write_text(json.dumps(
-        {"extensions": {"settings": {"aaaa": {"disable_reasons": []}}}}), encoding="utf-8")
+        {"session": {"restore_on_startup": startup},
+         "extensions": {"settings": {"aaaa": {"disable_reasons": []}}}}), encoding="utf-8")
     (prof / "Preferences").write_text("{}", encoding="utf-8")
     session = prof / "Sessions" / "Session_100"
     session.write_bytes(SESSION)
@@ -256,6 +258,17 @@ class RehearseTests(Scratch):
         result = self.rehearse(lambda *a: None)                # no newer session was written
         self.assertEqual(len(result.problems), 1)
         self.assertIn("did not write a session", result.problems[0])
+
+    def test_a_profile_that_starts_with_a_new_tab_page_is_not_a_false_alarm(self):
+        shutil.rmtree(self.ud.parent)
+        self.ud = make_user_data(self.tmp / "install", startup=5)
+
+        def runner(browser, copy, seconds, headless, close_timeout):
+            (copy / "Default" / "Sessions" / "Session_200").write_bytes(snss(tab_window(1, 1)))   # one new tab
+
+        result = self.rehearse(runner)
+        self.assertEqual(result.problems, [])
+        self.assertTrue(any("Default" in n and "not compared" in n for n in result.notes))
 
     def test_without_a_window_tabs_are_said_to_be_unchecked(self):
         result = self.rehearse(lambda *a: None, headless=True)

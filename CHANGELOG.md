@@ -19,7 +19,11 @@ Each release lists:
   deletes the copy whatever happened. The real folder is only read. It refuses a running browser, a work
   folder inside the profile, in a git repository or in a folder whose name looks cloud-synced, and a drive
   with too little room. A build that has to be stopped by force does not count as a pass.
-  `docs/build/WINDOWS.md` ("Upgrading") uses it.
+  `docs/build/WINDOWS.md` ("Upgrading") uses it. Tried with a 158 build on throwaway profiles: five open
+  tabs came back 1:1.
+- `tools/qa/profile_check.py` records whether a profile continues where it left off. For a profile that
+  does not, a start opens a new tab page, so its tabs are no longer compared (that reported a loss which
+  was none), and the check and the rehearsal say that they left them out.
 - Native ad blocking (off by default) understands the rest of the common filter syntax (ROADMAP **P5.22**):
   - procedural hide rules (`:has-text()`, `:upward()`, `:xpath()`, `:matches-css()` and others) and the
     rules that restyle or remove (`:style()`, `:remove()`, `:remove-attr()`, `:remove-class()`): the engine

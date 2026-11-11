@@ -20,9 +20,10 @@ The real folder is only read. The new build never sees it: it only ever gets the
     py -3 -I tools/qa/profile_rehearsal.py --browser <out>\\thoron.exe \\
         --user-data "%LOCALAPPDATA%\\Thoron\\User Data" --work D:\\scratch [--before-out before.json]
 
-Tabs and tab groups are checked only with a window (the default) and when the browser is set to
-continue where it left off; with --headless they are not checked, and the tool says so. A build that
-does not close when asked is stopped by force and does not count as a pass.
+Tabs and tab groups are checked only with a window (the default) and for a profile that is set to
+continue where it left off: any other profile opens a new tab page at a start, so its earlier tabs are
+not expected back. With --headless they are not checked either. In both cases the tool says so. A build
+that does not close when asked is stopped by force and does not count as a pass.
 
 It refuses to start while the browser of that profile is running, when --work is inside the profile,
 inside a git repository or in a folder that looks cloud-synced (judged by its name: a best effort, the
@@ -218,6 +219,7 @@ def _on_copy(browser: Path, copy: Path, seconds: int, headless: bool, close_time
     for name, profile in result.after["profiles"].items():
         say(f"after:  {profile_check.summary_line(name, profile)}")
     problems = profile_check.compare(result.before, result.after)
+    result.notes += profile_check.notes(result.before)
     if headless:
         problems = [p for p in problems if profile_check.NO_NEW_SESSION not in p]
         result.notes.append(TABS_NOT_CHECKED)

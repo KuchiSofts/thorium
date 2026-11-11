@@ -291,8 +291,10 @@ one, so going back means restoring a backup. Never skip these steps (ROADMAP **Q
 
 The tool refuses to start while the browser of that profile runs, or when the work folder is inside
 the profile, inside a git repository or in a folder whose name looks cloud-synced. Tabs and tab
-groups are compared only when the browser is set to continue where you left off; with `--headless`
-(no window) they are not compared, and the tool says so. To look at the copy yourself instead, copy
+groups are compared for a profile that is set to continue where you left off. With any other setting
+a start opens a new tab page and the earlier tabs are not expected back, so they are not compared;
+with `--headless` (no window) they are not compared either. In both cases the tools say so. To look
+at the copy yourself instead, copy
 `User Data` by hand, take the two snapshots with `profile_check.py`, and open the copy with:
 
 ```powershell
