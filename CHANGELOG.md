@@ -243,10 +243,11 @@ Each release lists:
   from the SVG logo using only the standard library and a headless browser.
 
 ### Changed
-- New Thoron icon, "Vortex": a ring of three turning blades (magenta, violet, blue) around a deep indigo
-  core. It sits in the family of the round emblems of Chromium-based browsers and is drawn its own way,
-  with curved blades and Thoron's own colours. It replaces "Radiant Core". All sizes, the Windows `.ico`
-  and the wordmarks are regenerated from it (`branding/thoron/`).
+- New Thoron icon, "Vortex": a ring of three turning blades in one hue (violet in three depths) around a
+  violet core. It sits in the family of the round emblems of Chromium-based browsers and is drawn its own
+  way, with curved blades and Thoron's own violet. The owner chose it from three candidates of one shape
+  (`branding/thoron/concepts/2026-11-11/`). It replaces "Radiant Core". All sizes, the Windows `.ico` and
+  the wordmarks are regenerated from it (`branding/thoron/`).
 - Decided by the owner (2026-11-11): the ad blocker built into the browser is to replace uBlock Origin
   instead of working next to it, and must keep updating both its filter lists and its scripts. The plan is
   in `docs/design/2026-11-09-native-adblock-design.md`, section 12 (ROADMAP **P5.19** to **P5.24**). Nothing

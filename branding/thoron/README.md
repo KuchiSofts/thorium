@@ -2,13 +2,13 @@
 
 ## The logo: "Vortex"
 
-A ring of three turning blades (magenta, violet, blue) around a deep indigo core, with a white band
-between them. It sits in the family of the round emblems of Chromium-based browsers, a coloured ring
+A ring of three turning blades in one hue, violet in three depths, around a violet core, with a white
+band between them. It sits in the family of the round emblems of Chromium-based browsers, a coloured ring
 around a core, and is drawn its own way: the blades have curved edges, so the ring seems to turn, and
-the colours are Thoron's. It replaces "Radiant Core" (2026-11-07), whose idea it keeps: a core with
+the colour is Thoron's violet. It replaces "Radiant Core" (2026-11-07), whose idea it keeps: a core with
 three arcs around it. Redrawn on 2026-11-11 at the owner's request for a mark closer to that family,
-"unique, modern but classic, professional". The three candidates of that study are in
-[`concepts/2026-11-11/`](concepts/2026-11-11/); the earlier logo and its concepts are in
+"unique, modern but classic, professional". The owner chose it on 2026-11-11 from three candidates of
+that study (it was shown as "Vortex Mono"); all three are in [`concepts/2026-11-11/`](concepts/2026-11-11/); the earlier logo and its concepts are in
 [`concepts/`](concepts/).
 
 | File | Use |
@@ -18,8 +18,8 @@ three arcs around it. Redrawn on 2026-11-11 at the owner's request for a mark cl
 | `png/thoron_<size>.png`, `thoron.ico` | Generated raster sizes (16-512 px) and the Windows multi-size icon: regenerate, never edit by hand |
 | `png/thoron_wordmark.png`, `png/thoron_wordmark_white.png` | The mark plus the name "thoron" (342 x 64), dark and white text, where Chromium shows a product wordmark: regenerate, never edit by hand |
 
-Colours: magenta `#F2559E` to `#D8307D`, violet `#915AF0` to `#7034D5`, blue `#5573F7` to `#304FDC`
-(each blade a soft gradient), core `#2E1A87`, band `#FFFFFF`.
+Colours: light violet `#B097FA` to `#9A80E6`, violet `#894EEF` to `#7235DA`, deep violet `#5E34A0` to
+`#461B89` (each blade a soft gradient), core `#6D28D9`, band `#FFFFFF`.
 
 **Design rules:**
 - The mark has no text (the wordmark adds the name next to it).
