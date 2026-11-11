@@ -1,29 +1,39 @@
 # Thoron brand assets
 
-## The logo: "Radiant Core"
+## The logo: "Vortex"
 
-A bright core (the element) with three swirling rings of gas around it: **Thoron**, the radiant gas
-born from thorium. It was chosen by the project owner on 2026-11-07 from three original concepts
-(kept in [`concepts/`](concepts/) for history; preview in `concepts/preview.png`).
+A ring of three turning blades in one hue, violet in three depths, around a violet core, with a white
+band between them. It sits in the family of the round emblems of Chromium-based browsers, a coloured ring
+around a core, and is drawn its own way: the blades have curved edges, so the ring seems to turn, and
+the colour is Thoron's violet. It replaces "Radiant Core" (2026-11-07), whose idea it keeps: a core with
+three arcs around it. Redrawn on 2026-11-11 at the owner's request for a mark closer to that family,
+"unique, modern but classic, professional". The owner chose it on 2026-11-11 from three candidates of
+that study (it was shown as "Vortex Mono"); all three are in [`concepts/2026-11-11/`](concepts/2026-11-11/); the earlier logo and its concepts are in
+[`concepts/`](concepts/).
 
 | File | Use |
 |---|---|
-| `thoron-logo.svg` | Primary colour logo (violet `#7B2FF7` → magenta `#F72F8E` gradient disc, white mark) |
-| `thoron-logo-mono.svg` | Single-colour mark on a transparent background, for monochrome or symbolic icons; recolour as needed |
+| `thoron-logo.svg` | Primary colour logo |
+| `thoron-logo-mono.svg` | Single-colour mark on a transparent background (three blades with gaps and the core), for monochrome or symbolic icons; recolour as needed |
 | `png/thoron_<size>.png`, `thoron.ico` | Generated raster sizes (16-512 px) and the Windows multi-size icon: regenerate, never edit by hand |
 | `png/thoron_wordmark.png`, `png/thoron_wordmark_white.png` | The mark plus the name "thoron" (342 x 64), dark and white text, where Chromium shows a product wordmark: regenerate, never edit by hand |
+
+Colours: light violet `#B097FA` to `#9A80E6`, violet `#894EEF` to `#7235DA`, deep violet `#5E34A0` to
+`#461B89` (each blade a soft gradient), core `#6D28D9`, band `#FFFFFF`.
 
 **Design rules:**
 - The mark has no text (the wordmark adds the name next to it).
 - It must stay legible at 16 px.
-- Ring strokes are at least 1.5 px at 32 px.
+- The white band between ring and core is at least 1.5 px at 32 px.
+- No shape of another browser's logo is reused: Chrome's and Chromium's ring is cut by straight lines
+  that touch the inner circle; Thoron's blades have curved edges.
 - It works on light and dark backgrounds.
 
 ## Regenerating the raster icons
 
 ```shell
 py -3 -I tools/branding/export_icons.py --svg branding/thoron/thoron-logo.svg --out branding/thoron
-py -3 -I tools/branding/export_icons.py --svg branding/thoron/thoron-logo.svg --out branding/thoron --sizes 252 504
+py -3 -I tools/branding/export_icons.py --svg branding/thoron/thoron-logo.svg --out branding/thoron --sizes 252 504 70 150
 py -3 -I tools/branding/wordmark.py --svg branding/thoron/thoron-logo.svg --out branding/thoron/png
 ```
 
@@ -31,5 +41,5 @@ py -3 -I tools/branding/wordmark.py --svg branding/thoron/thoron-logo.svg --out 
 
 The Thoron logo artwork is © 2026 KuchiSofts, licensed under
 [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/).
-The logo is original artwork and is not derived from the Thorium logo. Thorium's own logos remain the
+The logo is original artwork and is not derived from the Thorium, Chromium or Chrome logos. Thorium's own logos remain the
 work of Alex313031; see [`CREDITS.md`](../../CREDITS.md) and [`NOTICE`](../../NOTICE).
