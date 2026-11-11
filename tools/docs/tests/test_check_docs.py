@@ -114,6 +114,57 @@ class CheckDocsTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(check_docs.main(["--root", str(self.root), "--private"]), 1)
 
+    # --- nothing that describes one particular PC -----------------------------------------
+    def test_a_path_on_a_drive_other_than_c_is_flagged_without_echo(self):
+        samples = [
+            "build under X:\\work\\out",                 # privacy-check: allow
+            "copy it to x:/work/out",                    # privacy-check: allow
+            "swapFile=X:\\\\work\\\\swap.vhdx",          # privacy-check: allow
+            "$repo = 'X:\\path\\to\\repo'",              # privacy-check: allow
+        ]
+        for sample in samples:
+            with self.subTest(sample=sample):
+                doc = self.write("README.md", f"{sample}\n")
+                problems = check_docs.check_private(self.root, [doc], None)
+                self.assertEqual(len(problems), 1, problems)
+                self.assertIn("drive", problems[0])
+                self.assertNotIn("work", problems[0])
+
+    def test_c_drive_placeholders_and_urls_are_not_taken_for_a_drive(self):
+        doc = self.write("README.md", "C:\\thoron-build\\out, c:/x, <drive>:\\x, %LOCALAPPDATA%\\x\n"
+                                      "https://e.org/a file:///C:/x git@github.com:a/b\n"
+                                      "a regex [a-z]:[\\\\/] and a ratio 10:/2 and key:/value\n")
+        self.assertEqual(check_docs.check_private(self.root, [doc], None), [])
+
+    def test_a_hardware_model_is_flagged(self):
+        samples = ["CPU: Core i5-9400", "an AMD Ryzen 5 3600", "GeForce RTX 3060", "Xeon E5 box"]   # privacy-check: allow
+        for sample in samples:
+            with self.subTest(sample=sample):
+                doc = self.write("README.md", f"measured on {sample}\n")
+                problems = check_docs.check_private(self.root, [doc], None)
+                self.assertEqual(len(problems), 1, problems)
+                self.assertIn("hardware", problems[0])
+
+    def test_a_hardware_class_is_not_flagged(self):
+        doc = self.write("README.md", "a 16-core / 32-thread desktop CPU with 64 GB of RAM\n"
+                                      "AVX2 needs Haswell, Ryzen or newer; Core 2 is not enough\n")
+        self.assertEqual(check_docs.check_private(self.root, [doc], None), [])
+
+    def test_main_scans_scripts_and_every_doc_folder_of_ours(self):
+        for rel in ("tools/build/env.ps1", "tools/x.sh", "docs/security/NET.md", "docs/perf/run.md", "docs/new/x.md"):
+            with self.subTest(rel=rel):
+                shutil.rmtree(self.root)
+                self.write("README.md", "# ok\n")
+                self.write(rel, "root is X:\\work here\n")       # privacy-check: allow
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(check_docs.main(["--root", str(self.root), "--private"]), 1)
+
+    def test_upstream_reference_docs_are_not_ours_to_judge(self):
+        self.write("README.md", "# ok\n")
+        self.write("docs/upstream/BUILDING.md", "root is X:\\work here\n")   # privacy-check: allow
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check_docs.main(["--root", str(self.root), "--private"]), 0)
+
     # --- review I4: every link form, exact case, inside the repository ---------------------
     def assert_one_broken(self, text):
         a = self.write("a.md", text)

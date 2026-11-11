@@ -19,7 +19,7 @@ are only registered by system-level installs (ROADMAP P2.19).
 
 Every edit is anchored: a missing anchor stops the tool before any file is written. Running it again
 is a no-op.
-    py -3 -I tools/build/thoron_identity.py --src J:\\thoron-build\\chromium\\src [--dry-run]
+    py -3 -I tools/build/thoron_identity.py --src C:\\thoron-build\\chromium\\src [--dry-run]
 """
 import argparse
 import json

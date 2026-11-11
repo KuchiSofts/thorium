@@ -13,12 +13,20 @@ command for the owner to approve.
 import argparse
 import datetime
 import glob
+import os
 import re
 import sys
 from pathlib import Path
 
-# WSL expects doubled backslashes in Windows paths inside .wslconfig.
-DEFAULT_SWAP_FILE = "\\\\".join(["J:", "thoron-build", "wsl", "swap.vhdx"])
+def default_swap_file(env=None) -> str:
+    """The swap file under the build root (THORON_BUILD_ROOT, else the documented default).
+    WSL expects doubled backslashes in Windows paths inside .wslconfig."""
+    env = os.environ if env is None else env
+    root = (env.get("THORON_BUILD_ROOT") or "C:\\thoron-build").rstrip("\\/")
+    return "\\\\".join([*re.split(r"[\\/]+", root), "wsl", "swap.vhdx"])
+
+
+DEFAULT_SWAP_FILE = default_swap_file()
 SHUTDOWN_NOTE = ("To apply, the owner must approve running:  wsl --shutdown\n"
                  "(this stops every WSL distro, including running services and Docker, for a moment)")
 

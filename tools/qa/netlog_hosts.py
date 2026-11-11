@@ -6,7 +6,7 @@ Starts the browser headless on a throwaway profile with a local page (127.0.0.1)
 log turned on, waits, stops it, and lists every host other than the local machine that appears in the
 log with how often. Nothing is typed or clicked, so every host listed is contacted by the browser itself.
 The log may be cut off when the browser is stopped; the parser does not need valid JSON.
-    py -3 -I tools/qa/netlog_hosts.py --browser <out>\\thoron.exe --work J:\\thoron-build\\netlog --seconds 120
+    py -3 -I tools/qa/netlog_hosts.py --browser <out>\\thoron.exe --work C:\\thoron-build\\netlog --seconds 120
         --label "Thoron 158" --md docs/security/<name>.md
 """
 import argparse

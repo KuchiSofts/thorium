@@ -12,7 +12,7 @@ otherwise.
 - Windows 11 x64 and administrator rights for the one-time installs.
 - A local NTFS drive with at least 250 GB free. The build folder must not be inside a cloud-synced
   folder (Google Drive, OneDrive, Dropbox and so on), and its path must not contain spaces. The
-  examples use `J:\thoron-build`; set `THORON_BUILD_ROOT` to use another folder.
+  examples use `C:\thoron-build`; set `THORON_BUILD_ROOT` to use another folder.
 - 32 GB of RAM at least; 64 GB is recommended.
 - Git for Windows and Python 3 with the `py` launcher.
 - Visual Studio 2026 (version 18.x) Community or higher, with:
@@ -80,7 +80,7 @@ administrator PowerShell:
 
 ```powershell
 Add-MpPreference -AttackSurfaceReductionRules_RuleSpecificExclusions_Id c1db55ab-c21a-4637-bb3f-a12568109d35 `
-    -AttackSurfaceReductionRules_RuleSpecificExclusions J:\thoron-build
+    -AttackSurfaceReductionRules_RuleSpecificExclusions C:\thoron-build
 ```
 
 Every other ASR rule, and antivirus scanning, stay active, including inside the build folder. Do not
@@ -91,7 +91,7 @@ switch the rule to audit mode or turn it off.
 `tools/build/win_env.ps1` prepares the current PowerShell window only; it changes nothing
 machine-wide. It:
 
-- sets `THORON_BUILD_ROOT` (default `J:\thoron-build`);
+- sets `THORON_BUILD_ROOT` (default `C:\thoron-build`);
 - moves `TEMP` and `TMP` into the build folder, to keep build files off the system drive;
 - puts depot_tools first on `PATH`;
 - uses the installed Visual Studio (`DEPOT_TOOLS_WIN_TOOLCHAIN=0`, `vs2026_install`);
@@ -208,7 +208,7 @@ Widevine itself stays enabled, and the browser downloads it from Google when a s
 cd $env:THORON_BUILD_ROOT\chromium\src
 $outDir = 'out\thoron-m156-avx2'
 New-Item -ItemType Directory -Force $outDir | Out-Null
-$repo = 'H:\path\to\thoron'   # this repository
+$repo = 'C:\path\to\thoron'   # this repository
 py -3 -I "$repo\tools\build\release_args.py" compose --platform win `
     --upstream $env:THORON_BUILD_ROOT\upstream-M156\other\AVX2\win_AVX2_args.gn `
     --source "gz83 <commit> other/AVX2/win_AVX2_args.gn" --out "$outDir\args.gn"

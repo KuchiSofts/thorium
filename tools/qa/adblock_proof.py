@@ -31,7 +31,7 @@ configurations pay. With --turns N all browsers are started first and the measur
 turns, one configuration after the other in each turn (a different one first each time), with the CPU
 of each turn counted on its own. Memory is still measured per configuration, on fresh profiles.
     py -3 -I tools/qa/adblock_proof.py --browser <out>\\thoron.exe --extension <unpacked uBO>
-        --work J:\\thoron-build\\proof --out docs/perf/<name>.json --md docs/perf/<name>.md
+        --work C:\\thoron-build\\proof --out docs/perf/<name>.json --md docs/perf/<name>.md
 Exit status 0 when every configuration ran and gave valid numbers (whether or not the targets are met).
 """
 import argparse

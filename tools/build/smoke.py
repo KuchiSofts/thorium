@@ -7,7 +7,7 @@ run), any required capability (JS, WebGL, H.264, HEVC, AV1, JPEG XL) not reporte
 Windows) a sandbox that is not in force: every renderer of the browser must run below Medium
 integrity and no child process may carry --no-sandbox. The sandbox is checked by reading each
 process's security token, not by trusting switches.
-    py -3 -I tools/build/smoke.py --browser out\\thoron\\chrome.exe --work J:\\thoron-build\\smoke\\win
+    py -3 -I tools/build/smoke.py --browser out\\thoron\\chrome.exe --work C:\\thoron-build\\smoke\\win
         --jxl-sample <chromium src>\\third_party\\libjxl\\src\\testdata\\...\\<small>.jxl
 """
 import argparse

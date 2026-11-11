@@ -2,8 +2,8 @@
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 """Build pipeline helpers: preflight checks, upstream setup with reject detection, BUILDINFO.
 
-    py -3 -I tools/build/pipeline.py preflight --root J:\\thoron-build --need-gb 250 [--require-wsl-memory-gb 44]
-    py -3 -I tools/build/pipeline.py apply --tree J:\\thoron-build\\upstream-M156 --src J:\\thoron-build\\chromium\\src --profile avx2 [--log FILE]
+    py -3 -I tools/build/pipeline.py preflight --root C:\\thoron-build --need-gb 250 [--require-wsl-memory-gb 44]
+    py -3 -I tools/build/pipeline.py apply --tree C:\\thoron-build\\upstream-M156 --src C:\\thoron-build\\chromium\\src --profile avx2 [--log FILE]
     py -3 -I tools/build/pipeline.py buildinfo <buildinfo.py arguments>
 """
 import argparse

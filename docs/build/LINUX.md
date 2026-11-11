@@ -15,7 +15,7 @@ skip the WSL parts.
 Keep the build away from any distro you already use:
 
 ```powershell
-wsl --install -d Ubuntu-24.04 --location J:\thoron-build\wsl\Ubuntu-24.04 --no-launch
+wsl --install -d Ubuntu-24.04 --location C:\thoron-build\wsl\Ubuntu-24.04 --no-launch
 wsl -d Ubuntu-24.04 -u root -- useradd -m -s /bin/bash thoron
 ```
 

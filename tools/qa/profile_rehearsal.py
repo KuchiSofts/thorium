@@ -18,7 +18,7 @@ folder:
 The real folder is only read. The new build never sees it: it only ever gets the copy made here.
 
     py -3 -I tools/qa/profile_rehearsal.py --browser <out>\\thoron.exe \\
-        --user-data "%LOCALAPPDATA%\\Thoron\\User Data" --work D:\\scratch [--before-out before.json]
+        --user-data "%LOCALAPPDATA%\\Thoron\\User Data" --work C:\\scratch [--before-out before.json]
 
 Tabs and tab groups are checked only with a window (the default) and for a profile that is set to
 continue where it left off: any other profile opens a new tab page at a start, so its earlier tabs are
