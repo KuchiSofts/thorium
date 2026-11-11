@@ -44,7 +44,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 |---|---|---|
 | **Smart updater** | Small delta downloads for installed **and** portable copies, staged in the background, applied on relaunch, with one-step rollback. Full installers stay available. | [P3](ROADMAP.md#p3---updater-v1--import) · [P4](ROADMAP.md#p4---updater-v2) |
 | **Import from your browser** | Brings over **open tabs and tab groups** (names, colours, pinned tabs), bookmarks, history, passwords, settings and extensions from Thorium, Chrome, Edge, Brave, Vivaldi, Opera and later Firefox. Your old browser is never modified. | [P3](ROADMAP.md#p3---updater-v1--import) |
-| **Built-in ad blocking** | Today: the genuine, unmodified uBlock Origin, pinned and signature-verified. Being built: a blocker inside the browser itself that reads the same lists and replaces it. It already measures faster and lighter than uBlock Origin with the same blocking, and stays off by default until its last correctness checks are done. | [P5](ROADMAP.md#p5---quality) |
+| **Built-in ad blocking** | Today: the genuine, unmodified uBlock Origin, pinned and signature-verified. Being built: a blocker inside the browser itself that reads the same lists and replaces it. It already measures faster and lighter than uBlock Origin with the same blocking, and stays off by default until its last correctness checks are done. To try it, turn on "Built-in ad blocking" at `chrome://flags/#thoron-native-adblock` (and turn uBlock Origin off, or both do the same work). | [P5](ROADMAP.md#p5---quality) |
 | **Protected portable mode** | Saved passwords and cookies in the portable version are encrypted with your passphrase, so they work on any PC and stay safe if the folder is lost. | [P4](ROADMAP.md#p4---updater-v2) |
 | **Right build, automatically** | The installer picks the fastest build your CPU supports (AVX2, SSE4 or ARM64). | [P4](ROADMAP.md#p4---updater-v2) |
 | **Measured performance** | Every release is benchmarked (Speedometer, JetStream, MotionMark, startup, memory, idle CPU). A regression blocks the release. | [Q track](ROADMAP.md#quality--performance-q) |
@@ -54,7 +54,7 @@ Thoron is in active development. These are the headline features on the roadmap:
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `███████░░░░░░░░░░░░░` 52 of 149 tasks done (35%) · roadmap updated 2026-11-08
+**Overall:** `███████░░░░░░░░░░░░░` 52 of 150 tasks done (35%) · roadmap updated 2026-11-08
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -65,7 +65,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/18 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
 | [P5 - Quality](ROADMAP.md#p5---quality) | `████████░░░░░░░░░░░░` | 11/29 | 🔄 In progress |
-| [Security (S)](ROADMAP.md#security-s) | `███████████░░░░░░░░░` | 8/15 | 🔄 In progress |
+| [Security (S)](ROADMAP.md#security-s) | `██████████░░░░░░░░░░` | 8/16 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `██████████░░░░░░░░░░` | 4/8 | 🔄 In progress |
 | [Legal & licensing (L)](ROADMAP.md#legal--licensing-l) | `██░░░░░░░░░░░░░░░░░░` | 1/8 | 🔄 In progress |
@@ -228,6 +228,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **S.13** Inherited history cleaned: three inappropriate image files that upstream added in 2023 and later deleted were purged from every commit; the current tree is unchanged; they were verified absent from the M150 browser build
 - [ ] **S.14** Safe Browsing decision: without Google API keys the built-in Safe Browsing cannot query Google; choose between a key-free setup, another provider, or Google's service with the user's consent, and measure what it contacts
 - [ ] **S.15** Turn off the Google contacts a fresh profile makes without need: optimization guide hints (`optimizationguide-pa.googleapis.com`), Google sign-in checks (`accounts.google.com`) and the `www.google.com` requests, measured in `docs/security/NETWORK.md`
+- [ ] **S.16** Chromium's Gemini plumbing ("Glic") in a browser that cannot use it: Chromium 158 registers its internal "Gemini in Chrome" component extension in every profile it opens and shows "AI innovations" in Settings, although Gemini needs a Google sign-in in the browser, which Thoron does not offer (it is built without Google API keys); turn the feature and its component off by default, so that nothing of it is loaded or shown
 
 **Quality & performance (Q)**
 
