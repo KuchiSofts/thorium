@@ -24,8 +24,14 @@ Each release lists:
     policy would make pages send reports to someone is refused.
   Checked offline with `tools/qa/adblock_syntax_check.py`, a test page for each kind of rule. Measured with
   it in: 6.4 % faster page loads than uBlock Origin on the test pages (6.5 % before), and no new breakage
-  flagged on 97 real sites. Not covered yet: a server redirect that leads to an address with such a parameter (ROADMAP **P5.25**), and the rarer
-  syntax listed in ROADMAP **P5.26**.
+  flagged on 97 real sites. Not covered yet: the rarer syntax listed in ROADMAP **P5.26**.
+- Native ad blocking (off by default) looks at every redirect again (ROADMAP **P5.25**). A request the
+  lists allow could be redirected by its server to an ad host, or to an address with a tracking parameter,
+  and was followed as it was. Now a redirect to something the lists block is stopped, and a redirect to an
+  address with a parameter they take out leads to the clean address; for a page you open, the address bar
+  shows the clean address after a redirect too. A site that insists on its parameter still loads. Checked
+  offline with `tools/qa/adblock_redirect_check.py`. The extra look costs nothing that the measurement
+  shows: two runs gave 10.2 % and 8.6 % faster page loads than uBlock Origin on the test pages.
 - Native ad blocking (off by default) now runs uBlock Origin's scriptlets and hides page elements (ROADMAP
   **P5.20**): the small scripts that defuse ad and anti-blocker code run before any page script, and a
   site's hide rules arrive with the document, in the page and in its frames. Only uBlock Origin's own lists

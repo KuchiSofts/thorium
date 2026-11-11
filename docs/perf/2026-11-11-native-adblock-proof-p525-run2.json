@@ -1,0 +1,490 @@
+{
+  "browser_version": "Thoron 158.0.8127.30",
+  "runs": 15,
+  "warm_rounds": 3,
+  "remote_delay_ms": 40,
+  "modes": {
+    "control": {
+      "valid": true,
+      "pages": {
+        "news": {
+          "possible": 21,
+          "reached": 21,
+          "reached_ids": [
+            "adnxs",
+            "adsbygoogle",
+            "apstag",
+            "chartbeat",
+            "clarity",
+            "criteo",
+            "criteo-bid",
+            "dc-frame",
+            "dc-pixel",
+            "gads-frame",
+            "gpt",
+            "gtm",
+            "li-collect",
+            "linkedin",
+            "outbrain",
+            "quant",
+            "quant-pixel",
+            "scorecard",
+            "simgad",
+            "taboola",
+            "yahoo"
+          ],
+          "needed_missing": [],
+          "stand_ins": [],
+          "load_ms": {
+            "median": 156.8,
+            "spread_pct": 9.8,
+            "runs": 15,
+            "repeatable": false,
+            "values": [
+              163.6,
+              155.2,
+              151.8,
+              157.5,
+              156.0,
+              157.1,
+              154.7,
+              155.6,
+              156.9,
+              156.8,
+              155.8,
+              167.2,
+              159.6,
+              160.1,
+              153.3
+            ]
+          }
+        },
+        "recipe": {
+          "possible": 17,
+          "reached": 17,
+          "reached_ids": [
+            "adsbygoogle",
+            "criteo",
+            "criteo-bid",
+            "dc-frame",
+            "dc-pixel",
+            "gads-frame",
+            "gpt",
+            "gtm",
+            "hotjar",
+            "li-collect",
+            "linkedin",
+            "quant",
+            "quant-pixel",
+            "segment",
+            "simgad",
+            "taboola",
+            "tiktok"
+          ],
+          "needed_missing": [],
+          "stand_ins": [],
+          "load_ms": {
+            "median": 155.7,
+            "spread_pct": 6.7,
+            "runs": 15,
+            "repeatable": false,
+            "values": [
+              152.1,
+              154.4,
+              158.1,
+              159.4,
+              156.3,
+              151.6,
+              155.6,
+              155.9,
+              154.2,
+              151.4,
+              155.1,
+              157.0,
+              155.7,
+              158.3,
+              161.8
+            ]
+          }
+        },
+        "blog": {
+          "possible": 10,
+          "reached": 10,
+          "reached_ids": [
+            "adsbygoogle",
+            "gads-frame",
+            "gtm",
+            "hotjar",
+            "li-collect",
+            "linkedin",
+            "quant",
+            "quant-pixel",
+            "segment",
+            "simgad"
+          ],
+          "needed_missing": [],
+          "stand_ins": [],
+          "load_ms": {
+            "median": 148.6,
+            "spread_pct": 14.3,
+            "runs": 15,
+            "repeatable": false,
+            "values": [
+              148.4,
+              146.7,
+              152.9,
+              146.2,
+              154.5,
+              150.2,
+              153.7,
+              148.5,
+              148.6,
+              144.5,
+              165.7,
+              149.0,
+              146.8,
+              148.5,
+              151.4
+            ]
+          }
+        }
+      },
+      "possible": 48,
+      "reached": 48,
+      "needed_missing": 0,
+      "stand_ins": 0,
+      "load_ms": 461.1,
+      "load_spread_pct": 14.3,
+      "cpu_s_per_load": 0.284,
+      "memory_mb_1": 349.7,
+      "memory_mb_20": 821.9,
+      "memory_values": {
+        "1": [
+          365.4,
+          335.1,
+          349.7
+        ],
+        "20": [
+          833.2,
+          820.1,
+          821.9
+        ]
+      }
+    },
+    "ubo": {
+      "valid": true,
+      "pages": {
+        "news": {
+          "possible": 21,
+          "reached": 0,
+          "reached_ids": [],
+          "needed_missing": [],
+          "stand_ins": [
+            "adsbygoogle",
+            "apstag",
+            "chartbeat",
+            "gpt",
+            "gtm",
+            "outbrain",
+            "scorecard"
+          ],
+          "load_ms": {
+            "median": 121.1,
+            "spread_pct": 34.3,
+            "runs": 15,
+            "repeatable": false,
+            "values": [
+              153.7,
+              124.0,
+              114.0,
+              121.0,
+              120.4,
+              122.9,
+              112.2,
+              113.8,
+              119.6,
+              114.1,
+              121.1,
+              125.4,
+              128.8,
+              122.5,
+              136.0
+            ]
+          }
+        },
+        "recipe": {
+          "possible": 17,
+          "reached": 0,
+          "reached_ids": [],
+          "needed_missing": [],
+          "stand_ins": [
+            "adsbygoogle",
+            "gpt",
+            "gtm"
+          ],
+          "load_ms": {
+            "median": 119.3,
+            "spread_pct": 9.8,
+            "runs": 15,
+            "repeatable": false,
+            "values": [
+              122.1,
+              115.5,
+              120.2,
+              117.1,
+              119.0,
+              119.3,
+              124.0,
+              114.7,
+              121.0,
+              112.9,
+              116.2,
+              120.8,
+              112.3,
+              121.2,
+              119.5
+            ]
+          }
+        },
+        "blog": {
+          "possible": 10,
+          "reached": 0,
+          "reached_ids": [],
+          "needed_missing": [],
+          "stand_ins": [
+            "adsbygoogle",
+            "gtm"
+          ],
+          "load_ms": {
+            "median": 115.4,
+            "spread_pct": 9.8,
+            "runs": 15,
+            "repeatable": false,
+            "values": [
+              115.1,
+              120.3,
+              110.0,
+              112.5,
+              109.0,
+              115.7,
+              119.3,
+              115.6,
+              115.4,
+              115.8,
+              109.3,
+              110.2,
+              116.6,
+              112.9,
+              116.2
+            ]
+          }
+        }
+      },
+      "possible": 48,
+      "reached": 0,
+      "needed_missing": 0,
+      "stand_ins": 12,
+      "load_ms": 355.8,
+      "load_spread_pct": 34.3,
+      "cpu_s_per_load": 0.362,
+      "memory_mb_1": 385.7,
+      "memory_mb_20": 866.4,
+      "memory_values": {
+        "1": [
+          378.6,
+          385.7,
+          396.0
+        ],
+        "20": [
+          852.9,
+          866.4,
+          876.1
+        ]
+      }
+    },
+    "native": {
+      "valid": true,
+      "pages": {
+        "news": {
+          "possible": 21,
+          "reached": 0,
+          "reached_ids": [],
+          "needed_missing": [],
+          "stand_ins": [
+            "adsbygoogle",
+            "apstag",
+            "chartbeat",
+            "gpt",
+            "gtm",
+            "outbrain",
+            "scorecard"
+          ],
+          "load_ms": {
+            "median": 109.9,
+            "spread_pct": 31.1,
+            "runs": 15,
+            "repeatable": false,
+            "values": [
+              137.5,
+              106.7,
+              116.4,
+              105.3,
+              106.1,
+              114.4,
+              111.2,
+              103.3,
+              115.4,
+              105.5,
+              106.5,
+              112.8,
+              109.9,
+              108.8,
+              110.6
+            ]
+          }
+        },
+        "recipe": {
+          "possible": 17,
+          "reached": 0,
+          "reached_ids": [],
+          "needed_missing": [],
+          "stand_ins": [
+            "adsbygoogle",
+            "gpt",
+            "gtm"
+          ],
+          "load_ms": {
+            "median": 108.5,
+            "spread_pct": 20.2,
+            "runs": 15,
+            "repeatable": false,
+            "values": [
+              118.7,
+              107.9,
+              108.5,
+              107.9,
+              110.0,
+              100.4,
+              106.1,
+              110.7,
+              112.5,
+              108.8,
+              104.0,
+              110.0,
+              122.3,
+              105.0,
+              105.3
+            ]
+          }
+        },
+        "blog": {
+          "possible": 10,
+          "reached": 0,
+          "reached_ids": [],
+          "needed_missing": [],
+          "stand_ins": [
+            "adsbygoogle",
+            "gtm"
+          ],
+          "load_ms": {
+            "median": 106.9,
+            "spread_pct": 12.3,
+            "runs": 15,
+            "repeatable": false,
+            "values": [
+              109.9,
+              105.4,
+              103.9,
+              106.2,
+              111.1,
+              105.7,
+              106.9,
+              107.9,
+              105.7,
+              115.2,
+              104.5,
+              116.8,
+              109.3,
+              107.3,
+              103.6
+            ]
+          }
+        }
+      },
+      "possible": 48,
+      "reached": 0,
+      "needed_missing": 0,
+      "stand_ins": 12,
+      "load_ms": 325.3,
+      "load_spread_pct": 31.1,
+      "cpu_s_per_load": 0.263,
+      "memory_mb_1": 347.7,
+      "memory_mb_20": 757.8,
+      "memory_values": {
+        "1": [
+          320.0,
+          347.7,
+          355.5
+        ],
+        "20": [
+          756.7,
+          757.8,
+          767.2
+        ]
+      }
+    }
+  },
+  "verdicts": {
+    "native": [
+      {
+        "target": "blocking",
+        "rule": "no more ad and tracker requests get through",
+        "value": 0,
+        "ubo": 0,
+        "met": true
+      },
+      {
+        "target": "load time",
+        "rule": "at least 10 % faster",
+        "value": 325.3,
+        "ubo": 355.8,
+        "met": false
+      },
+      {
+        "target": "cpu",
+        "rule": "lower",
+        "value": 0.263,
+        "ubo": 0.362,
+        "met": true
+      },
+      {
+        "target": "memory, 1 tab",
+        "rule": "not more",
+        "value": 347.7,
+        "ubo": 385.7,
+        "met": true
+      },
+      {
+        "target": "memory, 20 tabs",
+        "rule": "not more",
+        "value": 757.8,
+        "ubo": 866.4,
+        "met": true
+      },
+      {
+        "target": "breakage (test pages)",
+        "rule": "no needed resource newly blocked",
+        "value": 0,
+        "ubo": 0,
+        "met": true
+      },
+      {
+        "target": "stand-ins",
+        "rule": "no fewer blocked scripts answered with a harmless stand-in",
+        "value": 12,
+        "ubo": 12,
+        "met": true
+      }
+    ]
+  }
+}
