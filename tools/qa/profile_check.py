@@ -14,6 +14,9 @@ Anything it cannot read is recorded as unreadable, never as zero, and `compare` 
 unreadable "before" can never hide a loss. If a profile that was open at exit kept the same session
 file, `compare` reports that the new version did not write one.
 
+It also records whether a profile continues where it left off. One that does not opens a new tab page
+at a start, so its earlier tabs are not expected back: `compare` leaves them out and says so.
+
 `compare` lists everything the second snapshot lost: fewer passwords, bookmarks or tabs, missing or
 changed tab groups, extensions no longer enabled, a cookie loss beyond normal expiry, or a new
 app-bound encryption key (which the older version could not read after a rollback).
@@ -34,6 +37,7 @@ CMD_SET_TAB_WINDOW, CMD_PINNED, CMD_TAB_CLOSED, CMD_WINDOW_CLOSED = 0, 12, 16, 1
 CMD_SET_TAB_GROUP, CMD_TAB_GROUP_METADATA2 = 25, 27
 COOKIE_LOSS_TOLERANCE = 0.02      # expired cookies are deleted at start-up
 NO_NEW_SESSION = "the new version did not write a session"   # a browser without a window never writes one
+RESTORES_LAST_SESSION = (1, 6)    # session.restore_on_startup: the last tabs (6: and some pages); else a new tab page or pages
 
 
 def _records(data: bytes):
@@ -157,15 +161,20 @@ def profile_summary(profile: Path) -> dict:
         cookies[key] = cookies.get(key, 0) + 1
         cookies["total"] += 1
     out["cookies"] = cookies
-    settings, readable = {}, True
-    for name in ("Preferences", "Secure Preferences"):
+    settings, readable, startup = {}, True, None
+    for name in ("Preferences", "Secure Preferences"):          # the second is the protected one, and wins
         prefs = _json(profile / name)
         if prefs is None:
             readable = False
             break
         settings.update(prefs.get("extensions", {}).get("settings", {}))
+        session = prefs.get("session")
+        if isinstance(session, dict) and "restore_on_startup" in session:
+            startup = session["restore_on_startup"]
     out["extensions_enabled"] = sorted(k for k, v in settings.items() if isinstance(v, dict)
                                        and not v.get("disable_reasons") and v.get("state", 1) != 0) if readable else None
+    # Does a start bring the last tabs back? Without the setting a browser opens a new tab page.
+    out["restores_session"] = (startup in RESTORES_LAST_SESSION) if readable else None
     sessions = sorted((profile / "Sessions").glob("Session_*"),
                       key=lambda p: int(p.name.split("_")[-1]) if p.name.split("_")[-1].isdigit() else 0)
     out["session"] = session_summary(sessions[-1].read_bytes()) if sessions else {"missing": True}
@@ -226,7 +235,17 @@ def compare(before: dict, after: dict) -> list[str]:
     return problems
 
 
+def notes(before: dict) -> list[str]:
+    """What `compare` leaves out for a good reason, said aloud so that nobody takes it for checked."""
+    return [f"{name}: tabs and tab groups not compared: this profile does not continue where it left off, "
+            f"so a start opens a new tab page and the earlier tabs are not expected back"
+            for name, p in before["profiles"].items()
+            if p.get("restores_session") is False and "tabs" in p.get("session", {})]
+
+
 def _compare_sessions(name: str, b: dict, a: dict, was_open: bool) -> list[str]:
+    if b.get("restores_session") is False:
+        return []                                  # a start opens a new tab page: see notes()
     bs, as_ = b["session"], a["session"]
     if "missing" in bs:
         return []                                  # no session before: no tabs that could be lost
@@ -282,8 +301,9 @@ def main(argv: list[str]) -> int:
         for name, p in snap["profiles"].items():
             print(summary_line(name, p))
         return 0
-    problems = compare(json.loads(a.before.read_text(encoding="utf-8")), json.loads(a.after.read_text(encoding="utf-8")))
-    for p in problems:
+    before = json.loads(a.before.read_text(encoding="utf-8"))
+    problems = compare(before, json.loads(a.after.read_text(encoding="utf-8")))
+    for p in problems + notes(before):
         print(p)
     print("profile check: 1:1 on every checked item" if not problems else f"profile check: {len(problems)} problem(s)")
     return 1 if problems else 0

@@ -103,8 +103,8 @@ class ProfileTests(unittest.TestCase):
             db.execute("CREATE TABLE cookies (host_key TEXT, encrypted_value BLOB)")
             db.executemany("INSERT INTO cookies VALUES (?, ?)", [("a", b"v10abc"), ("b", b"v10def"), ("c", b"")])
             db.execute("INSERT INTO cookies VALUES ('d', 'plain')")  # real profiles hold some as TEXT
-        (prof / "Secure Preferences").write_text(json.dumps({"extensions": {"settings": {
-            "aaaa": {"disable_reasons": []}, "bbbb": {"disable_reasons": [1]}}}}), encoding="utf-8")
+        (prof / "Secure Preferences").write_text(json.dumps({"session": {"restore_on_startup": 1}, "extensions": {
+            "settings": {"aaaa": {"disable_reasons": []}, "bbbb": {"disable_reasons": [1]}}}}), encoding="utf-8")
         (prof / "Preferences").write_text(json.dumps({"extensions": {"settings": {"cccc": {}}}}), encoding="utf-8")
         (prof / "Sessions" / "Session_100").write_bytes(snss(tab_window(1, 1)))
         (prof / "Sessions" / "Session_200").write_bytes(SESSION)
@@ -142,6 +142,57 @@ class ProfileTests(unittest.TestCase):
         problems = "\n".join(pc.compare(before, after))
         for word in ("passwords", "bookmarks", "cccc", "Videos", "cookies", "app-bound"):
             self.assertIn(word, problems)
+
+    def set_startup(self, value, where="Secure Preferences"):
+        path = self.ud / "Default" / where
+        prefs = json.loads(path.read_text(encoding="utf-8"))
+        prefs.pop("session", None)
+        if value is not None:
+            prefs["session"] = {"restore_on_startup": value}
+        path.write_text(json.dumps(prefs), encoding="utf-8")
+
+    def restores(self):
+        return pc.snapshot(self.ud)["profiles"]["Default"]["restores_session"]
+
+    def test_snapshot_records_whether_the_profile_continues_where_it_left_off(self):
+        self.assertIs(self.restores(), True)                     # 1: the last session
+        for value, expected in ((6, True), (5, False), (4, False), (None, False)):
+            self.set_startup(value)
+            self.assertIs(self.restores(), expected, value)
+        self.set_startup(1, where="Preferences")                 # where other systems keep it
+        self.assertIs(self.restores(), True)
+        self.set_startup(5)                                      # the protected file wins
+        self.assertIs(self.restores(), False)
+        (self.ud / "Default" / "Preferences").write_text("not json", encoding="utf-8")
+        self.assertIsNone(self.restores())
+
+    def test_tabs_are_not_compared_when_a_start_opens_a_new_tab_page(self):
+        self.set_startup(5)
+        before = pc.snapshot(self.ud)
+        after = json.loads(json.dumps(before))
+        after["profiles"]["Default"]["session"] = {"windows": 1, "tabs": 1, "pinned": 0, "groups": []}
+        self.assertEqual(pc.compare(before, after), [])
+        notes = pc.notes(before)
+        self.assertEqual(len(notes), 1)
+        self.assertIn("Default", notes[0])
+        self.assertIn("not compared", notes[0])
+        after["profiles"]["Default"]["bookmarks"] = 0             # every other loss still counts
+        self.assertEqual(pc.compare(before, after), ["Default: bookmarks 3 -> 0"])
+
+    def test_tabs_are_compared_when_the_profile_continues_where_it_left_off(self):
+        before = pc.snapshot(self.ud)
+        after = json.loads(json.dumps(before))
+        after["profiles"]["Default"]["session"] = {"windows": 1, "tabs": 1, "pinned": 0, "groups": []}
+        self.assertTrue(any("open tabs 3 -> 1" in line for line in pc.compare(before, after)))
+        self.assertEqual(pc.notes(before), [])
+
+    def test_a_snapshot_from_an_older_tool_compares_tabs_as_before(self):
+        before = pc.snapshot(self.ud)
+        del before["profiles"]["Default"]["restores_session"]
+        after = json.loads(json.dumps(before))
+        after["profiles"]["Default"]["session"] = {"windows": 1, "tabs": 1, "pinned": 0, "groups": []}
+        self.assertTrue(any("open tabs 3 -> 1" in line for line in pc.compare(before, after)))
+        self.assertEqual(pc.notes(before), [])
 
     def test_missing_profile_is_a_problem(self):
         before = pc.snapshot(self.ud)
