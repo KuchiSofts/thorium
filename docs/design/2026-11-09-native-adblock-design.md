@@ -4,7 +4,7 @@ Status: approved by the owner on 2026-11-09 ("do as you recommend"), with the re
 Changed by the owner on 2026-11-11: the native blocker replaces uBlock Origin instead of working next to it
 (section 12, which overrides sections 2 and 3 where they differ).
 Extends the main design, section 10 ("Phase 2"), which already named this option. Roadmap: P5.2 (decided),
-steps P5.13-P5.26.
+steps P5.13-P5.27.
 
 ## 1. Why
 
@@ -406,7 +406,7 @@ Results: `docs/perf/2026-11-11-native-adblock-breakage.md`.
 - One thing learned on the way: starting the browser with `--user-agent` stops uBlock Origin from blocking
   anything on this build, so the tool sets the user agent per tab instead.
 
-## 10. Steps (roadmap P5.13-P5.26)
+## 10. Steps (roadmap P5.13-P5.27)
 
 1. **P5.13 Spike (throwaway):** link `adblock-rust` into a 158 build, block with a hard-coded EasyList,
    measure. Decides go or no-go.
@@ -416,7 +416,7 @@ Results: `docs/perf/2026-11-11-native-adblock-breakage.md`.
 4. **P5.16 UI:** per-site switch in page info and Settings; a blocked-count badge (local only).
 5. **P5.17 Proof:** the measurements of section 9; fuzzing; on by default only when all targets pass.
 6. **P5.18 Later:** CNAME uncloaking.
-7. **P5.19-P5.26:** the native blocker takes over the rest of uBlock Origin's work (section 12.8).
+7. **P5.19-P5.27:** the native blocker takes over the rest of uBlock Origin's work (section 12.8).
 
 ## 11. Decisions (approved 2026-11-09)
 
@@ -443,7 +443,7 @@ smart. This replaces the hybrid of section 3 and decision 1 of section 11.
 | Cosmetic filtering for one site (`example.com##.ad`) | a style sheet sent with the document | done (P5.20) |
 | Generic cosmetic filtering (`##.ad-banner`) | the page reports the classes and ids it uses; the engine answers with the selectors to hide | done (P5.21) |
 | Procedural cosmetic filters (`:has-text()`, `:upward()`), `$removeparam`, `$csp` | a small page-side runner; a clean address (an internal redirect for documents); a policy on the document's response | done (P5.22, section 12.9) |
-| A redirected request checked again at each hop | a full request proxy | P5.25 |
+| A redirected request checked again at each hop | a watcher on every request; an interceptor on every navigation | done (P5.25, section 12.10) |
 | `$urlskip`, `$replace`, `$header`, `$uritransform`, `$permissions`, `:shadow()` | see 12.9 | P5.26 |
 | List updates | 4.6 | done |
 | Scriptlet and resource updates | 12.4 | P5.23 |
@@ -608,8 +608,19 @@ Added with P5.22 (procedural rules, `$removeparam`, `$csp`):
   people load; uBlock Origin refuses such rules and so does Thoron. Only the lists' own policy text is
   parsed in the browser process (plain ASCII, at most 4,096 bytes); the site's headers stay as the network
   service parsed them.
-- The throttle that does this sees every document request. It does two engine lookups per navigation and
-  holds no state beyond the request.
+- The throttle that does this sees every document request and holds no state beyond the request.
+
+Added with P5.25 (redirects):
+- The redirect watcher passes a request's messages on unchanged, both ways. What the renderer sends when
+  it follows a redirect is still checked by the network service as coming from that renderer: the
+  request's factory keeps the renderer's process id, whoever relays the message.
+- The only thing the watcher changes is a redirect's target, and only to the same address with a
+  shorter query (the same check as for a request's first address). The network service would refuse a
+  target of another origin or one with a user name or password; such a target is left as it is.
+- The navigation interceptor answers a request itself in two cases only: an internal redirect to the
+  same address with a shorter query, and the refusal of a frame the lists block. A site cannot use it
+  to keep a navigation going in circles: an address is cleaned once per navigation.
+- Both decide with the engine on the UI thread, by the document that asked, as the request proxy does.
 
 ### 12.8 Steps
 
@@ -619,7 +630,8 @@ Added with P5.22 (procedural rules, `$removeparam`, `$csp`):
 - **P5.22** procedural filters, `$removeparam`, `$csp`.
 - **P5.23** signed resource updates (with the updater, P3).
 - **P5.24** the hand-over from uBlock Origin (new profiles; the notice when both run).
-- **P5.25** a redirected request is checked again at each hop (found while building P5.22).
+- **P5.25** a redirected request is checked again at each hop (found while building P5.22; done, 12.10).
+- **P5.27** the kinds of request that do not pass the request proxy at all (12.10).
 - **P5.26** the filter syntax still missing after P5.22 (section 12.9).
 - **P5.18** stays CNAME uncloaking. **P5.17**'s targets now compare the native blocker alone with
   uBlock Origin alone.
@@ -668,16 +680,15 @@ Procedural hide rules.
   engine, which has a header of its own now; a saved engine of another layout is refused and built
   again from the lists.
 - As in uBlock Origin, a rule without a request type applies to documents, frames and fetches.
-- A document's own request (a page, or a frame in one) is cleaned before it starts, by a loader throttle
-  in the browser: the changed address becomes an internal redirect, so the address bar, the history and
-  the page's own scripts see the clean address, and the server never sees the parameter. Every other
-  request is sent out with the clean address without telling the page.
-- Not covered: a server redirect that leads to an address with such a parameter is followed as it is
-  (P5.25). Not built: an exception for a pattern, and "every parameter but this one" (neither is in the
-  lists).
+- A document's own request (a page, or a frame in one) is cleaned before it goes out: the changed
+  address becomes an internal redirect, so the address bar, the history and the page's own scripts see
+  the clean address, and the server never sees the parameter. Every other request is sent out with the
+  clean address without telling the page. (Built first as a loader throttle; since P5.25 a navigation
+  interceptor does it, at the start and after every redirect: 12.10.)
+- Not built: an exception for a pattern, and "every parameter but this one" (neither is in the lists).
 
 `$csp`.
-- The same throttle adds the lists' policy to a document's response, for a page and for a frame: as a
+- A loader throttle adds the lists' policy to a document's response, for a page and for a frame: as a
   header and in the parsed form the navigation reads. For a frame, a rule's `domain=` goes by the
   document that asked for the frame, and by the page it is in when that is not known.
 - A policy with `report-uri` or `report-to` is not applied (12.7).
@@ -713,6 +724,66 @@ Still missing from uBlock Origin's syntax (P5.26), with how often the bundled li
 (39; blocks by response header), `$uritransform` (14), `$permissions` (11; like `$csp` for the
 Permissions-Policy header), `:shadow()` (2), HTML filtering (`##^`). Their rules are ignored, as they are
 by adblock-rust itself.
+
+### 12.10 Redirects (P5.25, 2026-11-11)
+
+A request the lists allow can be redirected by its server: to a host they block (a "go" link on the
+site itself that leads to an ad server), or to an address with a tracking parameter (the link in an
+e-mail that goes through a click counter first). uBlock Origin sees every hop of a redirect. Until this
+step the native blocker judged a request's first address only.
+
+Requests other than documents.
+- Every request the proxy lets out gets a `RedirectWatcher` between its loader in the network service
+  and its client in the renderer. It passes everything on, and puts the target of each redirect to the
+  engine before the client hears of it. Blocked: the request ends with `ERR_BLOCKED_BY_CLIENT`, as if the
+  page had asked for that address itself (no stand-in is served for a redirect's target). Parameters to
+  take out: the client is told the redirect leads to the clean address, and the network service follows
+  it there.
+- The watchers live on one background sequence. Putting the browser's UI thread into the path of every
+  response is what makes request-watching extensions slow; here only a redirect asks the UI thread,
+  where the engine is.
+
+Documents (a page, a frame in one).
+- A `DocumentRequestInterceptor` looks at the request at the start of a navigation and again after
+  every redirect, the way the browser's own upgrade to https does. An address with parameters to take
+  out is answered with an internal redirect to the clean address, so the address bar ends up clean
+  after a redirect too. A frame the lists block is refused, or answered with its stand-in.
+- It replaces two earlier pieces: the loader throttle no longer cleans the first address (it only adds
+  `$csp` policies), and the request proxy no longer sits in front of frame navigations.
+- A site that answers the clean address by sending the browser back to the one with the parameter gets
+  its way: an address is cleaned once per navigation, then loaded as it is. Without that, such a site
+  would not load at all.
+
+Checked (2026-11-11):
+- `tools/qa/adblock_redirect_check.py`, offline, on throwaway profiles. A page whose requests all meet
+  a redirect first: a script, an image, a fetch, a frame and a script through two redirects that lead to
+  an ad host never reach it, and the script does not run; a fetch and a frame redirected to an address
+  with a parameter are asked for at the clean address; a script and an image redirected within the site
+  still load. A page address reached through a redirect is asked for clean, and the page itself sees
+  the clean address. A site that insists on its parameter loads, after one clean try. With blocking off,
+  or ads allowed on the site, every redirect is followed as it is. The check also makes sure every hop
+  was really asked for, so a request blocked before its redirect cannot pass for a blocked redirect.
+- The earlier checks pass on the same build: syntax (runner and all four modes), cosmetic rules, the
+  per-site switch with its blocked count, list updates; 154 patches apply.
+- Cost. Two runs on this build (`docs/perf/2026-11-11-native-adblock-proof-p525.md`, `...-p525-run2.md`):
+  the test pages load 10.2 % and 8.6 % faster than with uBlock Origin (306.1 against 340.8 ms, 325.3
+  against 355.8 ms), with 30 % and 27 % less CPU and 25 to 109 MB less memory. The builds before measured
+  6.5 % and 6.4 %. The two runs differ from each other as much as the builds do, so the honest reading
+  is: the watcher on every request shows no cost, and whether the 10 % target is met is not settled (one
+  run says yes, one says no). That needs the configurations measured in turns on a quiet machine (P5.17).
+- Real sites (`docs/perf/2026-11-11-native-adblock-breakage-p525.md`): 97 of the 99 could be compared.
+  The two known flags are unchanged (vk.com, applovin.com: one tracking request each). baidu.com is
+  flagged for less text (189 against 305 characters), which looked like this change, since that site
+  redirects on entry. It is not: loaded four more times with both blockers, it gave both the same page
+  each time, three times the short one and once the long one. The site serves two versions of its page,
+  more often the short one after many visits.
+
+Not covered:
+- A page controlled by a service worker that answers the navigation itself: its request is cleaned on
+  the way out, but the address bar keeps the address as it was.
+- Requests that do not pass the request proxy at all, and so are neither blocked nor watched: the main
+  script of a worker and of a service worker (same site as the page by the web's own rules), prefetches,
+  preloads announced by early hints, downloads (P5.27).
 
 ## 13. Credits
 
