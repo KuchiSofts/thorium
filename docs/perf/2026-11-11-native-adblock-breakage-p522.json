@@ -1,0 +1,2100 @@
+{
+  "list": "Tranco list Y895G",
+  "browser_version": "Thoron 158.0.8127.30",
+  "sites": 99,
+  "modes": [
+    "ubo",
+    "native"
+  ],
+  "per_site": {
+    "google.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 13,
+        "first_party_blocked": [
+          "play.google.com/log",
+          "www.google.com/client_204",
+          "www.google.com/gen_204",
+          "www.google.com/log"
+        ],
+        "exceptions": 0,
+        "text": 540,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 13,
+        "first_party_blocked": [
+          "play.google.com/log",
+          "www.google.com/gen_204",
+          "www.google.com/log"
+        ],
+        "exceptions": 0,
+        "text": 540,
+        "error": null
+      }
+    },
+    "cloudflare.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "www.cloudflare.com/go9u/"
+        ],
+        "exceptions": 4,
+        "text": 9425,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "www.cloudflare.com/go9u/"
+        ],
+        "exceptions": 4,
+        "text": 9425,
+        "error": null
+      }
+    },
+    "youtube.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "www.youtube.com/generate_204",
+          "www.youtube.com/youtubei/v1/log_event"
+        ],
+        "exceptions": 0,
+        "text": 124,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 17,
+        "first_party_blocked": [
+          "www.youtube.com/generate_204",
+          "www.youtube.com/youtubei/v1/log_event"
+        ],
+        "exceptions": 0,
+        "text": 124,
+        "error": null
+      }
+    },
+    "microsoft.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [
+          "www.microsoft.com/echo/etc.clientlibs/microsoft/clientlibs/exp-analytics/v1.ACSHASH*.min.js"
+        ],
+        "exceptions": 2,
+        "text": 2506,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [
+          "www.microsoft.com/echo/etc.clientlibs/microsoft/clientlibs/exp-analytics/v1.ACSHASH*.min.js"
+        ],
+        "exceptions": 2,
+        "text": 2506,
+        "error": null
+      }
+    },
+    "apple.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4935,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4935,
+        "error": null
+      }
+    },
+    "instagram.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "www.instagram.com/ajax/bz",
+          "www.instagram.com/ajax/qm/"
+        ],
+        "exceptions": 0,
+        "text": 787,
+        "error": null
+      },
+      "native": {
+        "loaded": false,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 0,
+        "error": "Page.navigate: no answer"
+      }
+    },
+    "linkedin.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "platform.linkedin.com/litms/utag/homepage-guest-frontend/utag.js",
+          "www.linkedin.com/sensorCollect/"
+        ],
+        "exceptions": 0,
+        "text": 1740,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "platform.linkedin.com/litms/utag/homepage-guest-frontend/utag.js",
+          "www.linkedin.com/sensorCollect/"
+        ],
+        "exceptions": 0,
+        "text": 1740,
+        "error": null
+      }
+    },
+    "triplinkintl.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3850,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4271,
+        "error": null
+      }
+    },
+    "github.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "api.github.com/_private/browser/stats",
+          "collector.github.com/github/collect"
+        ],
+        "exceptions": 0,
+        "text": 3477,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "api.github.com/_private/browser/stats",
+          "collector.github.com/github/collect"
+        ],
+        "exceptions": 0,
+        "text": 3474,
+        "error": null
+      }
+    },
+    "wikipedia.org": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2022,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2022,
+        "error": null
+      }
+    },
+    "bing.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "www.bing.com/fd/ls/l",
+          "www.bing.com/notifications/render",
+          "www.bing.com/web/xlsc.aspx"
+        ],
+        "exceptions": 0,
+        "text": 2521,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "www.bing.com/fd/ls/l",
+          "www.bing.com/notifications/render",
+          "www.bing.com/web/xlsc.aspx"
+        ],
+        "exceptions": 0,
+        "text": 2245,
+        "error": null
+      }
+    },
+    "x.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 349,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 349,
+        "error": null
+      }
+    },
+    "pinterest.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "ct.pinterest.com/ct.html",
+          "www.pinterest.com/_/_/trace/trace/"
+        ],
+        "exceptions": 0,
+        "text": 1477,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "ct.pinterest.com/ct.html",
+          "www.pinterest.com/_/_/trace/trace/"
+        ],
+        "exceptions": 0,
+        "text": 1477,
+        "error": null
+      }
+    },
+    "icloud.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 844,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 844,
+        "error": null
+      }
+    },
+    "cloudflare.net": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2696,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2696,
+        "error": null
+      }
+    },
+    "gandi.net": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 1,
+        "text": 8372,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 1,
+        "text": 8372,
+        "error": null
+      }
+    },
+    "wordpress.org": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3082,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3082,
+        "error": null
+      }
+    },
+    "yahoo.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "guce.yahoo.com/beacon"
+        ],
+        "exceptions": 0,
+        "text": 4497,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 7,
+        "first_party_blocked": [
+          "guce.yahoo.com/beacon"
+        ],
+        "exceptions": 0,
+        "text": 4588,
+        "error": null
+      }
+    },
+    "digicert.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 9,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3782,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 9,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3782,
+        "error": null
+      }
+    },
+    "spotify.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "gew1-spclient.spotify.com/gabo-receiver-service/public/v3/events"
+        ],
+        "exceptions": 0,
+        "text": 1969,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "gew1-spclient.spotify.com/gabo-receiver-service/public/v3/events"
+        ],
+        "exceptions": 0,
+        "text": 1969,
+        "error": null
+      }
+    },
+    "opera.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2679,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2679,
+        "error": null
+      }
+    },
+    "roblox.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 11,
+        "first_party_blocked": [
+          "ecsv2.roblox.com/www/e.png",
+          "metrics.roblox.com/v1/thumbnails/metadata"
+        ],
+        "exceptions": 0,
+        "text": 1321,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 11,
+        "first_party_blocked": [
+          "ecsv2.roblox.com/www/e.png",
+          "metrics.roblox.com/v1/thumbnails/metadata"
+        ],
+        "exceptions": 0,
+        "text": 1321,
+        "error": null
+      }
+    },
+    "vimeo.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 22,
+        "first_party_blocked": [
+          "arclight.vimeo.com/add/player-stats",
+          "vimeo.com/ablincoln/vuid"
+        ],
+        "exceptions": 0,
+        "text": 6239,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 20,
+        "first_party_blocked": [
+          "arclight.vimeo.com/add/player-stats",
+          "vimeo.com/ablincoln/vuid"
+        ],
+        "exceptions": 0,
+        "text": 6239,
+        "error": null
+      }
+    },
+    "baidu.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "hector.baidu.com/static/h.gif",
+          "sp1.baidu.com/-L-Xsjip0QIZ8tyhnq/v.gif",
+          "sp2.baidu.com/-L-Ysjip0QIZ8tyhnq/v.gif"
+        ],
+        "exceptions": 0,
+        "text": 317,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "hector.baidu.com/static/h.gif",
+          "sp1.baidu.com/-L-Xsjip0QIZ8tyhnq/v.gif",
+          "sp2.baidu.com/-L-Ysjip0QIZ8tyhnq/v.gif"
+        ],
+        "exceptions": 0,
+        "text": 316,
+        "error": null
+      }
+    },
+    "qq.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 154,
+        "first_party_blocked": [
+          "beacon.cdn.qq.com/sdk/4.5.16/beacon_web.min.js",
+          "h.trace.qq.com/bosskv",
+          "h.trace.qq.com/kv",
+          "otheve.beacon.qq.com/analytics/v2_upload",
+          "snowflake.qq.com/ola/v2",
+          "www.qq.com/assets/jquery/api100.js",
+          "xs.gdt.qq.com/uid/egs"
+        ],
+        "exceptions": 0,
+        "text": 9070,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 161,
+        "first_party_blocked": [
+          "beacon.cdn.qq.com/sdk/4.5.16/beacon_web.min.js",
+          "h.trace.qq.com/bosskv",
+          "h.trace.qq.com/kv",
+          "otheve.beacon.qq.com/analytics/v2_upload",
+          "snowflake.qq.com/ola/v2",
+          "www.qq.com/assets/jquery/api100.js",
+          "xs.gdt.qq.com/uid/egs"
+        ],
+        "exceptions": 0,
+        "text": 9073,
+        "error": null
+      }
+    },
+    "mozilla.org": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 5703,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 5703,
+        "error": null
+      }
+    },
+    "msn.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 7,
+        "first_party_blocked": [
+          "browser.events.data.msn.com/OneCollector/1.0"
+        ],
+        "exceptions": 0,
+        "text": 0,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 7,
+        "first_party_blocked": [
+          "browser.events.data.msn.com/OneCollector/1.0"
+        ],
+        "exceptions": 0,
+        "text": 0,
+        "error": null
+      }
+    },
+    "f5.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 18,
+        "first_party_blocked": [
+          "mktg.tags.f5.com/main/prod/utag.sync.js"
+        ],
+        "exceptions": 1,
+        "text": 8963,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 18,
+        "first_party_blocked": [
+          "mktg.tags.f5.com/main/prod/utag.sync.js"
+        ],
+        "exceptions": 1,
+        "text": 8963,
+        "error": null
+      }
+    },
+    "wordpress.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 100,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 100,
+        "error": null
+      }
+    },
+    "t-online.de": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [
+          "www.t-online.de/gtm.js"
+        ],
+        "exceptions": 0,
+        "text": 3802,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [
+          "www.t-online.de/gtm.js"
+        ],
+        "exceptions": 0,
+        "text": 3797,
+        "error": null
+      }
+    },
+    "sentry.io": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "o1.ingest.us.sentry.io/api/*/envelope/"
+        ],
+        "exceptions": 0,
+        "text": 16432,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "o1.ingest.us.sentry.io/api/*/envelope/"
+        ],
+        "exceptions": 0,
+        "text": 16432,
+        "error": null
+      }
+    },
+    "ui.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 1631,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 1631,
+        "error": null
+      }
+    },
+    "chatgpt.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [
+          "chatgpt.com/unauth-mweb/events/page-view",
+          "chatgpt.com/unauth-mweb/events/performance",
+          "chatgpt.com/unauth-mweb/events/statsc/flush"
+        ],
+        "exceptions": 0,
+        "text": 212,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [
+          "chatgpt.com/unauth-mweb/events/page-view",
+          "chatgpt.com/unauth-mweb/events/performance",
+          "chatgpt.com/unauth-mweb/events/statsc/flush"
+        ],
+        "exceptions": 0,
+        "text": 212,
+        "error": null
+      }
+    },
+    "samsung.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 19,
+        "first_party_blocked": [
+          "smetrics.samsung.com/ee/v1/identity/acquire",
+          "smetrics.samsung.com/ee/v1/interact",
+          "smetrics.samsung.com/id"
+        ],
+        "exceptions": 2,
+        "text": 2395,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 19,
+        "first_party_blocked": [
+          "smetrics.samsung.com/ee/v1/identity/acquire",
+          "smetrics.samsung.com/ee/v1/interact",
+          "smetrics.samsung.com/id"
+        ],
+        "exceptions": 2,
+        "text": 2395,
+        "error": null
+      }
+    },
+    "ipify.org": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 10700,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 10700,
+        "error": null
+      }
+    },
+    "dropbox.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 24,
+        "first_party_blocked": [
+          "marketing.dropbox.com/",
+          "www.dropbox.com/2/client_metrics/record",
+          "www.dropbox.com/2/udcl/log_timing",
+          "www.dropbox.com/alternate_wtl",
+          "www.dropbox.com/alternate_wtl_browser_performance_info",
+          "www.dropbox.com/log/blocked",
+          "www.dropbox.com/log/pro_events",
+          "www.dropbox.com/log/ux_analytics",
+          "www.dropbox.com/log_js_sw_data"
+        ],
+        "exceptions": 0,
+        "text": 5376,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 26,
+        "first_party_blocked": [
+          "marketing.dropbox.com/",
+          "www.dropbox.com/2/client_metrics/record",
+          "www.dropbox.com/2/udcl/log_timing",
+          "www.dropbox.com/alternate_wtl",
+          "www.dropbox.com/alternate_wtl_browser_performance_info",
+          "www.dropbox.com/log/blocked",
+          "www.dropbox.com/log/pro_events",
+          "www.dropbox.com/log/ux_analytics",
+          "www.dropbox.com/log_js_sw_data"
+        ],
+        "exceptions": 0,
+        "text": 5364,
+        "error": null
+      }
+    },
+    "android.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4322,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4322,
+        "error": null
+      }
+    },
+    "apache.org": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [
+          "analytics.apache.org/matomo.js"
+        ],
+        "exceptions": 0,
+        "text": 3389,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [
+          "analytics.apache.org/matomo.js"
+        ],
+        "exceptions": 0,
+        "text": 3389,
+        "error": null
+      }
+    },
+    "vk.ru": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 11,
+        "first_party_blocked": [
+          "vk.ru/js/lib/px.js"
+        ],
+        "exceptions": 0,
+        "text": 229,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 21,
+        "first_party_blocked": [
+          "vk.ru/js/lib/px.js"
+        ],
+        "exceptions": 0,
+        "text": 229,
+        "error": null
+      }
+    },
+    "tumblr.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "www.tumblr.com/services/bblog"
+        ],
+        "exceptions": 0,
+        "text": 5281,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "www.tumblr.com/services/bblog"
+        ],
+        "exceptions": 0,
+        "text": 5285,
+        "error": null
+      }
+    },
+    "snapchat.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 1339,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 1339,
+        "error": null
+      }
+    },
+    "vk.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 11,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 229,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 19,
+        "first_party_blocked": [
+          "id.vk.com/csp"
+        ],
+        "exceptions": 0,
+        "text": 229,
+        "error": null
+      }
+    },
+    "ubuntu.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 1,
+        "text": 7909,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 2,
+        "text": 7571,
+        "error": null
+      }
+    },
+    "samsungcloud.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 317,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 317,
+        "error": null
+      }
+    },
+    "gravatar.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2603,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2603,
+        "error": null
+      }
+    },
+    "shopify.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [
+          "gtm.shopify.com/gtm.js"
+        ],
+        "exceptions": 0,
+        "text": 4624,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [
+          "gtm.shopify.com/gtm.js"
+        ],
+        "exceptions": 0,
+        "text": 4624,
+        "error": null
+      }
+    },
+    "flickr.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2428,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2428,
+        "error": null
+      }
+    },
+    "creativecommons.org": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [
+          "creativecommons.org/wp-content/plugins/google-analytics-for-wordpress/assets/js/frontend-gtag.min.js"
+        ],
+        "exceptions": 1,
+        "text": 3293,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [
+          "creativecommons.org/wp-content/plugins/google-analytics-for-wordpress/assets/js/frontend-gtag.min.js"
+        ],
+        "exceptions": 1,
+        "text": 3293,
+        "error": null
+      }
+    },
+    "discord.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [
+          "discord.com/assets/oneTrust/v8/consent/04da1d72-0626-4fff-b3c6-*/OtAutoBlock.js"
+        ],
+        "exceptions": 0,
+        "text": 1904,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [
+          "discord.com/assets/oneTrust/v8/consent/04da1d72-0626-4fff-b3c6-*/OtAutoBlock.js"
+        ],
+        "exceptions": 0,
+        "text": 1904,
+        "error": null
+      }
+    },
+    "w3.org": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3451,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3451,
+        "error": null
+      }
+    },
+    "forter.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 5338,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 5338,
+        "error": null
+      }
+    },
+    "cnn.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 22,
+        "first_party_blocked": [
+          "z.cdp-dev.cnn.com/zfm/zfh-3.js",
+          "z.cdp-dev.cnn.com/zion-web-client/3.0/zion-web-client.min.js"
+        ],
+        "exceptions": 1,
+        "text": 6698,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 22,
+        "first_party_blocked": [
+          "z.cdp-dev.cnn.com/zfm/zfh-3.js",
+          "z.cdp-dev.cnn.com/zion-web-client/3.0/zion-web-client.min.js"
+        ],
+        "exceptions": 1,
+        "text": 6652,
+        "error": null
+      }
+    },
+    "kaspersky.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 7934,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 7934,
+        "error": null
+      }
+    },
+    "quickconnect.to": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 439,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 439,
+        "error": null
+      }
+    },
+    "soundcloud.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 8,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3036,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3004,
+        "error": null
+      }
+    },
+    "theguardian.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 12,
+        "first_party_blocked": [
+          "ophan.theguardian.com/img/1",
+          "ophan.theguardian.com/img/2",
+          "sourcepoint.theguardian.com/wrapper/v2/pv-data"
+        ],
+        "exceptions": 11,
+        "text": 20008,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 12,
+        "first_party_blocked": [
+          "ophan.theguardian.com/img/1",
+          "ophan.theguardian.com/img/2",
+          "sourcepoint.theguardian.com/wrapper/v2/pv-data"
+        ],
+        "exceptions": 11,
+        "text": 20012,
+        "error": null
+      }
+    },
+    "hichina.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 235,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 235,
+        "error": null
+      }
+    },
+    "brave.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "brave.com/matomo.js",
+          "brave.com/static-assets/js/analysis.js"
+        ],
+        "exceptions": 0,
+        "text": 4141,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "brave.com/matomo.js",
+          "brave.com/static-assets/js/analysis.js"
+        ],
+        "exceptions": 0,
+        "text": 4141,
+        "error": null
+      }
+    },
+    "afternic.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 8,
+        "first_party_blocked": [
+          "g.sst.afternic.com/gtag/js"
+        ],
+        "exceptions": 0,
+        "text": 1693,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 8,
+        "first_party_blocked": [
+          "g.sst.afternic.com/gtag/js"
+        ],
+        "exceptions": 0,
+        "text": 1692,
+        "error": null
+      }
+    },
+    "stripe.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "r.stripe.com/0"
+        ],
+        "exceptions": 0,
+        "text": 12335,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "r.stripe.com/0"
+        ],
+        "exceptions": 0,
+        "text": 12335,
+        "error": null
+      }
+    },
+    "doi.org": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3274,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3274,
+        "error": null
+      }
+    },
+    "hcaptcha.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 7088,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 7088,
+        "error": null
+      }
+    },
+    "publicnode.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 9656,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 9658,
+        "error": null
+      }
+    },
+    "bbc.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 15,
+        "first_party_blocked": [
+          "a1.api.bbc.com/event"
+        ],
+        "exceptions": 0,
+        "text": 15622,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 15,
+        "first_party_blocked": [
+          "a1.api.bbc.com/event"
+        ],
+        "exceptions": 0,
+        "text": 15614,
+        "error": null
+      }
+    },
+    "roku.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3076,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 3076,
+        "error": null
+      }
+    },
+    "wikimedia.org": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 1405,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 1405,
+        "error": null
+      }
+    },
+    "mts.ru": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "sentry.obs.mts.ru/api/604/envelope/",
+          "tag.a.mts.ru/container/3fbf1822-d661-4b05-880c-*/tag.js"
+        ],
+        "exceptions": 0,
+        "text": 6885,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "sentry.obs.mts.ru/api/604/envelope/",
+          "tag.a.mts.ru/container/3fbf1822-d661-4b05-880c-*/tag.js"
+        ],
+        "exceptions": 0,
+        "text": 7460,
+        "error": null
+      }
+    },
+    "weather.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 26,
+        "first_party_blocked": [
+          "mparticle.weather.com/identity/v1/identify",
+          "weather.com/_vercel/speed-insights/script.js",
+          "weather.com/akam/13/6d025a3f"
+        ],
+        "exceptions": 0,
+        "text": 3462,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 24,
+        "first_party_blocked": [
+          "mparticle.weather.com/identity/v1/identify",
+          "weather.com/_vercel/speed-insights/script.js",
+          "weather.com/akam/13/6d025a3e"
+        ],
+        "exceptions": 1,
+        "text": 3451,
+        "error": null
+      }
+    },
+    "twitch.tv": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 7,
+        "first_party_blocked": [
+          "edge.ads.twitch.tv/ads",
+          "edge.ads.twitch.tv/ads/format"
+        ],
+        "exceptions": 0,
+        "text": 1546,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 8,
+        "first_party_blocked": [
+          "edge.ads.twitch.tv/ads",
+          "edge.ads.twitch.tv/ads/format"
+        ],
+        "exceptions": 0,
+        "text": 1538,
+        "error": null
+      }
+    },
+    "criteo.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 269,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 7964,
+        "error": null
+      }
+    },
+    "amplitude.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 14,
+        "first_party_blocked": [
+          "amplitude.com/_vercel/insights/script.js",
+          "amplitude.com/_vercel/speed-insights/script.js"
+        ],
+        "exceptions": 0,
+        "text": 6064,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 14,
+        "first_party_blocked": [
+          "amplitude.com/_vercel/insights/script.js",
+          "amplitude.com/_vercel/speed-insights/script.js"
+        ],
+        "exceptions": 0,
+        "text": 6064,
+        "error": null
+      }
+    },
+    "mit.edu": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2599,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 2599,
+        "error": null
+      }
+    },
+    "nist.gov": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "www.nist.gov/modules/contrib/google_tag/js/gtag.js",
+          "www.nist.gov/modules/contrib/google_tag/js/gtm.js"
+        ],
+        "exceptions": 0,
+        "text": 2901,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "www.nist.gov/modules/contrib/google_tag/js/gtag.js",
+          "www.nist.gov/modules/contrib/google_tag/js/gtm.js"
+        ],
+        "exceptions": 0,
+        "text": 2901,
+        "error": null
+      }
+    },
+    "applovin.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 273,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [
+          "applovin.com/a-ad-manager/advert.js"
+        ],
+        "exceptions": 0,
+        "text": 1778,
+        "error": null
+      }
+    },
+    "bbc.co.uk": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 15,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 15603,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 15,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 15667,
+        "error": null
+      }
+    },
+    "sourceforge.net": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 9,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 10783,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 9,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 10781,
+        "error": null
+      }
+    },
+    "cpanel.net": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4984,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4984,
+        "error": null
+      }
+    },
+    "salesforce.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 17,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 9157,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 17,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 9157,
+        "error": null
+      }
+    },
+    "hubspot.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 8,
+        "first_party_blocked": [
+          "cta-service-cms2.hubspot.com/web-interactives/public/v1/embed/combinedConfigs",
+          "exceptions.hubspot.com/frontend/observability/page-tracking/store/",
+          "sgtm-amer.hubspot.com/gtm.js"
+        ],
+        "exceptions": 0,
+        "text": 5557,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 7,
+        "first_party_blocked": [
+          "cta-service-cms2.hubspot.com/web-interactives/public/v1/embed/combinedConfigs",
+          "exceptions.hubspot.com/frontend/observability/page-tracking/store/",
+          "sgtm-amer.hubspot.com/gtm.js"
+        ],
+        "exceptions": 0,
+        "text": 5873,
+        "error": null
+      }
+    },
+    "linktr.ee": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "ingress.linktr.ee/uLZfGRmpj7"
+        ],
+        "exceptions": 0,
+        "text": 4276,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [
+          "ingress.linktr.ee/uLZfGRmpj7"
+        ],
+        "exceptions": 0,
+        "text": 4276,
+        "error": null
+      }
+    },
+    "who.int": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 1839,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 1839,
+        "error": null
+      }
+    },
+    "alidns.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 60,
+        "first_party_blocked": [],
+        "exceptions": 1,
+        "text": 3068,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 57,
+        "first_party_blocked": [],
+        "exceptions": 1,
+        "text": 3068,
+        "error": null
+      }
+    },
+    "datadoghq.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 12,
+        "first_party_blocked": [
+          "8b61d74c.datadoghq.com/api/v2/rum",
+          "www.datadoghq.com/assets/ane-popup-banner.js"
+        ],
+        "exceptions": 0,
+        "text": 2005,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 12,
+        "first_party_blocked": [
+          "8b61d74c.datadoghq.com/api/v2/rum",
+          "www.datadoghq.com/assets/ane-popup-banner.js"
+        ],
+        "exceptions": 0,
+        "text": 2005,
+        "error": null
+      }
+    },
+    "ibm.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 27,
+        "first_party_blocked": [
+          "cloud.ibm.com/analytics/build/bluemix-analytics.min.js",
+          "lp2.email.ibm.com/akam/13/3ee5c48c"
+        ],
+        "exceptions": 0,
+        "text": 4696,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 25,
+        "first_party_blocked": [
+          "cloud.ibm.com/analytics/build/bluemix-analytics.min.js",
+          "lp2.email.ibm.com/akam/13/3ee5c48f"
+        ],
+        "exceptions": 0,
+        "text": 4351,
+        "error": null
+      }
+    },
+    "hp.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [
+          "www.hp.com/akam/13/39ef5da3",
+          "www.hp.com/cxloader/"
+        ],
+        "exceptions": 0,
+        "text": 2564,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [
+          "www.hp.com/akam/13/39ef5da2",
+          "www.hp.com/cxloader/"
+        ],
+        "exceptions": 0,
+        "text": 2564,
+        "error": null
+      }
+    },
+    "slack.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "slack.com/clog/track/"
+        ],
+        "exceptions": 0,
+        "text": 6095,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "slack.com/clog/track/"
+        ],
+        "exceptions": 0,
+        "text": 6095,
+        "error": null
+      }
+    },
+    "launchdarkly.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4399,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4399,
+        "error": null
+      }
+    },
+    "launchpad.net": {
+      "ubo": {
+        "loaded": false,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 0,
+        "error": "Page.navigate: no answer"
+      },
+      "native": {
+        "loaded": false,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 0,
+        "error": "Page.navigate: no answer"
+      }
+    },
+    "www.gov.uk": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4011,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 4011,
+        "error": null
+      }
+    },
+    "steampowered.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 5188,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 5103,
+        "error": null
+      }
+    },
+    "manulife-sinochem.com": {
+      "ubo": {
+        "loaded": false,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 0,
+        "error": "Page.navigate: no answer"
+      },
+      "native": {
+        "loaded": false,
+        "blocked": 0,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 0,
+        "error": "Page.navigate: no answer"
+      }
+    },
+    "alibaba.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 11,
+        "first_party_blocked": [],
+        "exceptions": 1,
+        "text": 8678,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 10,
+        "first_party_blocked": [],
+        "exceptions": 1,
+        "text": 8737,
+        "error": null
+      }
+    },
+    "grammarly.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 7,
+        "first_party_blocked": [
+          "gnar.grammarly.com/events"
+        ],
+        "exceptions": 0,
+        "text": 5688,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 8,
+        "first_party_blocked": [
+          "gnar.grammarly.com/events"
+        ],
+        "exceptions": 0,
+        "text": 5688,
+        "error": null
+      }
+    },
+    "canva.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 5,
+        "first_party_blocked": [
+          "telemetry.canva.com/v1/traces",
+          "www.canva.com/gtg/gtm.js"
+        ],
+        "exceptions": 1,
+        "text": 3184,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "telemetry.canva.com/v1/traces",
+          "www.canva.com/gtg/gtm.js"
+        ],
+        "exceptions": 0,
+        "text": 3184,
+        "error": null
+      }
+    },
+    "miui.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [],
+        "exceptions": 1,
+        "text": 3465,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 2,
+        "first_party_blocked": [],
+        "exceptions": 1,
+        "text": 3465,
+        "error": null
+      }
+    },
+    "wiley.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 5121,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 3,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 5121,
+        "error": null
+      }
+    },
+    "avast.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 17,
+        "first_party_blocked": [
+          "www.avast.com/.rum/@adobe/helix-rum-js@%5E2/dist/micro.js"
+        ],
+        "exceptions": 1,
+        "text": 3140,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 17,
+        "first_party_blocked": [
+          "www.avast.com/.rum/@adobe/helix-rum-js@%5E2/dist/micro.js"
+        ],
+        "exceptions": 1,
+        "text": 3140,
+        "error": null
+      }
+    },
+    "zendesk.com": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 5916,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 1,
+        "first_party_blocked": [],
+        "exceptions": 0,
+        "text": 5917,
+        "error": null
+      }
+    },
+    "harvard.edu": {
+      "ubo": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "www.harvard.edu/wp-content/plugins/duracelltomi-google-tag-manager/build/gtm4wp-client-device-data.js",
+          "www.harvard.edu/wp-content/plugins/duracelltomi-google-tag-manager/build/gtm4wp-form-move-tracker.js"
+        ],
+        "exceptions": 0,
+        "text": 7289,
+        "error": null
+      },
+      "native": {
+        "loaded": true,
+        "blocked": 4,
+        "first_party_blocked": [
+          "www.harvard.edu/wp-content/plugins/duracelltomi-google-tag-manager/build/gtm4wp-client-device-data.js",
+          "www.harvard.edu/wp-content/plugins/duracelltomi-google-tag-manager/build/gtm4wp-form-move-tracker.js"
+        ],
+        "exceptions": 0,
+        "text": 7289,
+        "error": null
+      }
+    }
+  },
+  "flags": {
+    "native": {
+      "vk.com": [
+        "first-party requests blocked: id.vk.com/csp"
+      ],
+      "applovin.com": [
+        "first-party requests blocked: applovin.com/a-ad-manager/advert.js"
+      ]
+    }
+  },
+  "judged": {
+    "native": 97
+  }
+}

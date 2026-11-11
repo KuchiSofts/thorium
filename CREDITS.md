@@ -104,6 +104,10 @@ author publishes no licence; those patches need the author's permission, or a re
   (`js/resources/`, `web_accessible_resources/`) and ships them as a separate data file,
   `thoron_adblock_resources.json`, which the native blocker reads. Each keeps its own header; some stand-ins
   are based on other projects' code, as their headers say (for example Mozilla's web compatibility shims).
+- **Filter syntax**: the procedural operators (`:has-text()`, `:upward()` and the rest), `$removeparam` and
+  `$csp` are uBlock Origin's filter syntax, with forms that come from Adblock Plus and AdGuard. The native
+  blocker's compiler and page-side runner for them are Thoron's own code, written from the syntax's
+  documented behaviour; no code was taken.
 - **pak tool**: [@myfreeer](https://github.com/myfreeer)'s
   [chrome-pak-customizer](https://github.com/myfreeer/chrome-pak-customizer), with changes by
   Alex313031. It is MIT, with LGPL-2.1 parts (`pak_src/` in the upstream repository). Thoron does not

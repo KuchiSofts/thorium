@@ -44,7 +44,8 @@ SCRIPTLET_RE = re.compile(r"([a-z0-9.-]+)##\+js\((?:set|set-constant), ([A-Za-z_
 HIDE_RE = re.compile(r"([a-z0-9.-]+)##([.#][A-Za-z][A-Za-z0-9_-]*)")
 GENERIC_RE = re.compile(r"##\.([a-z][a-z0-9-]{5,40})")
 # The test site's name ends up in reports: leave out names that do not belong there.
-NOT_FOR_REPORTS = ("porn", "sex", "xxx", "hentai", "adult", "tube", "cam", "nude", "fap", "milf", "erotic")
+NOT_FOR_REPORTS = ("porn", "sex", "xxx", "hentai", "adult", "tube", "cam", "nude", "fap", "milf", "erotic",
+                   "xnxx", "gay", "feet", "lewd", "rule34", "hamster", "pirate")
 RESULT_TIMEOUT_S = 60
 LATE_ELEMENT_MS = 1000     # the page adds its second generic element this long after it has loaded
 REPORT_AFTER_MS = 6000     # and reports this long after: the browser looks again 1 s and 3 s after the load

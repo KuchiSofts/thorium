@@ -13,6 +13,19 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- Native ad blocking (off by default) understands the rest of the common filter syntax (ROADMAP **P5.22**):
+  - procedural hide rules (`:has-text()`, `:upward()`, `:xpath()`, `:matches-css()` and others) and the
+    rules that restyle or remove (`:style()`, `:remove()`, `:remove-attr()`, `:remove-class()`): the engine
+    splits them into CSS and tasks, and a small runner of Thoron's own carries the tasks out in an isolated
+    world, out of the page's reach. All but two of the bundled lists' hide rules are understood;
+  - `$removeparam`: tracking parameters the lists name are taken out of an address before the request is
+    sent. For a page you open, the address bar shows the clean address;
+  - `$csp`: a page gets the content security policy the lists ask for, on top of its own. A rule whose
+    policy would make pages send reports to someone is refused.
+  Checked offline with `tools/qa/adblock_syntax_check.py`, a test page for each kind of rule. Measured with
+  it in: 6.4 % faster page loads than uBlock Origin on the test pages (6.5 % before), and no new breakage
+  flagged on 97 real sites. Not covered yet: a server redirect that leads to an address with such a parameter (ROADMAP **P5.25**), and the rarer
+  syntax listed in ROADMAP **P5.26**.
 - Native ad blocking (off by default) now runs uBlock Origin's scriptlets and hides page elements (ROADMAP
   **P5.20**): the small scripts that defuse ad and anti-blocker code run before any page script, and a
   site's hide rules arrive with the document, in the page and in its frames. Only uBlock Origin's own lists
