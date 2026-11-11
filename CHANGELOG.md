@@ -31,6 +31,9 @@ Each release lists:
 - `tools/qa/profile_check.py` records whether a profile continues where it left off. For a profile that
   does not, a start opens a new tab page, so its tabs are no longer compared (that reported a loss which
   was none), and the check and the rehearsal say that they left them out.
+- `tools/qa/profile_rehearsal.py` does not copy a profile that was written a moment ago: a browser can
+  still be writing for some seconds after its windows closed, and a temporary file that vanishes under a
+  backup stops it (as it should). `docs/build/WINDOWS.md` now says to wait half a minute after closing.
 - Native ad blocking (off by default) understands the rest of the common filter syntax (ROADMAP **P5.22**):
   - procedural hide rules (`:has-text()`, `:upward()`, `:xpath()`, `:matches-css()` and others) and the
     rules that restyle or remove (`:style()`, `:remove()`, `:remove-attr()`, `:remove-class()`): the engine

@@ -265,7 +265,9 @@ folder>` undoes it.
 **Upgrading an existing Thorium.** A profile used by a newer version cannot be opened by an older
 one, so going back means restoring a backup. Never skip these steps (ROADMAP **Q.7**):
 
-1. Close the browser completely (no `thorium.exe` or `thoron.exe` left in Task Manager).
+1. Close the browser completely (no `thorium.exe` or `thoron.exe` left in Task Manager) and give it
+   half a minute: it can still be writing to its profile for some seconds after its windows closed,
+   and a backup taken in that moment is not a clean one.
 2. Back up the whole `%LOCALAPPDATA%\Thorium` folder (program and `User Data`) and verify the copy.
 3. Rehearse the update on a copy of the profile:
 
@@ -289,7 +291,8 @@ one, so going back means restoring a backup. Never skip these steps (ROADMAP **Q
    `py -3 -I tools\qa\profile_check.py snapshot "$env:LOCALAPPDATA\Thorium\User Data" --out after.json`,
    then `py -3 -I tools\qa\profile_check.py compare before.json after.json` must report 1:1.
 
-The tool refuses to start while the browser of that profile runs, or when the work folder is inside
+The tool refuses to start while the browser of that profile runs or the profile was written a moment
+ago, or when the work folder is inside
 the profile, inside a git repository or in a folder whose name looks cloud-synced. Tabs and tab
 groups are compared for a profile that is set to continue where you left off. With any other setting
 a start opens a new tab page and the earlier tabs are not expected back, so they are not compared;

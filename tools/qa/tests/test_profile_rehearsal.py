@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -41,8 +42,17 @@ def make_user_data(root: Path, startup: int = 1) -> Path:
     (prof / "Preferences").write_text("{}", encoding="utf-8")
     session = prof / "Sessions" / "Session_100"
     session.write_bytes(SESSION)
+    rest(ud)
     os.utime(session, (1_000_000, 1_000_000))
     return ud
+
+
+def rest(user_data: Path) -> None:
+    """As if the browser had been closed an hour ago: nothing in the folder was written since."""
+    hour_ago = time.time() - 3600
+    for path in user_data.rglob("*"):
+        if path.is_file():
+            os.utime(path, (hour_ago, hour_ago))
 
 
 def write_bookmarks(user_data: Path, count: int) -> None:
@@ -109,6 +119,19 @@ class RefusalTests(Scratch):
     def test_a_running_browser_is_never_copied(self):
         (self.ud / "lockfile").write_bytes(b"")
         self.assertIn("running", pr.refusal(self.browser, self.ud, self.work))
+
+    def test_a_profile_that_was_written_a_moment_ago_is_not_copied_yet(self):
+        write_bookmarks(self.ud, 2)                    # its browser may still be closing
+        why = pr.refusal(self.browser, self.ud, self.work)
+        self.assertIn("still", why)
+        self.assertIn("Bookmarks", why)
+        rest(self.ud)
+        self.assertIsNone(pr.refusal(self.browser, self.ud, self.work))
+
+    def test_a_file_dated_in_the_future_does_not_block_for_ever(self):
+        future = time.time() + 86400
+        os.utime(self.ud / "Default" / "Bookmarks", (future, future))
+        self.assertIsNone(pr.refusal(self.browser, self.ud, self.work))
 
     def test_a_work_folder_inside_the_profile(self):
         inside = self.ud / "work"
@@ -291,6 +314,7 @@ class RehearseTests(Scratch):
         os.makedirs(pr.long_path(deep))
         with open(pr.long_path(deep / "data.bin"), "wb") as f:
             f.write(b"x" * 5000)
+        os.utime(pr.long_path(deep / "data.bin"), (time.time() - 3600,) * 2)
         self.assertGreater(len(str(deep)), 260)
         self.assertGreaterEqual(pr._size(self.ud), 5000)
         seen = []
