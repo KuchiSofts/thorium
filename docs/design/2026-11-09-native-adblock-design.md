@@ -127,7 +127,8 @@ a real page (it becomes P5.14's first step).
 
 The engine runs in a Thoron 158 build: `ChromeContentBrowserClient::WillCreateURLLoaderFactory` puts its
 proxy first in front of every document, worker and service-worker subresource loader; blocked requests
-end with `ERR_BLOCKED_BY_CLIENT`. It is off unless the `ThoronNativeAdblock` feature is on. The lists
+end with `ERR_BLOCKED_BY_CLIENT`. It is off unless the `ThoronNativeAdblock` feature is on (since
+2026-11-11 `chrome://flags` has a switch for it, section 4.7). The lists
 (6.9 MB) are taken at build time from the pinned uBlock Origin CRX and shipped next to the browser; the
 engine is built from them on a background thread at the first page load.
 
@@ -238,6 +239,20 @@ accessible name ("Ads and trackers blocked") stay; the bubble is unchanged.
 
 Still to do: translations of the new strings. The bubble's checkbox and the page info toggle were read, not
 clicked (the setting they write is the one the check above covers).
+
+Switch on `chrome://flags` (step 4, 2026-11-11). Until native blocking is on by default, the feature
+could only be turned on with `--enable-features=ThoronNativeAdblock` on the command line, which nobody does
+with the browser they use every day. `chrome://flags` now has an entry, "Built-in ad blocking"
+(`#thoron-native-adblock`), that sets the same feature: Default (off for now), Enabled, Disabled. Its text
+says what it is and that with uBlock Origin on as well both do the same work, so one of them should be
+turned off. It is an ordinary entry of `about_flags.cc`, kept in the profile like every other flag, so it
+survives restarts and updates; nothing new is stored and no new code path exists. The entry stays when
+native blocking becomes the default (it is then the way to turn it off as a whole).
+
+Checked in the 158.0.8127.3000 build on throwaway profiles: the entry is on the page with its three
+choices and shows Default; with Enabled the browser starts with `--enable-features=ThoronNativeAdblock`
+between its flag switches, with Disabled with `--disable-features=ThoronNativeAdblock`, and with neither
+the feature is off.
 
 Crash record (added 2026-11-11). Reading a list runs the Rust parser inside the browser process, and in
 Chromium a Rust panic ends the process. The check was only put on record after the new lists had been

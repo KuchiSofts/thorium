@@ -13,6 +13,13 @@ Each release lists:
 ## [Unreleased]
 
 ### Added
+- A switch for native ad blocking on `chrome://flags`: "Built-in ad blocking"
+  (`#thoron-native-adblock`). It turns the feature on or off without a command line, so it can be tried in
+  the browser you use every day. It stays off unless turned on; with uBlock Origin on as well both do the
+  same work, so turn one of them off (ROADMAP **P5.16**).
+- The first build with a Thoron version of its own: `158.0.8127.3000` (Chromium 158.0.8127.30, build 0 of
+  Thoron on it; ROADMAP **P2.14**). The About page shows it with "Based on Chromium 158.0.8127.30" below,
+  and `chrome://version`, `chrome://flags` and the file properties of `thoron.exe` show it too.
 - `tools/qa/profile_rehearsal.py`: the rehearsal before an update, in one command (ROADMAP **Q.7**). It
   copies a closed browser's `User Data` to a new private folder, opens the copy with the new build fully
   offline, closes it the normal way, compares the copy before and after with `profile_check.py`, and
