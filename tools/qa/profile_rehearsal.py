@@ -76,8 +76,21 @@ def launch_arguments(browser: Path, copy: Path, headless: bool = False) -> list[
     return args + ["--headless=new"] if headless else args
 
 
+def long_path(path: Path) -> str:
+    """The path as text; on Windows in the form that has no limit of 260 characters."""
+    text = str(Path(path).resolve())
+    return "\\\\?\\" + text if os.name == "nt" and not text.startswith("\\\\") else text
+
+
 def _size(folder: Path) -> int:
-    return sum(p.stat().st_size for p in folder.rglob("*") if p.is_file())
+    total = 0
+    for parent, _, files in os.walk(long_path(folder)):
+        for name in files:
+            try:
+                total += os.lstat(os.path.join(parent, name)).st_size
+            except OSError:
+                pass                        # the copy will say which file cannot be read
+    return total
 
 
 def refusal(browser: Path, user_data: Path, work: Path) -> str | None:
@@ -212,6 +225,14 @@ def _on_copy(browser: Path, copy: Path, seconds: int, headless: bool, close_time
     return result
 
 
+def _not_copied(exc: OSError) -> str:
+    failures = exc.args[0] if isinstance(exc, shutil.Error) and exc.args and isinstance(exc.args[0], list) \
+        else [(getattr(exc, "filename", None) or "", "", str(exc))]
+    first = failures[0]
+    return (f"the profile could not be copied completely: {len(failures)} file(s) could not be copied, "
+            f"the first: {first[0]} ({first[2]}); the new build was not started")
+
+
 def _writable_then_again(function, path, _):
     os.chmod(path, stat.S_IWRITE)
     function(path)
@@ -222,7 +243,7 @@ def _delete(root: Path) -> str | None:
     handler = {"onexc" if sys.version_info >= (3, 12) else "onerror": _writable_then_again}
     for _ in range(10):
         try:
-            shutil.rmtree(root, **handler)
+            shutil.rmtree(long_path(root), **handler)
             return None
         except OSError:
             time.sleep(1)                   # a helper process of the browser may hold a file for a moment
@@ -240,8 +261,12 @@ def rehearse(browser: Path, user_data: Path, work: Path, seconds: int = 60, head
     try:
         say("copying the profile")
         copy = root / "User Data"
-        shutil.copytree(user_data, copy, symlinks=True)
-        result = _on_copy(Path(browser), copy, seconds, headless, close_timeout, runner or run, say)
+        try:
+            shutil.copytree(long_path(user_data), long_path(copy), symlinks=True)
+        except OSError as exc:              # shutil.Error too: some files could not be copied
+            result = Result([_not_copied(exc)], [], {})
+        else:
+            result = _on_copy(Path(browser), copy, seconds, headless, close_timeout, runner or run, say)
     finally:
         left = _delete(root)
         if left and result is not None:

@@ -262,6 +262,36 @@ class RehearseTests(Scratch):
         self.assertEqual(result.problems, [])
         self.assertTrue(any("tabs" in n and "not checked" in n for n in result.notes))
 
+    def test_a_profile_that_cannot_be_copied_completely_is_a_problem_not_a_crash(self):
+        started = []
+        failed = shutil.Error([(str(self.ud / "Default" / "Cookies"), "x", "in use"), ("y", "z", "in use")])
+        with mock.patch.object(pr.shutil, "copytree", side_effect=failed):
+            result = self.rehearse(lambda *a: started.append(a))
+        self.assertEqual(started, [])                           # no browser on half a copy
+        self.assertEqual(len(result.problems), 1)
+        self.assertIn("2 file(s) could not be copied", result.problems[0])
+        self.assertIn("in use", result.problems[0])
+        self.assertEqual(list(self.work.iterdir()), [])
+
+    def test_paths_longer_than_260_characters_are_copied_counted_and_deleted(self):
+        deep = self.ud / "Default" / ("d" * 120) / ("e" * 120)
+        os.makedirs(pr.long_path(deep))
+        with open(pr.long_path(deep / "data.bin"), "wb") as f:
+            f.write(b"x" * 5000)
+        self.assertGreater(len(str(deep)), 260)
+        self.assertGreaterEqual(pr._size(self.ud), 5000)
+        seen = []
+
+        def runner(browser, copy, seconds, headless, close_timeout):
+            new_session(copy)
+            with open(pr.long_path(copy / deep.relative_to(self.ud) / "data.bin"), "rb") as f:
+                seen.append(len(f.read()))
+
+        result = self.rehearse(runner)
+        self.assertEqual((result.problems, seen), ([], [5000]))
+        self.assertEqual(list(self.work.iterdir()), [])
+        shutil.rmtree(pr.long_path(self.ud / "Default" / ("d" * 120)))    # so that tearDown can delete the rest
+
     def test_without_a_window_every_other_loss_still_counts(self):
         result = self.rehearse(lambda browser, copy, *a: write_bookmarks(copy, 1), headless=True)
         self.assertEqual(result.problems, ["Default: bookmarks 2 -> 1"])
