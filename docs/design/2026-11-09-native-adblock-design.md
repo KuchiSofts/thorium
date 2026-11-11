@@ -4,7 +4,7 @@ Status: approved by the owner on 2026-11-09 ("do as you recommend"), with the re
 Changed by the owner on 2026-11-11: the native blocker replaces uBlock Origin instead of working next to it
 (section 12, which overrides sections 2 and 3 where they differ).
 Extends the main design, section 10 ("Phase 2"), which already named this option. Roadmap: P5.2 (decided),
-steps P5.13-P5.24.
+steps P5.13-P5.26.
 
 ## 1. Why
 
@@ -396,10 +396,17 @@ Results: `docs/perf/2026-11-11-native-adblock-breakage.md`.
   the text counts: uBlock Origin does not hide elements in a headless browser on this build (P2.18), the
   native blocker does, so a page can show a little less text with it (ibm.com: 12 % less) because ad and
   promotion blocks are hidden. Clicking through pages is still not covered.
+- With procedural rules, `$removeparam` and `$csp` in (P5.22) the 99 sites were loaded once more
+  (`docs/perf/2026-11-11-native-adblock-breakage-p522.md`): 97 could be compared, the only two flags are
+  the same two tracking requests on vk.com and applovin.com, and no site shows less than 80 % of the text
+  it shows with uBlock Origin. One site, instagram.com, did not load with the native blocker on the first
+  try and did on the second, which is why it is not flagged. Loaded twice more with both blockers, it
+  loaded with both once (the same text) and with neither once: the site is unsteady in this harness, with
+  either blocker. launchpad.net loaded with neither that afternoon.
 - One thing learned on the way: starting the browser with `--user-agent` stops uBlock Origin from blocking
   anything on this build, so the tool sets the user agent per tab instead.
 
-## 10. Steps (roadmap P5.13-P5.24)
+## 10. Steps (roadmap P5.13-P5.26)
 
 1. **P5.13 Spike (throwaway):** link `adblock-rust` into a 158 build, block with a hard-coded EasyList,
    measure. Decides go or no-go.
@@ -409,7 +416,7 @@ Results: `docs/perf/2026-11-11-native-adblock-breakage.md`.
 4. **P5.16 UI:** per-site switch in page info and Settings; a blocked-count badge (local only).
 5. **P5.17 Proof:** the measurements of section 9; fuzzing; on by default only when all targets pass.
 6. **P5.18 Later:** CNAME uncloaking.
-7. **P5.19-P5.24:** the native blocker takes over the rest of uBlock Origin's work (section 12.8).
+7. **P5.19-P5.26:** the native blocker takes over the rest of uBlock Origin's work (section 12.8).
 
 ## 11. Decisions (approved 2026-11-09)
 
@@ -435,7 +442,9 @@ smart. This replaces the hybrid of section 3 and decision 1 of section 11.
 | Scriptlets (`##+js(...)`): small scripts that defuse ad and anti-blocker code inside the page | the same resources, run at document start | done (P5.20) |
 | Cosmetic filtering for one site (`example.com##.ad`) | a style sheet sent with the document | done (P5.20) |
 | Generic cosmetic filtering (`##.ad-banner`) | the page reports the classes and ids it uses; the engine answers with the selectors to hide | done (P5.21) |
-| Procedural cosmetic filters (`:has-text()`, `:upward()`), `$removeparam`, `$csp` | a small page-side interpreter; an internal redirect; a header on the document | P5.22 |
+| Procedural cosmetic filters (`:has-text()`, `:upward()`), `$removeparam`, `$csp` | a small page-side runner; a clean address (an internal redirect for documents); a policy on the document's response | done (P5.22, section 12.9) |
+| A redirected request checked again at each hop | a full request proxy | P5.25 |
+| `$urlskip`, `$replace`, `$header`, `$uritransform`, `$permissions`, `:shadow()` | see 12.9 | P5.26 |
 | List updates | 4.6 | done |
 | Scriptlet and resource updates | 12.4 | P5.23 |
 | Per-site switch, blocked count | 4.7 | done |
@@ -510,8 +519,8 @@ As built (P5.20, 2026-11-11):
   90 MB less memory. The added work does not show; the 10 % load target is still not met.
 - Known differences from uBlock Origin: 22 of its scriptlets ask for an isolated world and run in the
   page's world here; `war:` arguments (a scriptlet answering a fetch with one of the extension's files)
-  resolve to nothing; frames that never navigate (`about:blank`, `srcdoc`) get nothing; procedural
-  filters are not applied yet (P5.22).
+  resolve to nothing; frames that never navigate (`about:blank`, `srcdoc`) get nothing. (Procedural
+  filters came with P5.22: section 12.9.)
 
 Generic hide rules as built (P5.21, 2026-11-11). The lists hold about 13,000 rules of the form
 `##.ad-banner` or `###ad-top`. Sending them all to every page would cost every page; instead:
@@ -579,6 +588,29 @@ Generic hide rules as built (P5.21, 2026-11-11). The lists hold about 13,000 rul
   file, with their licence and source named in `CREDITS.md` and `NOTICE`, as the bundled uBlock Origin
   package already is. To be confirmed in the licence inventory (L.1).
 
+Added with P5.22 (procedural rules, `$removeparam`, `$csp`):
+- The procedural runner is Thoron's own code and runs in an isolated world, so a page cannot replace the
+  DOM functions it uses. It gets its rules as data (JSON, with `<` escaped); nothing from a list is ever
+  run as code. A list can make it slow with a costly regular expression or XPath, on the site the rule
+  names, as it can in uBlock Origin; the runner limits how often it looks, not how long one look takes.
+- A list cannot put the runner on every page: a procedural rule without a site is not applied (12.9).
+- The marks it puts on elements are attribute names of 12 random letters, new for every document: a page
+  cannot know them beforehand or recognise the blocker by them. A page can still see that an attribute
+  appeared, as with uBlock Origin.
+- `:style()` declarations go into a user style sheet only if they cannot leave their rule and cannot make
+  the page fetch anything (`url(`, `image-set(` and the like are refused, as in uBlock Origin).
+- `:remove-attr()` can take any attribute off an element of the site its rule names, a frame's `sandbox`
+  included. uBlock Origin gives every list the same power; it is recorded here, not limited.
+- `$removeparam` can only make a query shorter. The browser checks what the engine returns: scheme, host,
+  port, path, user info and fragment must be the request's own, or the address is not used.
+- `$csp` can only take permissions away from a page. adblock-rust lets a rule through whose policy tells
+  the page to send reports somewhere (`report-uri`, `report-to`), which a list could use to learn what
+  people load; uBlock Origin refuses such rules and so does Thoron. Only the lists' own policy text is
+  parsed in the browser process (plain ASCII, at most 4,096 bytes); the site's headers stay as the network
+  service parsed them.
+- The throttle that does this sees every document request. It does two engine lookups per navigation and
+  holds no state beyond the request.
+
 ### 12.8 Steps
 
 - **P5.19** resources and stand-ins.
@@ -587,10 +619,105 @@ Generic hide rules as built (P5.21, 2026-11-11). The lists hold about 13,000 rul
 - **P5.22** procedural filters, `$removeparam`, `$csp`.
 - **P5.23** signed resource updates (with the updater, P3).
 - **P5.24** the hand-over from uBlock Origin (new profiles; the notice when both run).
+- **P5.25** a redirected request is checked again at each hop (found while building P5.22).
+- **P5.26** the filter syntax still missing after P5.22 (section 12.9).
 - **P5.18** stays CNAME uncloaking. **P5.17**'s targets now compare the native blocker alone with
   uBlock Origin alone.
 
+### 12.9 The rest of the syntax (P5.22, 2026-11-11)
+
+What the bundled lists use (counted, uBlock Origin 1.75.0's lists): of about 32,400 hide rules, about 800
+need more than CSS (`:has-text()` 533 times, then `:has()` around an operator, `:upward()`, `:others()`,
+`:xpath()`, `:matches-css()` and others); 715 rules restyle with `:style()`, about 180 remove an element,
+an attribute or a class. 260 rules use `$removeparam` (244 name one parameter, 10 give a pattern, 5 give
+nothing and mean every parameter, 1 names a parameter that is a path) and 6 are exceptions to it. About
+90 rules use `$csp`.
+
+Procedural hide rules.
+- adblock-rust is built here without its CSS parser (it would add two more vendored crates and their
+  dependencies), so it hands a rule's selector over as one string. `procedural.rs` splits it into plain
+  CSS and a list of tasks, and refuses what cannot be run. A selector without an operator stays CSS
+  (`:-abp-has()` becomes `:has()`). Of the lists' hide rules, all but two compile; the two use `:shadow()`.
+- Operators: `has-text` (also written `-abp-contains` and `contains`), `upward`, `xpath`, `matches-css`,
+  `matches-css-before`, `matches-css-after`, `matches-attr`, `matches-path`, `matches-media`,
+  `min-text-length`, `others`, `watch-attr`, `has` and `not` around another procedural selector, and CSS
+  that continues after an operator. Not built: `shadow` (2 rules), `matches-prop` (none).
+- A procedural rule must name a site, as in uBlock Origin. adblock-rust would accept one written for
+  every site (`##div:has-text(Ad)`), and it would then put the runner, and the rule's cost, on every
+  page. Such rules are found once per engine (by asking it about a site no list names) and never
+  applied. The bundled lists have none.
+- Actions: no action hides; `:style(...)`; `:remove()`; `:remove-attr(...)`; `:remove-class(...)`. A
+  `:style()` rule with a plain CSS selector is CSS in the document's style sheet and needs no runner.
+- The runner (`procedural.js`, about 8 KB, Thoron's own code) is sent only to a document that has such
+  rules, with the rules as data, and runs in an isolated world of its own at document start. It marks
+  what a rule finds with an attribute; the document's style sheet says what a mark means (hidden, or the
+  rule's style). It looks when the DOM is ready and again when the page changes, waiting ten times as
+  long as the last look took (at least 50 ms, at most 5 s). An element a rule no longer describes loses
+  its mark.
+
+`$removeparam`.
+- adblock-rust applies `$removeparam=name` and reports the clean address with its answer for a request.
+  It drops the other forms when it reads a list. `query.rs` finds them: no value (every parameter goes),
+  a pattern, and exceptions (for everything, or for one parameter). Each kind is rewritten into rules
+  adblock-rust can match and kept in a small engine of its own; one first question ("does any of them
+  match?") keeps the cost for ordinary requests at one extra lookup. Patterns are not run as regular
+  expressions: the shapes the lists use (one word or several, with or without `^`, a group and `\b`:
+  `^ad`, `^(cookie|ga_|u_)`, `web_only=`) are matched by a few lines of code, so no pattern from a list
+  can make matching slow. That covers 8 of the 10 pattern rules; the other two use a lookahead and are
+  not applied, nor is the one rule whose parameter name is a path. These rules are saved with the
+  engine, which has a header of its own now; a saved engine of another layout is refused and built
+  again from the lists.
+- As in uBlock Origin, a rule without a request type applies to documents, frames and fetches.
+- A document's own request (a page, or a frame in one) is cleaned before it starts, by a loader throttle
+  in the browser: the changed address becomes an internal redirect, so the address bar, the history and
+  the page's own scripts see the clean address, and the server never sees the parameter. Every other
+  request is sent out with the clean address without telling the page.
+- Not covered: a server redirect that leads to an address with such a parameter is followed as it is
+  (P5.25). Not built: an exception for a pattern, and "every parameter but this one" (neither is in the
+  lists).
+
+`$csp`.
+- The same throttle adds the lists' policy to a document's response, for a page and for a frame: as a
+  header and in the parsed form the navigation reads. For a frame, a rule's `domain=` goes by the
+  document that asked for the frame, and by the page it is in when that is not known.
+- A policy with `report-uri` or `report-to` is not applied (12.7).
+
+Checked (2026-11-11, on the build with all of it):
+- 47 unit tests in the engine crate: 12 for the selector compiler, 7 for the `$removeparam` forms, 10 new
+  ones for the bridge (clean addresses, the dropped forms before and after saving, policies, rules for
+  the runner, a saved engine of another layout).
+- `tools/qa/adblock_syntax_check.py`, offline, on throwaway profiles. It runs the runner on a fixture
+  page with 25 hand-written rules, one per operator and action, and again after the page changes (a
+  watched attribute, a new element, text that no longer matches). Then it takes the first simple real
+  rule of each kind from the bundled lists and serves a page under that rule's site name: an element
+  with the rule's text is hidden and one without is not; the ancestor a rule climbs to is hidden and the
+  one above it is not; an element is removed; a class and an attribute are taken off; a style is applied;
+  a parameter is gone from the page's address (the server and the page both see the clean one), from a
+  frame's and from a fetch, and stays on an image; a page under a rule's `worker-src 'none'` has its
+  worker refused, reported against that very policy. All of it also inside frames of another site's
+  page, and none of it with blocking off or with ads allowed on the site.
+- The earlier checks still pass: cosmetic rules (4 of 4), the per-site switch, list updates (which now
+  save and load the engine in its new layout), and all 154 patches apply.
+- Cost (`docs/perf/2026-11-11-native-adblock-proof-p522.md`): with all of it in, the test pages load in
+  318.0 ms with the native blocker against 339.8 ms with uBlock Origin, 6.4 % faster (6.5 % before P5.22),
+  with nothing let through, the same 12 stand-ins and 27 to 90 MB less memory. CPU per load was 0.264 s
+  against 0.285 s, 7 % less, where the run before P5.22 had 15 %. That says little: this run was on a
+  busier machine. The control, which runs none of the blocking code, took 20 % more CPU than in the
+  morning's run, and every spread was wider. The tool measures one configuration after the other, so a
+  machine that gets busier half way moves the comparison; measuring them in turns, on a quiet machine,
+  is added to P5.17. Breakage on the 99 real sites did not change (9.2). A first run the same day, on the build before the last three changes and with the
+  Python tests running beside it, gave 5.1 % and 11 % and is not used.
+
+Still missing from uBlock Origin's syntax (P5.26), with how often the bundled lists use each: `$urlskip`
+(238 rules; skips a redirect page), `$replace` (76; rewrites a response, trusted lists only), `$header`
+(39; blocks by response header), `$uritransform` (14), `$permissions` (11; like `$csp` for the
+Permissions-Policy header), `:shadow()` (2), HTML filtering (`##^`). Their rules are ignored, as they are
+by adblock-rust itself.
+
 ## 13. Credits
+
+The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
+Plus and AdGuard); Thoron's compiler and page-side runner for them are its own code.
 
 `adblock-rust` is by Brave Software and contributors (MPL-2.0). The filter lists are by their
 maintainers (EasyList authors, Raymond Hill and the uBlock Origin contributors, Peter Lowe, the
