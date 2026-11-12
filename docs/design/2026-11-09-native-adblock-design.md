@@ -1375,6 +1375,21 @@ reload; the zapper removes one element and keeps the rest.
   list switched off are all in the saved file; after a reset each is at its default; after restoring the
   file each is as it was.
 
+### 12.28 "Block element..." in the page's context menu (P5.41, 2026-11-12)
+
+- **What.** As uBlock Origin adds it: a right-click on a page has "Block element...", which starts the
+  element picker with its panel already open on what was clicked; the rule is chosen, edited and created
+  as from the shield's menu (12.21).
+- **How.** A context menu item of Chromium's own (`IDC_CONTENT_CONTEXT_THORON_BLOCK_ELEMENT`, above
+  "Inspect"), shown only while native ad blocking is on and the page is a web page. The point of the click
+  is turned into the page's own pixels (divided by its zoom) and given to the picker, which takes the
+  element there the way a click in the picker does. The picker is the one of the menu, with the same
+  limits on what it may add to My filters. The item is counted in Chromium's context-menu histogram like
+  every item (a value of its own).
+- **Checked** by `tools/qa/adblock_context_check.py` (Windows): a browser with a window, off the screen,
+  is right-clicked on an element of a test page, the item is chosen with UI Automation, Enter creates the
+  rule, and after a reload the element is hidden.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
