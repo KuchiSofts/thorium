@@ -56,6 +56,10 @@ It is **off by default** until its last correctness checks are done.
     and video over 50 KB), no hiding, remote fonts, JavaScript. A blue switch means it is on.
 
 - **Pop-ups:** ad windows and tabs a page tries to open are not opened at all, and count on the shield.
+- **Blocked pages:** a page your lists name as harmful (malware, phishing) or as an ad site is not
+  opened. A page says why. To open it anyway, click the shield and switch blocking off for that site
+  with the big button, then reload. If the blocked page only sends you on somewhere else, the page
+  offers that address as a link.
 
 - **See what happened:** when something was blocked, an icon appears in the address bar. Click it to see
   how many ads and trackers were blocked on the page, and from which sites.
