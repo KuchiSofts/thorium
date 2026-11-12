@@ -529,7 +529,8 @@ smart. This replaces the hybrid of section 3 and decision 1 of section 11.
 | The scripts workers and service workers are started from | the request proxy sits in front of those loaders too | done (P5.27, section 12.11) |
 | WebSocket connections | the browser is asked before each connection of a frame | done (P5.29, section 12.12) |
 | `$urlskip`: a navigation to a redirector goes straight to the destination | a module of the engine and the navigation interceptor (12.14) | done (P5.26, first part) |
-| `$replace`, `$header`, `$uritransform`, `$permissions`, `:shadow()` | see 12.9 | P5.26 |
+| `$permissions`: the lists switch browser features off for a document | a module of the engine and the document throttle (12.15) | done (P5.26, second part) |
+| `$replace`, `$header`, `$uritransform`, `:shadow()` | see 12.9 | P5.26 |
 | List updates | 4.6 | done |
 | Scriptlet and resource updates | 12.4 | P5.23 |
 | Per-site switch, blocked count | 4.7 | done |
@@ -1056,6 +1057,48 @@ a frame go to the redirector; with native blocking off nothing is skipped.
 Security review. The destination is one the redirector itself would send the browser to, so the rule
 opens no door the link did not already have; it is limited to http and https, never carries a user name,
 is at most 8,192 characters long after at most 8 steps, and comes only from rules of trusted lists.
+
+### 12.15 `$permissions` (P5.26, 2026-11-12)
+
+A site can say which browser features its pages may use, with the `Permissions-Policy` header. uBlock
+Origin's lists use the same header against features that were built for ad targeting, or that help to tell
+one browser from another: `*$permissions=browsing-topics=(),from=~localhost|...` switches the ad topics off
+on every site that is not on the PC itself. The bundled lists hold 10 such rules (ad topics, ad auctions
+and interest groups, attribution reporting, private aggregation, private state tokens, idle detection, the
+keyboard map, compute pressure) and one exception, all in uBlock Origin's own lists.
+
+How it is built:
+
+- adblock-rust does not know the option. It knows `$csp`, which works the same way: the values of all the
+  rules that match a document are collected, without those an exception takes away. So the rules are
+  rewritten as `$csp` rules for an engine of their own (`permissions.rs`), which is asked once per document.
+- Only a value that switches a feature off (`name=()`) is taken. A rule that would give a feature to a
+  page or a frame (`camera=*`, `(self)`, an origin) is left out whole, and what the engine returns is
+  checked once more: the header Thoron adds can take a feature away and never give one.
+- Only rules of trusted lists count, as for `$urlskip`: a list a person added, or a rule of their own,
+  cannot change what a page may use.
+- The throttle that adds the `$csp` policy to a document's response (12.9) adds this header too, for a
+  page and for a frame. When the site sends a policy of its own for the same feature, the one of the lists
+  counts.
+- With ads allowed on the site (the per-site switch), nothing is added.
+- The saved engine is now in layout 3: the lines that only trusted lists may bring (`$urlskip`,
+  `$permissions`) are in a section of their own, apart from the `$removeparam` lines, which come from every
+  list. A line of a list without trust can so never be read as one of them, also not after saving. An
+  engine saved in an older layout is refused and the shipped one is used.
+
+Coverage: all 11 lines.
+
+Checked: 5 engine tests (the rewriting, what is left out, the policy of a page and of a frame, exceptions,
+trust by list id, saving, and a `$removeparam` rule of an untrusted list that names the other options too),
+and two new cases in `tools/qa/adblock_syntax_check.py`, offline, with the real rules: a page whose own
+header keeps every feature for the site, and a page on the site of the exception. With native blocking on,
+every feature the rules name that this build has is off for the first page (6 of the 10; the other four,
+for ad auctions, interest groups, attribution reporting and private aggregation, are not in a plain http
+page of this build), and on the second only the excepted one stays. With native blocking off, and with ads
+allowed on the site, all of them are allowed.
+
+Security review. The header only narrows what a page may do, comes only from trusted lists, holds only
+`name=()` entries with names of lower-case letters, digits and `-`, and is at most 2,048 characters long.
 
 ## 13. Credits
 

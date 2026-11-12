@@ -18,6 +18,7 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** hides page elements by specific, generic and procedural rules and supports `$removeparam` and `$csp`.
 - **Ad blocking:** rechecks every redirect, stops blocked targets and strips the tracking parameters the lists name.
 - **Ad blocking:** a link to a tracking redirector goes straight to its destination (`$urlskip`, 240 list rules).
+- **Ad blocking:** switches off the browser features the lists name for ad targeting and fingerprinting (`$permissions`).
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.
 - **Ad blocking:** every change on that page is in use at once and survives a restart and a browser update.
@@ -95,6 +96,7 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** a list update is recorded before it is read, so a bad list cannot close the browser at every start.
 - **Ad blocking:** only uBlock Origin's own lists may use trusted scriptlets; report-sending `$csp` rules are refused.
 - **Ad blocking:** added lists and own rules get no trust, are HTTPS only, and a bad one cannot crash every start.
+- **Ad blocking:** the saved engine keeps the rules of trusted lists apart, so no other rule can pass as one.
 - **Privacy:** docs name no machine details and use `C:\thoron-build` in examples; `check_docs --private` enforces it.
 - **Privacy:** `.gitignore` excludes browser-profile file types (passwords, cookies, sessions, history, keys).
 - **Security:** flags that weaken security start with a warning on `chrome://flags`; the unsupported-flag bar is back.

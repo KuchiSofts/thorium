@@ -17,6 +17,9 @@ other is built into the browser itself and is meant to replace the extension onc
   This covers pages, frames, redirects, web workers and WebSocket connections.
 - **Skips tracking detours.** A link that leads to a tracker first, which then sends you on, goes straight
   to the real page.
+- **Switches off ad-tech features.** Browser features that were built for ad targeting, or that help to
+  tell your browser from others (ad topics, ad auctions, idle detection and a few more), are off on every
+  site.
 - **Cleans the page.** Leftover ad boxes are hidden, tracking parameters are removed from addresses, and
   small scripts from uBlock Origin defuse anti-blocker code. A blocked script that a page needs is answered
   with a harmless stand-in, so the page keeps working.
