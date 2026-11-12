@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 """Native ad blocking, the rest of the filter syntax, checked end to end and offline (ROADMAP P5.22):
-procedural hide rules, `$removeparam` and `$csp`.
+procedural hide rules, `$removeparam`, `$csp` and `$permissions`.
 
 The check uses the browser's own bundled lists. For each kind of rule it takes the first real rule that is
 simple enough to build a page for, serves that page under the rule's site name from a local server
@@ -17,12 +17,16 @@ profiles:
     removeparam    the parameter is gone from a page's address (the server and the page both see the clean
                    address), from a frame's and from a fetch; an image request keeps it
     csp            the page is under the rule's policy: what it forbids is refused and reported
+    permissions    every browser feature the lists switch off for all sites is off for the page, also
+                   when the site's own header keeps it
+    permissions-kept   on a site with an exception for one of them, that one stays and the others are off
 
 in four modes:
 
     control    native blocking off: nothing is touched
     native     native blocking on: every rule has acted
-    frame      the pages inside frames of a page on 127.0.0.1: the rules apply in a frame too
+    frame      the pages inside frames of a page on 127.0.0.1: the rules apply in a frame too (not the
+               permissions rules: they leave pages on the PC itself alone, and what is in them)
     site-off   ads allowed on each site (the per-site switch): nothing is touched
 
 Besides the list rules, the page-side runner for procedural rules (procedural.js) is run on a fixture page
@@ -74,6 +78,11 @@ CSP_ADDRESS_RE = re.compile(r"\|\|([a-z0-9.-]+)\^\$csp=([^,]+)")
 CSP_DOMAIN_RE = re.compile(r"\*?\$(?:doc,|document,)?csp=([^,]+),domain=(\S+)")
 # What the csp page tries is a worker; a policy that also limits scripts would stop the page's own script.
 CSP_NEEDS = "worker-src 'none'"
+# The permissions rules that are used are for every site but those on the PC itself, so the page gets a name
+# of its own.
+PERMISSIONS_HOST = "perm-check.test"
+PERMISSIONS_RE = re.compile(r"\*\$permissions=([a-z][a-z0-9-]*)=\(\),from=~[^,|]+(?:\|~[^,|]+)*")
+PERMISSIONS_KEPT_RE = re.compile(r"@@\|\|([a-z0-9.-]+)\^\$permissions=([a-z][a-z0-9-]*)=\(\)")
 CSP_NOT = ("script-src", "default-src", "sandbox")
 # A value the style page starts from, other than the rule's.
 STYLE_START = {"display": ("inline", "block"), "overflow": ("hidden", "scroll"), "opacity": ("0.5", "0.25"),
@@ -156,6 +165,13 @@ def cases(lists_text: str) -> dict:
             out["removeparam"] = {"host": PARAM_HOST, "name": m.group(1)}
     if csp := _csp_case(lines):
         out["csp"] = csp
+    features = [m.group(1) for line in lines if (m := PERMISSIONS_RE.fullmatch(line))]
+    if features:
+        out["permissions"] = {"host": PERMISSIONS_HOST, "features": features}
+        for line in lines:
+            if (m := PERMISSIONS_KEPT_RE.fullmatch(line)) and m.group(2) in features and _fit(m.group(1)):
+                out["permissions-kept"] = {"host": m.group(1), "kept": m.group(2), "features": features}
+                break
     return out
 
 
@@ -211,6 +227,14 @@ def page_html(kind: str, case: dict) -> str:
                   "let worker = 'started';"
                   "try { new Worker('/worker.js'); } catch (e) { worker = 'refused'; }")
         report = "{worker, violations}"
+    elif kind in ("permissions", "permissions-kept"):
+        body = "<p>features check</p>"
+        # only a feature this browser has can be on or off
+        script = (f"const names = {json.dumps(case['features'])};"
+                  "const policy = document.featurePolicy;"
+                  "const known = policy ? names.filter((n) => policy.features().includes(n)) : [];"
+                  "const allowed = known.filter((n) => policy.allowsFeature(n));")
+        report = "{known, allowed}"
     else:
         raise ValueError(kind)
     return ("<!doctype html><html><head><meta charset=\"utf-8\">"
@@ -222,6 +246,14 @@ def page_html(kind: str, case: dict) -> str:
             "addEventListener('load', () => setTimeout(() => "
             f"fetch('/result/{kind}', {{method: 'POST', body: JSON.stringify({report})}}), {REPORT_AFTER_MS}));"
             "</script></body></html>")
+
+
+def page_headers(kind: str, case: dict) -> dict:
+    """Headers the site itself sends with a case's page. The permissions page comes with a policy of the
+    site's own that keeps every feature for the site: the rules must win over it."""
+    if kind == "permissions":
+        return {"Permissions-Policy": ", ".join(f"{feature}=(self)" for feature in case["features"])}
+    return {}
 
 
 def framed(found: dict) -> list[str]:
@@ -238,6 +270,16 @@ def parent_html(found: dict) -> str:
                      'height="120"></iframe>' for kind in framed(found))
     return ('<!doctype html><html><head><meta charset="utf-8"><title>Thoron syntax check, frames</title></head>'
             f"<body>{frames}</body></html>")
+
+
+def judgeable(kind: str, case: dict, control: dict | None) -> bool:
+    """False for a case that the run with blocking off shows cannot be judged in this browser: its page did
+    not load, or the browser does not have the one feature an exception is about."""
+    if not isinstance(control, dict):
+        return False
+    if kind == "permissions-kept":
+        return case["kept"] in (control.get("known") or [])
+    return True
 
 
 def _policy(text: str) -> str:
@@ -289,6 +331,17 @@ def problems(mode: str, kind: str, case: dict, result: dict | None) -> list[str]
             out.append(f"nothing was refused under the rule's policy {case['policy']!r}: {result}")
         if not on and (result.get("violations") or result.get("worker") != "started"):
             out.append(f"the page is under a policy {off}: {result}")
+    elif kind in ("permissions", "permissions-kept"):
+        known = [feature for feature in case["features"] if feature in (result.get("known") or [])]
+        allowed = result.get("allowed") or []
+        if not known:
+            out.append("the browser knows none of the features the rules name")
+        for feature in known:
+            kept = on and feature == case.get("kept")
+            if on and not kept and feature in allowed:
+                out.append(f"{feature} is still allowed")
+            elif (kept or not on) and feature not in allowed:
+                out.append(f"{feature} is switched off " + ("though the exception keeps it" if kept else off))
     else:
         raise ValueError(kind)
     return out
@@ -406,9 +459,11 @@ class PageServer:
             def log_message(self, *args):
                 pass
 
-            def _send(self, code: int, ctype: str, body: bytes):
+            def _send(self, code: int, ctype: str, body: bytes, more: dict | None = None):
                 self.send_response(code)
                 self.send_header("Content-Type", ctype)
+                for name, value in (more or {}).items():
+                    self.send_header(name, value)
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
@@ -447,7 +502,7 @@ class PageServer:
                     return
                 kind = url.path.removeprefix("/").removesuffix(".html")
                 if url.path.endswith(".html") and kind in found and kind != "removeparam" and host == found[kind]["host"]:
-                    self._send(200, html, page_html(kind, found[kind]).encode())
+                    self._send(200, html, page_html(kind, found[kind]).encode(), page_headers(kind, found[kind]))
                 elif url.path == "/worker.js":
                     self._send(200, "text/javascript", b"// a worker that does nothing\n")
                 elif url.path == "/parent.html" and host == "127.0.0.1":
@@ -599,9 +654,10 @@ def run_all(browser: Path, work: Path, lists_file: Path, runner: Path | None) ->
     else:
         out["runner_skipped"] = f"procedural.js not found ({runner})"
     control = run_mode(browser, work, found, "control")
-    # A name the browser will not load over plain http (it forces https for it) cannot be judged: such
-    # cases are left out, by the run with blocking off, and named in the output.
-    unusable = [kind for kind in found if control["results"].get(kind) is None]
+    # A name the browser will not load over plain http (it forces https for it) cannot be judged, nor an
+    # exception for a feature this browser does not have: such cases are left out, by the run with blocking
+    # off, and named in the output.
+    unusable = [kind for kind in found if not judgeable(kind, found[kind], control["results"].get(kind))]
     if unusable:
         out["left_out"] = {kind: found[kind] for kind in unusable}
         found = {kind: case for kind, case in found.items() if kind not in unusable}
