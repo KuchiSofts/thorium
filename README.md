@@ -77,7 +77,7 @@ changed in each version is in the [changelog](CHANGELOG.md), one line per change
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `███████░░░░░░░░░░░░░` 59 of 164 tasks done (36%) · roadmap updated 2026-11-12
+**Overall:** `███████░░░░░░░░░░░░░` 60 of 165 tasks done (36%) · roadmap updated 2026-11-12
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -87,7 +87,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/21 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `██████████░░░░░░░░░░` | 18/35 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `███████████░░░░░░░░░` | 19/36 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `██████████░░░░░░░░░░` | 8/16 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `████████░░░░░░░░░░░░` | 4/10 | 🔄 In progress |
@@ -244,6 +244,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **P5.33** Native ad blocking, the dashboard like uBlock Origin's: the sites where ads are allowed and the per-site switches (each removable), a live logger of blocked requests per tab, the total
 - [x] **P5.34** Native ad blocking, uBlock Origin's optional lists on `chrome://adblock`: cookie notices, annoyances, privacy, phishing, regions and languages, grouped, one checkbox each
 - [x] **P5.35** Native ad blocking, no empty boxes where ads were: a blocked image, frame or embedded object is collapsed, as uBlock Origin hides placeholders
+- [x] **P5.36** Native ad blocking, pop-ups: the lists' `$popup` rules (and `$all`) keep a page from opening ad windows, and the menu's "no pop-ups" stops every window of a site, as in uBlock Origin
 - [ ] **P5.30** Native ad blocking, a page in Settings that a person can work with: one switch for the blocker; the filter lists with a checkbox each; add a list by its address and remove it again; "My filters", the person's own rules in the syntax of the lists; the sites where blocking is off
 
 **Security (S)**

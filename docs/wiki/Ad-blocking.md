@@ -52,8 +52,10 @@ It is **off by default** until its last correctness checks are done.
   - **Zapper:** click things to remove them until the page reloads; Esc stops;
   - **Logger:** every blocked request of your open tabs;
   - **Settings:** the full page, `chrome://adblock`;
-  - switches for this site: pop-ups, large media (sound and video over 50 KB), no hiding, remote
-    fonts, JavaScript. A blue switch means it is on.
+  - switches for this site: pop-ups (no window the site opens, also from a click), large media (sound
+    and video over 50 KB), no hiding, remote fonts, JavaScript. A blue switch means it is on.
+
+- **Pop-ups:** ad windows and tabs a page tries to open are not opened at all, and count on the shield.
 
 - **See what happened:** when something was blocked, an icon appears in the address bar. Click it to see
   how many ads and trackers were blocked on the page, and from which sites.

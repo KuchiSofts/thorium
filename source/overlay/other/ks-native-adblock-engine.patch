@@ -78,10 +78,10 @@ index 0f7d54fe9798d8726656c6cd8f30ea2194b8c4e1..908235300b443a23bea4c2a9b39d0715
        "//sandbox:sandbox_unittests",
 diff --git a/components/thoron_adblock/BUILD.gn b/components/thoron_adblock/BUILD.gn
 new file mode 100644
-index 0000000000000000000000000000000000000000..7cc8c92e8a3a850b5ba8b417a929ebb59a2a6cfb
+index 0000000000000000000000000000000000000000..b3898ba060fdbada14a397a824396a9fcabf17aa
 --- /dev/null
 +++ b/components/thoron_adblock/BUILD.gn
-@@ -0,0 +1,237 @@
+@@ -0,0 +1,242 @@
 +# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
 +
@@ -100,6 +100,7 @@ index 0000000000000000000000000000000000000000..7cc8c92e8a3a850b5ba8b417a929ebb5
 +    "procedural.rs",
 +    "header.rs",
 +    "permissions.rs",
++    "popup.rs",
 +    "query.rs",
 +    "uritransform.rs",
 +    "urlskip.rs",
@@ -187,6 +188,8 @@ index 0000000000000000000000000000000000000000..7cc8c92e8a3a850b5ba8b417a929ebb5
 +    "list_store.h",
 +    "list_updater.cc",
 +    "list_updater.h",
++    "new_window.cc",
++    "new_window.h",
 +    "proxying_url_loader_factory.cc",
 +    "proxying_url_loader_factory.h",
 +    "redirect_watcher.cc",
@@ -270,6 +273,7 @@ index 0000000000000000000000000000000000000000..7cc8c92e8a3a850b5ba8b417a929ebb5
 +    "engine_core.rs",
 +    "header.rs",
 +    "permissions.rs",
++    "popup.rs",
 +    "query.rs",
 +    "uritransform.rs",
 +    "urlskip.rs",
@@ -294,6 +298,7 @@ index 0000000000000000000000000000000000000000..7cc8c92e8a3a850b5ba8b417a929ebb5
 +    "procedural.rs",
 +    "header.rs",
 +    "permissions.rs",
++    "popup.rs",
 +    "query.rs",
 +    "uritransform.rs",
 +    "urlskip.rs",
@@ -619,10 +624,10 @@ index 0000000000000000000000000000000000000000..0d65002a3f5318dae006238f9f71279d
 +#endif  // COMPONENTS_THORON_ADBLOCK_BLOCKED_COUNT_H_
 diff --git a/components/thoron_adblock/compile_engine.rs b/components/thoron_adblock/compile_engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..beac82a339a5360c6311b96fe244ed0d681dbb4a
+index 0000000000000000000000000000000000000000..8a78abf253c4d7e08d93e9e9215ef45b742494d7
 --- /dev/null
 +++ b/components/thoron_adblock/compile_engine.rs
-@@ -0,0 +1,163 @@
+@@ -0,0 +1,165 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -640,6 +645,8 @@ index 0000000000000000000000000000000000000000..beac82a339a5360c6311b96fe244ed0d
 +mod header;
 +#[allow(dead_code)]
 +mod permissions;
++#[allow(dead_code)]
++mod popup;
 +#[allow(dead_code)]
 +mod query;
 +#[allow(dead_code)]
@@ -1671,10 +1678,10 @@ index 0000000000000000000000000000000000000000..bc172c09dcfab5376a6cb3a397be1df8
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_H_
 diff --git a/components/thoron_adblock/document_request_interceptor.cc b/components/thoron_adblock/document_request_interceptor.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..fdca0643703db9af496a113698f93967fb2dc0c3
+index 0000000000000000000000000000000000000000..ffddfd1c314046acd38a9e2633056fdb05c24f21
 --- /dev/null
 +++ b/components/thoron_adblock/document_request_interceptor.cc
-@@ -0,0 +1,175 @@
+@@ -0,0 +1,188 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1692,6 +1699,7 @@ index 0000000000000000000000000000000000000000..fdca0643703db9af496a113698f93967
 +#include "components/thoron_adblock/document_request.h"
 +#include "components/thoron_adblock/engine_service.h"
 +#include "components/thoron_adblock/features.h"
++#include "components/thoron_adblock/new_window.h"
 +#include "components/thoron_adblock/proxying_url_loader_factory.h"
 +#include "content/public/browser/web_contents.h"
 +#include "net/base/net_errors.h"
@@ -1738,6 +1746,18 @@ index 0000000000000000000000000000000000000000..fdca0643703db9af496a113698f93967
 +                content::WebContents::FromFrameTreeNodeId(frame_tree_node_id_),
 +                frame_tree_node_id_)
 +          : std::nullopt;
++  // A window a page opened blank and now sends to a pop-up ad is closed; the
++  // site of the page that opened it decides, so this comes first.
++  if (document && document->main_frame) {
++    content::WebContents* tab =
++        content::WebContents::FromFrameTreeNodeId(frame_tree_node_id_);
++    if (tab && ClosesOpenedWindow(*tab, url, settings_.get())) {
++      std::move(callback).Run(
++          base::BindOnce(&DocumentRequestInterceptor::Refuse,
++                         weak_factory_.GetWeakPtr(), std::string()));
++      return;
++    }
++  }
 +  if (!document || ProxyingURLLoaderFactory::AdsAllowedOn(
 +                       settings_.get(), document->SiteFor(url))) {
 +    std::move(callback).Run({});
@@ -1956,10 +1976,10 @@ index 0000000000000000000000000000000000000000..43051154413e4f2354bc088827e16717
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_INTERCEPTOR_H_
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..23ea08bc7a46313ad6be0f6e6a761cbff75fc505
+index 0000000000000000000000000000000000000000..5dd240c8f36a83c9018888a316ba497926ef7333
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,964 @@
+@@ -0,0 +1,973 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1973,6 +1993,7 @@ index 0000000000000000000000000000000000000000..23ea08bc7a46313ad6be0f6e6a761cbf
 +mod engine_core;
 +mod header;
 +mod permissions;
++mod popup;
 +mod procedural;
 +mod query;
 +mod uritransform;
@@ -2066,6 +2087,10 @@ index 0000000000000000000000000000000000000000..23ea08bc7a46313ad6be0f6e6a761cbf
 +
 +        /// True when the request should be blocked (`check_request` without the stand-in).
 +        fn should_block(self: &Engine, url: &str, source_url: &str, request_type: &str) -> bool;
++
++        /// True when the lists' `$popup` rules (or `$all`) block the window or tab that the page at
++        /// `opener_url` opens at `url`. A rule without either never blocks a window.
++        fn blocks_popup(self: &Engine, url: &str, opener_url: &str) -> bool;
 +
 +        /// `RequestDecision::clean_url` on its own, also for a request that would be blocked: a
 +        /// page's own navigation is never blocked, but its address is still cleaned.
@@ -2205,6 +2230,10 @@ index 0000000000000000000000000000000000000000..23ea08bc7a46313ad6be0f6e6a761cbf
 +
 +    fn should_block(&self, url: &str, source_url: &str, request_type: &str) -> bool {
 +        self.check_request(url, source_url, request_type, "GET").blocked
++    }
++
++    fn blocks_popup(&self, url: &str, opener_url: &str) -> bool {
++        self.0.as_ref().is_some_and(|f| engine_core::blocks_popup(f, url, opener_url))
 +    }
 +
 +    fn clean_url(&self, url: &str, source_url: &str, request_type: &str) -> String {
@@ -2926,10 +2955,10 @@ index 0000000000000000000000000000000000000000..23ea08bc7a46313ad6be0f6e6a761cbf
 +}
 diff --git a/components/thoron_adblock/engine_core.rs b/components/thoron_adblock/engine_core.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..ef22e40c6f8bd3239e3c0f3bae286eed94cbfe3a
+index 0000000000000000000000000000000000000000..582ea7b621345bc75aa718649484b61506dcb115
 --- /dev/null
 +++ b/components/thoron_adblock/engine_core.rs
-@@ -0,0 +1,376 @@
+@@ -0,0 +1,387 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2940,6 +2969,7 @@ index 0000000000000000000000000000000000000000..ef22e40c6f8bd3239e3c0f3bae286eed
 +use crate::header::HeaderRules;
 +use crate::query::{Pattern, Query, Special};
 +use crate::permissions::PermissionRules;
++use crate::popup::PopupRules;
 +use crate::uritransform::TransformRules;
 +use crate::urlskip::SkipRules;
 +use adblock::lists::{FilterSet, ParseOptions};
@@ -3124,6 +3154,8 @@ index 0000000000000000000000000000000000000000..ef22e40c6f8bd3239e3c0f3bae286eed
 +    pub params: ParamRules,
 +    /// The `$header` rules.
 +    pub headers: HeaderRules,
++    /// The `$popup` rules (and `$all`, which covers pop-ups).
++    pub popups: PopupRules,
 +    /// The `$urlskip` rules of the trusted lists.
 +    pub skips: SkipRules,
 +    /// The `$permissions` rules of the trusted lists.
@@ -3140,11 +3172,12 @@ index 0000000000000000000000000000000000000000..ef22e40c6f8bd3239e3c0f3bae286eed
 +        engine: adblock::Engine,
 +        params: ParamRules,
 +        headers: HeaderRules,
++        popups: PopupRules,
 +        skips: SkipRules,
 +        permissions: PermissionRules,
 +        transforms: TransformRules,
 +    ) -> Filters {
-+        Filters { engine, params, headers, skips, permissions, transforms, siteless: std::sync::OnceLock::new() }
++        Filters { engine, params, headers, popups, skips, permissions, transforms, siteless: std::sync::OnceLock::new() }
 +    }
 +}
 +
@@ -3154,10 +3187,16 @@ index 0000000000000000000000000000000000000000..ef22e40c6f8bd3239e3c0f3bae286eed
 +        adblock::Engine::new_with_filter_set(filter_set(rules)),
 +        ParamRules::from_rules(rules),
 +        HeaderRules::from_rules(rules),
++        PopupRules::from_rules(rules),
 +        SkipRules::from_trusted_text(&trusted_lines(rules, "urlskip")),
 +        PermissionRules::from_trusted_text(&trusted_lines(rules, "permissions")),
 +        TransformRules::from_trusted_text(&trusted_lines(rules, "uritransform")),
 +    )
++}
++
++/// True when the lists block the window or tab that the page at `opener_url` opens at `url`.
++pub fn blocks_popup(filters: &Filters, url: &str, opener_url: &str) -> bool {
++    filters.popups.blocks(url, opener_url)
 +}
 +
 +/// The address a `$uritransform` rule makes of a request's own, or "".
@@ -3260,14 +3299,14 @@ index 0000000000000000000000000000000000000000..ef22e40c6f8bd3239e3c0f3bae286eed
 +/// A saved engine starts with this: a name and the version of this layout. After it come two
 +/// sections of rules as text, each after its length (four bytes, little endian), then the engine
 +/// as adblock-rust saves it.
-+const SAVED: &[u8; 8] = b"THRNAB\x00\x05";
++const SAVED: &[u8; 8] = b"THRNAB\x00\x06";
 +
 +pub fn save(filters: &Filters) -> Vec<u8> {
 +    // The rules adblock-rust does not keep, one per line, in two sections: those every list may
-+    // bring (the `$removeparam` specials, `$header`), then the lines that only trusted lists may
++    // bring (the `$removeparam` specials, `$header`, `$popup`), then the lines that only trusted lists may
 +    // bring (`$urlskip`, `$permissions`, `$uritransform`). They are kept apart so that a line of
 +    // the first can never count as one of the second.
-+    let any_list = format!("{}{}", filters.params.text, filters.headers.text);
++    let any_list = format!("{}{}{}", filters.params.text, filters.headers.text, filters.popups.text);
 +    let any_list = any_list.as_bytes();
 +    let trusted = format!("{}{}{}", filters.skips.text, filters.permissions.text, filters.transforms.text);
 +    let engine = filters.engine.serialize();
@@ -3301,6 +3340,7 @@ index 0000000000000000000000000000000000000000..ef22e40c6f8bd3239e3c0f3bae286eed
 +        engine,
 +        ParamRules::from_rules(any_list),
 +        HeaderRules::from_rules(any_list),
++        PopupRules::from_rules(any_list),
 +        SkipRules::from_trusted_text(trusted),
 +        PermissionRules::from_trusted_text(trusted),
 +        TransformRules::from_trusted_text(trusted),
@@ -3308,10 +3348,10 @@ index 0000000000000000000000000000000000000000..ef22e40c6f8bd3239e3c0f3bae286eed
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..39245280a08b89da9ef02f18ab3400dc783f2dc0
+index 0000000000000000000000000000000000000000..b473ae31700dd721d0291f82b4d0577bc6dfaee4
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,729 @@
+@@ -0,0 +1,741 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3451,7 +3491,8 @@ index 0000000000000000000000000000000000000000..39245280a08b89da9ef02f18ab3400dc
 +constexpr base::TimeDelta kStatsSaveDelay = base::Seconds(30);
 +
 +bool KnownSwitch(std::string_view name) {
-+  return name == "media" || name == "cosmetic" || name == "fonts";
++  return name == "popups" || name == "media" || name == "cosmetic" ||
++         name == "fonts";
 +}
 +
 +void WriteJson(base::FilePath path, base::Value value) {
@@ -3759,6 +3800,17 @@ index 0000000000000000000000000000000000000000..39245280a08b89da9ef02f18ab3400dc
 +                                  rust::Str(kType.data(), kType.size()));
 +}
 +
++bool EngineService::BlocksPopup(const GURL& url, const GURL& opener) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!engine_ || !url.SchemeIsHTTPOrHTTPS() || !opener.is_valid()) {
++    return false;
++  }
++  const std::string& u = url.spec();
++  const std::string& o = opener.spec();
++  return (*engine_)->blocks_popup(rust::Str(u.data(), u.size()),
++                                  rust::Str(o.data(), o.size()));
++}
++
 +GURL EngineService::CleanUrl(const GURL& url,
 +                             const GURL& source,
 +                             bool main_frame) const {
@@ -4043,10 +4095,10 @@ index 0000000000000000000000000000000000000000..39245280a08b89da9ef02f18ab3400dc
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..9fcecfc05ca997b25a93e15f8827e82d0add4af9
+index 0000000000000000000000000000000000000000..87ac532cc2705a34e4e083c6882412a257be95ca
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,249 @@
+@@ -0,0 +1,253 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4138,6 +4190,10 @@ index 0000000000000000000000000000000000000000..9fcecfc05ca997b25a93e15f8827e82d
 +  // True when the lists block a WebSocket connection to `url` (ws or wss)
 +  // from the document at `source`.
 +  bool BlocksWebSocket(const GURL& url, const GURL& source) const;
++
++  // True when the lists' `$popup` rules (or `$all`) block the window or tab
++  // that the page at `opener` opens at `url` (http or https).
++  bool BlocksPopup(const GURL& url, const GURL& opener) const;
 +
 +  // For a document's own request (a page, or a frame in one): the address
 +  // without the parameters `$removeparam` rules take out. Invalid (empty)
@@ -4504,10 +4560,10 @@ index 0000000000000000000000000000000000000000..1e9ac4ba59dde97b1c62b1e15042525b
 +#endif  // COMPONENTS_THORON_ADBLOCK_FEATURES_H_
 diff --git a/components/thoron_adblock/fuzz_lists.rs b/components/thoron_adblock/fuzz_lists.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..d1996bd292bb2241fc4b8fa66e9d8289abcd7f9c
+index 0000000000000000000000000000000000000000..f146351d7cec00cc630a512f1a0d4dfde9b5ad8c
 --- /dev/null
 +++ b/components/thoron_adblock/fuzz_lists.rs
-@@ -0,0 +1,289 @@
+@@ -0,0 +1,291 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4538,6 +4594,8 @@ index 0000000000000000000000000000000000000000..d1996bd292bb2241fc4b8fa66e9d8289
 +mod header;
 +#[allow(dead_code)]
 +mod permissions;
++#[allow(dead_code)]
++mod popup;
 +#[allow(dead_code)]
 +mod query;
 +#[allow(dead_code)]
@@ -7078,6 +7136,147 @@ index 0000000000000000000000000000000000000000..397ecb69ddb3e4d84730c1d49cb23d57
 +}  // namespace thoron_adblock
 +
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_UPDATER_H_
+diff --git a/components/thoron_adblock/new_window.cc b/components/thoron_adblock/new_window.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..9f072b196fb6b43c7f13b7417cab83dd7002ec70
+--- /dev/null
++++ b/components/thoron_adblock/new_window.cc
+@@ -0,0 +1,89 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/thoron_adblock/new_window.h"
++
++#include "base/feature_list.h"
++#include "base/functional/bind.h"
++#include "base/location.h"
++#include "base/memory/weak_ptr.h"
++#include "base/task/sequenced_task_runner.h"
++#include "components/thoron_adblock/blocked_count.h"
++#include "components/thoron_adblock/engine_service.h"
++#include "components/thoron_adblock/features.h"
++#include "components/thoron_adblock/proxying_url_loader_factory.h"
++#include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/web_contents.h"
++#include "url/gurl.h"
++
++namespace thoron_adblock {
++
++namespace {
++
++// The page of the tab that `opener` is in, when the blocker works there.
++GURL OpenerSite(content::RenderFrameHost& opener,
++                const HostContentSettingsMap* settings) {
++  // As in uBlock Origin, a pop-up rule's `domain=` and its first or third
++  // party are read against the page of the tab that opens the window.
++  const GURL top = opener.GetOutermostMainFrame()->GetLastCommittedURL();
++  if (!top.SchemeIsHTTPOrHTTPS() || !settings ||
++      ProxyingURLLoaderFactory::AdsAllowedOn(settings, top)) {
++    return GURL();
++  }
++  return top;
++}
++
++void Close(base::WeakPtr<content::WebContents> tab) {
++  if (tab) {
++    tab->ClosePage();
++  }
++}
++
++}  // namespace
++
++bool BlocksNewWindow(content::RenderFrameHost& opener,
++                     const GURL& target_url,
++                     const HostContentSettingsMap* settings) {
++  if (!base::FeatureList::IsEnabled(kThoronNativeAdblock)) {
++    return false;
++  }
++  const GURL top = OpenerSite(opener, settings);
++  if (!top.is_valid()) {
++    return false;
++  }
++  const EngineService& engine = EngineService::Get();
++  const bool blocked = engine.SiteSwitch(top, "popups") ||
++                       engine.BlocksPopup(target_url, top);
++  if (blocked) {
++    BlockedCount::Record(opener.GetGlobalId(), target_url);
++  }
++  return blocked;
++}
++
++bool ClosesOpenedWindow(content::WebContents& tab,
++                        const GURL& url,
++                        const HostContentSettingsMap* settings) {
++  content::RenderFrameHost* opener = tab.GetOpener();
++  if (!base::FeatureList::IsEnabled(kThoronNativeAdblock) || !opener) {
++    return false;
++  }
++  // Nothing but its first blank document yet: window.open() commits
++  // about:blank at once, so the controller no longer calls it the initial
++  // navigation.
++  const GURL& now = tab.GetPrimaryMainFrame()->GetLastCommittedURL();
++  if (tab.GetController().GetEntryCount() > 1 ||
++      !(now.is_empty() || now.IsAboutBlank())) {
++    return false;
++  }
++  const GURL top = OpenerSite(*opener, settings);
++  if (!top.is_valid() || !EngineService::Get().BlocksPopup(url, top)) {
++    return false;
++  }
++  BlockedCount::Record(opener->GetGlobalId(), url);
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE, base::BindOnce(&Close, tab.GetWeakPtr()));
++  return true;
++}
++
++}  // namespace thoron_adblock
+diff --git a/components/thoron_adblock/new_window.h b/components/thoron_adblock/new_window.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..131119962cc6783162f9381146a326ef795fcd59
+--- /dev/null
++++ b/components/thoron_adblock/new_window.h
+@@ -0,0 +1,40 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_THORON_ADBLOCK_NEW_WINDOW_H_
++#define COMPONENTS_THORON_ADBLOCK_NEW_WINDOW_H_
++
++class GURL;
++class HostContentSettingsMap;
++
++namespace content {
++class RenderFrameHost;
++class WebContents;
++}  // namespace content
++
++namespace thoron_adblock {
++
++// True when native ad blocking keeps the document in `opener` from opening a
++// window or tab at `target_url` (window.open(), a link with a target): the
++// lists' `$popup` rules (or `$all`, which covers pop-ups) block the address
++// for the site of the tab, or the person switched pop-ups off on that site
++// (the menu's "no pop-ups", which, as in uBlock Origin, stops every window the
++// site opens, also one a click opens). A window kept from opening is counted
++// on the opener's page. False when native ad blocking is off, or ads are
++// allowed on the site. UI thread only.
++bool BlocksNewWindow(content::RenderFrameHost& opener,
++                     const GURL& target_url,
++                     const HostContentSettingsMap* settings);
++
++// For the first navigation of a window or tab that a page opened (`tab`), to
++// `url`: true when the lists' `$popup` rules block the address for the site
++// of the page that opened it. This is the page that opens a blank window and
++// sends it to an ad afterwards, which BlocksNewWindow cannot see. The window
++// is then closed soon after, and counted on the opener's page. UI thread only.
++bool ClosesOpenedWindow(content::WebContents& tab,
++                        const GURL& url,
++                        const HostContentSettingsMap* settings);
++
++}  // namespace thoron_adblock
++
++#endif  // COMPONENTS_THORON_ADBLOCK_NEW_WINDOW_H_
 diff --git a/components/thoron_adblock/permissions.rs b/components/thoron_adblock/permissions.rs
 new file mode 100644
 index 0000000000000000000000000000000000000000..00523ed2ab49618d8acc12bcd40a1fdc6390d444
@@ -7761,6 +7960,195 @@ index 0000000000000000000000000000000000000000..013be9a45a1f8a8e6908f32bc1e89368
 +  }
 +  window.__thoronPicker = stop;
 +})
+diff --git a/components/thoron_adblock/popup.rs b/components/thoron_adblock/popup.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..bb5e6c8789e8a4e07c5d7069027b5132087dca17
+--- /dev/null
++++ b/components/thoron_adblock/popup.rs
+@@ -0,0 +1,183 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++//! `$popup`: rules for the windows and tabs a page opens. adblock-rust does not read the option and
++//! leaves such rules out, so the lists' pop-up rules would be lost (EasyList has thousands, and
++//! uBlock Origin's `$all`, which its badware list uses, covers pop-ups too). They are read here:
++//! each becomes a `$document` rule in a small engine of its own, which is only asked about a new
++//! window: its address, and the page that opens it. As in uBlock Origin, a rule without `$popup`
++//! or `$all` never blocks a pop-up.
++
++use crate::header::{options_start, small_engine, split_options};
++use adblock::lists::{parse_filter, ParseOptions, ParsedLine};
++use adblock::request::Request;
++
++/// Options a pop-up rule keeps as they are: who opens the window (`domain=`, `from=`,
++/// `denyallow=`), whether it is on another site, and how the rule weighs.
++const KEPT: &[&str] = &[
++    "3p", "third-party", "~3p", "~third-party", "1p", "first-party", "~1p", "~first-party", "important",
++    "match-case", "badfilter",
++];
++
++/// Request types: a rule for one of them besides pop-ups is for the main engine there. Here only
++/// its pop-up part counts.
++const OTHER_TYPES: &[&str] = &[
++    "script", "xhr", "xmlhttprequest", "frame", "subdocument", "image", "css", "stylesheet", "font",
++    "media", "object", "object-subrequest", "other", "ping", "beacon", "websocket", "doc", "document",
++    "inline-script", "inline-font",
++];
++
++fn is_cosmetic(line: &str) -> bool {
++    ["##", "#@#", "#?#", "#$#", "#%#", "#@"].iter().any(|mark| line.contains(mark))
++}
++
++/// The `$document` rule the small engine reads for a pop-up rule of a list. `None` for every other
++/// line and for a rule that is not understood in full.
++fn rewrite(line: &str) -> Option<String> {
++    let line = line.trim();
++    if line.is_empty() || line.starts_with('!') || line.starts_with('[') || is_cosmetic(line) {
++        return None;
++    }
++    let dollar = options_start(line)?;
++    let mut for_popups = false;
++    let mut kept = Vec::new();
++    for option in split_options(&line[dollar + 1..]) {
++        let option = option.trim();
++        let name = option.split_once('=').map_or(option, |(name, _)| name);
++        match name {
++            "popup" | "all" if name == option => for_popups = true,
++            "domain" | "from" | "denyallow" if name != option => kept.push(option.to_string()),
++            _ if KEPT.contains(&option) => kept.push(option.to_string()),
++            _ if name == option && OTHER_TYPES.contains(&option.strip_prefix('~').unwrap_or(option)) => {}
++            // "~popup", "popunder", a value this file does not read, an option that changes what a
++            // match does ("redirect=", "csp="...): the rule is left out
++            _ => return None,
++        }
++    }
++    if !for_popups {
++        return None;
++    }
++    let mut filter = format!("{}$document", &line[..dollar]);
++    for option in &kept {
++        filter.push(',');
++        filter.push_str(option);
++    }
++    // adblock-rust must read it as written
++    matches!(parse_filter(&filter, false, ParseOptions::default()), Ok(ParsedLine::Network(_))).then_some(filter)
++}
++
++/// Every pop-up rule of the lists.
++#[derive(Default)]
++pub struct PopupRules {
++    engine: Option<adblock::Engine>,
++    /// The rules as the lists wrote them, one per line: what is saved with the engine.
++    pub text: String,
++}
++
++impl PopupRules {
++    /// From list text; every line that is not a pop-up rule is skipped.
++    pub fn from_rules(rules: &str) -> PopupRules {
++        let mut filters = Vec::new();
++        let mut text = String::new();
++        for line in rules.lines().filter(|l| l.contains("popup") || l.contains("all")) {
++            if let Some(filter) = rewrite(line) {
++                text.push_str(line.trim());
++                text.push('\n');
++                filters.push(filter);
++            }
++        }
++        PopupRules { engine: small_engine(&filters), text }
++    }
++
++    /// True when the lists block the window or tab that the page at `opener_url` opens at `url`.
++    pub fn blocks(&self, url: &str, opener_url: &str) -> bool {
++        let Some(engine) = &self.engine else { return false };
++        let Ok(request) = Request::new(url, opener_url, "document", "GET") else { return false };
++        engine.check_network_request(&request).should_block()
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    const LISTS: &str = "\
++||ads.example^$popup
++||bad.example^$all
++/earn.php?z=$popup,subdocument
++*$popup,3p,domain=news.example
++||promo.example^$popup,domain=shop.example|~deals.shop.example
++@@||ads.example/fine^$popup
++||script.example^$script
++||under.example^$popunder
++||never.example^$~popup,all
++||redirected.example^$popup,redirect=noop.js
++example.com##.popup
++||csp.example^$popup,csp=script-src 'none'
++";
++
++    fn rules() -> PopupRules {
++        PopupRules::from_rules(LISTS)
++    }
++
++    #[test]
++    fn popup_and_all_rules_block_a_new_window() {
++        let rules = rules();
++        assert!(rules.blocks("https://ads.example/x", "https://site.example/"));
++        assert!(rules.blocks("https://bad.example/", "https://site.example/"));
++        assert!(rules.blocks("https://anything.example/earn.php?z=1", "https://site.example/"));
++        assert!(!rules.blocks("https://plain.example/", "https://site.example/"));
++    }
++
++    #[test]
++    fn a_rule_without_popup_never_blocks_a_window() {
++        let rules = rules();
++        assert!(!rules.blocks("https://script.example/", "https://site.example/"));
++        assert!(!rules.blocks("https://under.example/", "https://site.example/"));
++        assert!(!rules.blocks("https://never.example/", "https://site.example/"));
++        assert!(!rules.blocks("https://redirected.example/", "https://site.example/"));
++        assert!(!rules.blocks("https://csp.example/", "https://site.example/"));
++    }
++
++    #[test]
++    fn the_page_that_opens_the_window_decides_domain_and_third_party() {
++        let rules = rules();
++        assert!(rules.blocks("https://other.example/", "https://news.example/a"));
++        assert!(!rules.blocks("https://news.example/b", "https://news.example/a"));
++        assert!(!rules.blocks("https://other.example/", "https://blog.example/"));
++        assert!(rules.blocks("https://promo.example/", "https://shop.example/"));
++        assert!(!rules.blocks("https://promo.example/", "https://deals.shop.example/"));
++        assert!(!rules.blocks("https://promo.example/", "https://site.example/"));
++    }
++
++    #[test]
++    fn an_exception_lets_a_window_open() {
++        let rules = rules();
++        assert!(!rules.blocks("https://ads.example/fine", "https://site.example/"));
++        assert!(rules.blocks("https://ads.example/other", "https://site.example/"));
++    }
++
++    #[test]
++    fn badfilter_cancels_a_popup_rule() {
++        let rules = PopupRules::from_rules("||ads.example^$popup\n||ads.example^$popup,badfilter\n");
++        assert!(!rules.blocks("https://ads.example/", "https://site.example/"));
++    }
++
++    #[test]
++    fn only_the_rules_read_are_kept_as_text() {
++        let rules = rules();
++        assert_eq!(rules.text.lines().count(), 6);
++        assert!(!rules.text.contains("script.example"));
++        assert!(!rules.text.contains("##"));
++        // what is saved builds the same rules again
++        let again = PopupRules::from_rules(&rules.text);
++        assert_eq!(again.text, rules.text);
++        assert!(again.blocks("https://ads.example/x", "https://site.example/"));
++    }
++
++    #[test]
++    fn no_rules_and_bad_addresses_block_nothing() {
++        assert!(!PopupRules::from_rules("").blocks("https://ads.example/", "https://site.example/"));
++        assert!(!rules().blocks("not a url", "https://site.example/"));
++    }
++}
 diff --git a/components/thoron_adblock/popup_page.html b/components/thoron_adblock/popup_page.html
 new file mode 100644
 index 0000000000000000000000000000000000000000..874d4d9cc76874e8fa750acf288f8277760ea8bc
