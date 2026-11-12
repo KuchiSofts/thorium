@@ -78,10 +78,10 @@ index 0f7d54fe9798d8726656c6cd8f30ea2194b8c4e1..908235300b443a23bea4c2a9b39d0715
        "//sandbox:sandbox_unittests",
 diff --git a/components/thoron_adblock/BUILD.gn b/components/thoron_adblock/BUILD.gn
 new file mode 100644
-index 0000000000000000000000000000000000000000..666039fe534cca52595be702cca22eac4e7f7d29
+index 0000000000000000000000000000000000000000..09c18d3b5516fb8afb14d02cd2503d5f7fde707b
 --- /dev/null
 +++ b/components/thoron_adblock/BUILD.gn
-@@ -0,0 +1,220 @@
+@@ -0,0 +1,223 @@
 +# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
 +
@@ -98,6 +98,7 @@ index 0000000000000000000000000000000000000000..666039fe534cca52595be702cca22eac
 +    "cosmetics.rs",
 +    "engine_core.rs",
 +    "procedural.rs",
++    "permissions.rs",
 +    "query.rs",
 +    "urlskip.rs",
 +  ]
@@ -257,6 +258,7 @@ index 0000000000000000000000000000000000000000..666039fe534cca52595be702cca22eac
 +  sources = [
 +    crate_root,
 +    "engine_core.rs",
++    "permissions.rs",
 +    "query.rs",
 +    "urlskip.rs",
 +  ]
@@ -278,6 +280,7 @@ index 0000000000000000000000000000000000000000..666039fe534cca52595be702cca22eac
 +    "cosmetics.rs",
 +    "engine_core.rs",
 +    "procedural.rs",
++    "permissions.rs",
 +    "query.rs",
 +    "urlskip.rs",
 +  ]
@@ -500,10 +503,10 @@ index 0000000000000000000000000000000000000000..9a8463187282205213e69cf31f75289e
 +#endif  // COMPONENTS_THORON_ADBLOCK_BLOCKED_COUNT_H_
 diff --git a/components/thoron_adblock/compile_engine.rs b/components/thoron_adblock/compile_engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..033e90c355575efa9e4f68ade9c2cb58e63c20a1
+index 0000000000000000000000000000000000000000..73039521675d26432b6177b8026f97891fa11714
 --- /dev/null
 +++ b/components/thoron_adblock/compile_engine.rs
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,86 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -517,6 +520,8 @@ index 0000000000000000000000000000000000000000..033e90c355575efa9e4f68ade9c2cb58
 +// This tool uses only part of what it shares with the browser's engine.
 +#[allow(dead_code)]
 +mod engine_core;
++#[allow(dead_code)]
++mod permissions;
 +#[allow(dead_code)]
 +mod query;
 +#[allow(dead_code)]
@@ -884,10 +889,10 @@ index 0000000000000000000000000000000000000000..74b512c246f45abbe61e2b2693a13d25
 +};
 diff --git a/components/thoron_adblock/document_loader_throttle.cc b/components/thoron_adblock/document_loader_throttle.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..224789e00c85147fe1e00885caf656ff0a54a9bf
+index 0000000000000000000000000000000000000000..5bff00af84bf66e504843f0b95898ebc578e6830
 --- /dev/null
 +++ b/components/thoron_adblock/document_loader_throttle.cc
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,110 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -958,6 +963,15 @@ index 0000000000000000000000000000000000000000..224789e00c85147fe1e00885caf656ff
 +      response_url, document_.SourceFor(response_url), document_.main_frame);
 +  if (!policy.empty()) {
 +    AddPolicy(policy, response_url, response_head);
++  }
++  // Features the lists switch off for the document ($permissions). The engine
++  // only ever returns "name=()" entries, so this header can take a feature
++  // away from the page and never give one. The renderer reads the header when
++  // the document commits; a later entry for a feature overrides the site's.
++  const std::string permissions = EngineService::Get().DocumentPermissions(
++      response_url, document_.SourceFor(response_url), document_.main_frame);
++  if (!permissions.empty() && response_head->headers) {
++    response_head->headers->AddHeader("Permissions-Policy", permissions);
 +  }
 +}
 +
@@ -1651,10 +1665,10 @@ index 0000000000000000000000000000000000000000..43051154413e4f2354bc088827e16717
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_INTERCEPTOR_H_
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..c961bbb3c8aa83baf24c1e2d5b47d088a82e00c3
+index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077ab999fe09
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,766 @@
+@@ -0,0 +1,802 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1666,6 +1680,7 @@ index 0000000000000000000000000000000000000000..c961bbb3c8aa83baf24c1e2d5b47d088
 +
 +mod cosmetics;
 +mod engine_core;
++mod permissions;
 +mod procedural;
 +mod query;
 +mod urlskip;
@@ -1749,6 +1764,10 @@ index 0000000000000000000000000000000000000000..c961bbb3c8aa83baf24c1e2d5b47d088
 +        /// is the page a frame is in; for a page itself, its own address. Empty: none.
 +        fn document_policy(self: &Engine, url: &str, source_url: &str, main_frame: bool) -> String;
 +
++        /// The value of the Permissions-Policy header the `$permissions` rules of the trusted lists
++        /// give a document: the features they switch off, "a=(), b=()". "" when no rule matches.
++        fn document_permissions(self: &Engine, url: &str, source_url: &str, main_frame: bool) -> String;
++
 +        /// Where a navigation of the main frame to `url` should go instead, by a `$urlskip` rule of
 +        /// a trusted list: the address written inside the address of a redirector. "" when the
 +        /// navigation stays as it is. Only a suggestion: the caller checks the address it gets.
@@ -1799,6 +1818,10 @@ index 0000000000000000000000000000000000000000..c961bbb3c8aa83baf24c1e2d5b47d088
 +impl Engine {
 +    fn is_valid(&self) -> bool {
 +        self.0.is_some()
++    }
++
++    fn document_permissions(&self, url: &str, source_url: &str, main_frame: bool) -> String {
++        self.0.as_ref().map(|f| f.permissions.policy(url, source_url, main_frame)).unwrap_or_default()
 +    }
 +
 +    fn skip_url(&self, url: &str, source_url: &str) -> String {
@@ -2164,6 +2187,33 @@ index 0000000000000000000000000000000000000000..c961bbb3c8aa83baf24c1e2d5b47d088
 +    }
 +
 +    #[test]
++    fn permissions_rules_count_only_in_trusted_lists_and_survive_saving() {
++        let rule = "*$permissions=browsing-topics=(),from=~localhost\n";
++        let url = "https://news.example/";
++        let trusted = engine_from_rules(&format!("! thoron-list: ublock-privacy\n{rule}"));
++        assert_eq!(trusted.document_permissions(url, url, true), "browsing-topics=()");
++        assert_eq!(trusted.document_permissions("http://localhost/", "http://localhost/", true), "");
++        for id in ["easylist", "custom-0123456789abcdef", "my-filters"] {
++            let other = engine_from_rules(&format!("! thoron-list: {id}\n{rule}"));
++            assert_eq!(other.document_permissions(url, url, true), "", "{id}");
++        }
++        let saved = trusted.serialize();
++        assert_eq!(engine_from_serialized(&saved).document_permissions(url, url, true), "browsing-topics=()");
++        // A line of a list without trust is never read as a trusted one, also not after saving: a
++        // `$removeparam` rule (saved for every list) that names the other options too.
++        let smuggled = engine_from_rules(
++            "! thoron-list: my-filters\n*$removeparam=/^x/,permissions=browsing-topics=()\n\
++             ||out.example^$removeparam=/^x/,doc,urlskip=?u\n",
++        );
++        let restored = engine_from_serialized(&smuggled.serialize());
++        let out = "https://out.example/?u=https://shop.example/";
++        for engine in [&smuggled, &restored] {
++            assert_eq!(engine.document_permissions(url, url, true), "");
++            assert_eq!(engine.skip_url(out, out), "");
++        }
++    }
++
++    #[test]
 +    fn urlskip_rules_count_only_in_trusted_lists_and_survive_saving() {
 +        let rule = "||out.example/go^$doc,urlskip=?url\n";
 +        let url = "https://out.example/go?url=https%3A%2F%2Fshop.example%2Fp";
@@ -2423,10 +2473,10 @@ index 0000000000000000000000000000000000000000..c961bbb3c8aa83baf24c1e2d5b47d088
 +}
 diff --git a/components/thoron_adblock/engine_core.rs b/components/thoron_adblock/engine_core.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..de34195869333db29f7f8d7611aca73a9d280829
+index 0000000000000000000000000000000000000000..2c3705a17fd971a8319a99f068fe5100e3a1bc19
 --- /dev/null
 +++ b/components/thoron_adblock/engine_core.rs
-@@ -0,0 +1,303 @@
+@@ -0,0 +1,321 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2435,6 +2485,7 @@ index 0000000000000000000000000000000000000000..de34195869333db29f7f8d7611aca73a
 +//! one built in the browser treat every list the same way.
 +
 +use crate::query::{Pattern, Query, Special};
++use crate::permissions::PermissionRules;
 +use crate::urlskip::SkipRules;
 +use adblock::lists::{FilterSet, ParseOptions};
 +use adblock::request::Request;
@@ -2464,18 +2515,19 @@ index 0000000000000000000000000000000000000000..de34195869333db29f7f8d7611aca73a
 +    id.starts_with("ublock-")
 +}
 +
-+/// The `$urlskip` rules of the trusted lists (urlskip.rs).
-+fn skip_rules(rules: &str) -> SkipRules {
++/// The lines of the trusted lists that hold `word`: where the rules come from that only such lists
++/// may bring (`$urlskip`, `$permissions`).
++fn trusted_lines(rules: &str, word: &str) -> String {
 +    let mut lines = String::new();
 +    for (id, text) in split_lists(rules) {
 +        if is_trusted(id) {
-+            for line in text.lines().filter(|l| l.contains("urlskip")) {
++            for line in text.lines().filter(|l| l.contains(word)) {
 +                lines.push_str(line);
 +                lines.push('\n');
 +            }
 +        }
 +    }
-+    SkipRules::from_trusted_text(&lines)
++    lines
 +}
 +
 +/// The lists file by list, as (id, text). Text before the first marker has the id "".
@@ -2616,14 +2668,16 @@ index 0000000000000000000000000000000000000000..de34195869333db29f7f8d7611aca73a
 +    pub params: ParamRules,
 +    /// The `$urlskip` rules of the trusted lists.
 +    pub skips: SkipRules,
++    /// The `$permissions` rules of the trusted lists.
++    pub permissions: PermissionRules,
 +    /// Hide rules for every site that are written with a procedural operator; found by the
 +    /// engine (engine.rs) the first time a document asks, and never applied.
 +    pub siteless: std::sync::OnceLock<std::collections::HashSet<String>>,
 +}
 +
 +impl Filters {
-+    fn new(engine: adblock::Engine, params: ParamRules, skips: SkipRules) -> Filters {
-+        Filters { engine, params, skips, siteless: std::sync::OnceLock::new() }
++    fn new(engine: adblock::Engine, params: ParamRules, skips: SkipRules, permissions: PermissionRules) -> Filters {
++        Filters { engine, params, skips, permissions, siteless: std::sync::OnceLock::new() }
 +    }
 +}
 +
@@ -2632,7 +2686,8 @@ index 0000000000000000000000000000000000000000..de34195869333db29f7f8d7611aca73a
 +    Filters::new(
 +        adblock::Engine::new_with_filter_set(filter_set(rules)),
 +        ParamRules::from_rules(rules),
-+        skip_rules(rules),
++        SkipRules::from_trusted_text(&trusted_lines(rules, "urlskip")),
++        PermissionRules::from_trusted_text(&trusted_lines(rules, "permissions")),
 +    )
 +}
 +
@@ -2700,42 +2755,55 @@ index 0000000000000000000000000000000000000000..de34195869333db29f7f8d7611aca73a
 +/// A saved engine starts with this: a name and the version of this layout. After it: the length
 +/// of the special `$removeparam` rules (four bytes, little endian), those rules as text, then the
 +/// engine as adblock-rust saves it.
-+const SAVED: &[u8; 8] = b"THRNAB\x00\x02";
++const SAVED: &[u8; 8] = b"THRNAB\x00\x03";
 +
 +pub fn save(filters: &Filters) -> Vec<u8> {
-+    // The rules adblock-rust does not keep: `$removeparam` specials and `$urlskip`, one per line.
-+    let text = format!("{}{}", filters.params.text, filters.skips.text);
-+    let text = text.as_bytes();
++    // The rules adblock-rust does not keep, one per line, in two sections: the `$removeparam`
++    // specials of every list, then the lines that only trusted lists may bring (`$urlskip`,
++    // `$permissions`). They are kept apart so that a line of the first can never count as one of
++    // the second.
++    let any_list = filters.params.text.as_bytes();
++    let trusted = format!("{}{}", filters.skips.text, filters.permissions.text);
 +    let engine = filters.engine.serialize();
-+    let mut data = Vec::with_capacity(SAVED.len() + 4 + text.len() + engine.len());
++    let mut data = Vec::with_capacity(SAVED.len() + 8 + any_list.len() + trusted.len() + engine.len());
 +    data.extend_from_slice(SAVED);
-+    data.extend_from_slice(&(text.len() as u32).to_le_bytes());
-+    data.extend_from_slice(text);
++    for section in [any_list, trusted.as_bytes()] {
++        data.extend_from_slice(&(section.len() as u32).to_le_bytes());
++        data.extend_from_slice(section);
++    }
 +    data.extend_from_slice(&engine);
 +    data
 +}
 +
 +/// `None` for anything that is not a saved engine of this layout.
 +pub fn load(data: &[u8]) -> Option<Filters> {
-+    let rest = data.strip_prefix(SAVED)?;
-+    let (length, rest) = rest.split_first_chunk::<4>()?;
-+    let length = u32::from_le_bytes(*length) as usize;
-+    if length > rest.len() {
-+        return None;
++    fn section(data: &[u8]) -> Option<(&str, &[u8])> {
++        let (length, rest) = data.split_first_chunk::<4>()?;
++        let length = u32::from_le_bytes(*length) as usize;
++        if length > rest.len() {
++            return None;
++        }
++        let (text, rest) = rest.split_at(length);
++        Some((std::str::from_utf8(text).ok()?, rest))
 +    }
-+    let (text, saved_engine) = rest.split_at(length);
-+    let text = std::str::from_utf8(text).ok()?;
++    let (any_list, rest) = section(data.strip_prefix(SAVED)?)?;
++    // These lines were taken from trusted lists when the engine was built.
++    let (trusted, saved_engine) = section(rest)?;
 +    let mut engine = adblock::Engine::default();
 +    engine.deserialize(saved_engine).ok()?;
-+    // The saved lines were taken from trusted lists when the engine was built.
-+    Some(Filters::new(engine, ParamRules::from_rules(text), SkipRules::from_trusted_text(text)))
++    Some(Filters::new(
++        engine,
++        ParamRules::from_rules(any_list),
++        SkipRules::from_trusted_text(trusted),
++        PermissionRules::from_trusted_text(trusted),
++    ))
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..91fe4e0aef76b1ee9545de01504e93bdfb811a0f
+index 0000000000000000000000000000000000000000..94607105147d71a1b3e9af0f8235a7f93fb8ea1f
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,439 @@
+@@ -0,0 +1,453 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2970,6 +3038,20 @@ index 0000000000000000000000000000000000000000..91fe4e0aef76b1ee9545de01504e93bd
 +      main_frame));
 +}
 +
++std::string EngineService::DocumentPermissions(const GURL& url,
++                                               const GURL& source,
++                                               bool main_frame) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!engine_ || !url.SchemeIsHTTPOrHTTPS() || !source.is_valid()) {
++    return std::string();
++  }
++  const std::string& u = url.spec();
++  const std::string& s = source.spec();
++  return std::string((*engine_)->document_permissions(
++      rust::Str(u.data(), u.size()), rust::Str(s.data(), s.size()),
++      main_frame));
++}
++
 +EngineService::Document EngineService::ForDocument(const GURL& url) const {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 +  if (!engine_ || !url.SchemeIsHTTPOrHTTPS()) {
@@ -3177,10 +3259,10 @@ index 0000000000000000000000000000000000000000..91fe4e0aef76b1ee9545de01504e93bd
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..7c671b7276e955d5ce0210d6ff1d19fb85b40154
+index 0000000000000000000000000000000000000000..bc86ae3b288e2ece9f2989c8a3c2b699b0eeea38
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,177 @@
+@@ -0,0 +1,184 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3273,6 +3355,13 @@ index 0000000000000000000000000000000000000000..7c671b7276e955d5ce0210d6ff1d19fb
 +                             bool main_frame) const;
 +
 +  // What a document needs besides request blocking.
++  // The value of the Permissions-Policy header for a document: the features
++  // that `$permissions` rules of the trusted lists switch off. Empty when
++  // there are none. It can only take features away from a page.
++  std::string DocumentPermissions(const GURL& url,
++                                  const GURL& source,
++                                  bool main_frame) const;
++
 +  struct Document {
 +    // Hides elements; to insert as a user style sheet. Empty: nothing to hide.
 +    std::string stylesheet;
@@ -3566,10 +3655,10 @@ index 0000000000000000000000000000000000000000..1e9ac4ba59dde97b1c62b1e15042525b
 +#endif  // COMPONENTS_THORON_ADBLOCK_FEATURES_H_
 diff --git a/components/thoron_adblock/fuzz_lists.rs b/components/thoron_adblock/fuzz_lists.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..f80c48ce79a22ba9ad0a569887711c065abc9af0
+index 0000000000000000000000000000000000000000..f22f85799c7906530b424f31d19fd93c09429265
 --- /dev/null
 +++ b/components/thoron_adblock/fuzz_lists.rs
-@@ -0,0 +1,283 @@
+@@ -0,0 +1,285 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3596,6 +3685,8 @@ index 0000000000000000000000000000000000000000..f80c48ce79a22ba9ad0a569887711c06
 +mod engine_core;
 +#[allow(dead_code)]
 +mod procedural;
++#[allow(dead_code)]
++mod permissions;
 +#[allow(dead_code)]
 +mod query;
 +#[allow(dead_code)]
@@ -5445,6 +5536,206 @@ index 0000000000000000000000000000000000000000..397ecb69ddb3e4d84730c1d49cb23d57
 +}  // namespace thoron_adblock
 +
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_UPDATER_H_
+diff --git a/components/thoron_adblock/permissions.rs b/components/thoron_adblock/permissions.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..00523ed2ab49618d8acc12bcd40a1fdc6390d444
+--- /dev/null
++++ b/components/thoron_adblock/permissions.rs
+@@ -0,0 +1,194 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++//! `$permissions`: the lists switch browser features off for a document, by a Permissions-Policy
++//! header. uBlock Origin's lists use it against the features that were built for ad targeting and
++//! for telling browsers apart (`*$permissions=browsing-topics=(),from=~localhost|...`).
++//!
++//! adblock-rust does not know the option. It does know `$csp`, which works the same way: the
++//! values of all the rules that match a document are collected, without those an exception takes
++//! away. So the rules are read as `$csp` rules by an engine of their own.
++//!
++//! Only rules of trusted lists are taken (engine_core.rs), and only values that switch features
++//! off ("name=()"): a rule can take a feature away from a page, never give one.
++
++use adblock::lists::{FilterSet, ParseOptions};
++use adblock::request::Request;
++
++/// True for "name=()": the feature `name` is off for the document and everything in it.
++fn switches_off(policy: &str) -> bool {
++    match policy.strip_suffix("=()") {
++        Some(name) => {
++            (1..=64).contains(&name.len())
++                && name.starts_with(|c: char| c.is_ascii_lowercase())
++                && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
++        }
++        None => false,
++    }
++}
++
++/// The `$permissions` line of a list as the `$csp` rule adblock-rust reads; `None` for every other
++/// line and for a rule that is not understood in full or does more than switch features off.
++pub fn as_csp_rule(line: &str) -> Option<String> {
++    let line = line.trim();
++    if line.is_empty() || line.starts_with('!') || line.contains("##") || line.contains("#@#") {
++        return None;
++    }
++    // The option, not the word inside a pattern.
++    let dollar = line.match_indices("permissions").find_map(|(at, _)| {
++        let dollar = line[..at].rfind('$')?;
++        (dollar + 1 == at || line[..at].ends_with(',')).then_some(dollar)
++    })?;
++    let pattern = &line[..dollar];
++    let exception = pattern.starts_with("@@");
++    let mut options = Vec::new();
++    let mut found = false;
++    for option in line[dollar + 1..].split(',').filter(|o| !o.is_empty()) {
++        if option == "permissions" {
++            // without a value: an exception that takes every such policy away
++            if !exception {
++                return None;
++            }
++            options.push("csp".to_string());
++            found = true;
++        } else if let Some(value) = option.strip_prefix("permissions=") {
++            // several features are written with "|" between them
++            if !value.split('|').all(switches_off) {
++                return None;
++            }
++            options.push(format!("csp={value}"));
++            found = true;
++        } else if let Some(sites) = option.strip_prefix("from=") {
++            options.push(format!("domain={sites}"));
++        } else if option.starts_with("to=") || option.starts_with("csp") {
++            return None;
++        } else {
++            options.push(option.to_string());
++        }
++    }
++    found.then(|| format!("{pattern}${}", options.join(",")))
++}
++
++/// Every `$permissions` rule of the trusted lists.
++#[derive(Default)]
++pub struct PermissionRules {
++    engine: Option<adblock::Engine>,
++    /// The rules as the lists wrote them, one per line: what is saved with the engine.
++    pub text: String,
++}
++
++impl PermissionRules {
++    /// From lines of trusted lists; every line that is not a `$permissions` rule is skipped.
++    pub fn from_trusted_text(lines: &str) -> PermissionRules {
++        let mut rules = PermissionRules::default();
++        let mut filters = Vec::new();
++        for line in lines.lines().filter(|l| l.contains("permissions")) {
++            let Some(rule) = as_csp_rule(line) else { continue };
++            rules.text.push_str(line.trim());
++            rules.text.push('\n');
++            filters.push(rule);
++        }
++        if !filters.is_empty() {
++            let mut set = FilterSet::new(false);
++            set.add_filter_list(filters.join("\n"), ParseOptions::default());
++            rules.engine = Some(adblock::Engine::new_with_filter_set(set));
++        }
++        rules
++    }
++
++    /// The value of the Permissions-Policy header the rules give a document, or "".
++    pub fn policy(&self, url: &str, source_url: &str, main_frame: bool) -> String {
++        let Some(engine) = &self.engine else { return String::new() };
++        let request_type = if main_frame { "document" } else { "subdocument" };
++        let Ok(request) = Request::new(url, source_url, request_type, "GET") else { return String::new() };
++        let Some(found) = engine.get_csp_directives(&request) else { return String::new() };
++        let mut features: Vec<&str> =
++            found.split(|c| c == ',' || c == '|').map(str::trim).filter(|p| switches_off(p)).collect();
++        features.sort_unstable();
++        features.dedup();
++        let header = features.join(", ");
++        if header.len() <= 2048 {
++            header
++        } else {
++            String::new()
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    const LOCAL: &str = "from=~localhost|~127.0.0.1|~[::1]|~0.0.0.0|~[::]|~local";
++
++    #[test]
++    fn a_rule_is_read_as_a_csp_rule() {
++        assert_eq!(
++            as_csp_rule("*$permissions=browsing-topics=(),from=~localhost|~local").as_deref(),
++            Some("*$csp=browsing-topics=(),domain=~localhost|~local")
++        );
++        assert_eq!(
++            as_csp_rule("||ads.example^$permissions=run-ad-auction=()|join-ad-interest-group=()").as_deref(),
++            Some("||ads.example^$csp=run-ad-auction=()|join-ad-interest-group=()")
++        );
++        assert_eq!(
++            as_csp_rule("@@||shop.example^$permissions=browsing-topics=()").as_deref(),
++            Some("@@||shop.example^$csp=browsing-topics=()")
++        );
++        assert_eq!(as_csp_rule("@@||shop.example^$permissions").as_deref(), Some("@@||shop.example^$csp"));
++    }
++
++    #[test]
++    fn a_rule_that_gives_a_feature_or_is_not_understood_is_left_out() {
++        for not_taken in [
++            "*$permissions=camera=*",                      // gives the camera to every frame
++            "*$permissions=camera=(self)",
++            "*$permissions=geolocation=(\"https://x.example\")",
++            "*$permissions=browsing-topics=()|camera=*",
++            "*$permissions=",
++            "*$permissions",                               // a rule needs a value
++            "*$permissions=Browsing-Topics=()",
++            "*$permissions=browsing-topics=(),to=x.example",
++            "*$permissions=browsing-topics=(),csp=script-src 'none'",
++            "! *$permissions=browsing-topics=()",
++            "news.example##.permissions",
++            "||x.example/permissions^$doc",
++            "*$nopermissions=browsing-topics=()",
++        ] {
++            assert!(as_csp_rule(not_taken).is_none(), "{not_taken}");
++        }
++    }
++
++    #[test]
++    fn a_document_gets_the_features_that_are_switched_off() {
++        let rules = PermissionRules::from_trusted_text(&format!(
++            "*$permissions=browsing-topics=(),{LOCAL}\n*$permissions=run-ad-auction=(),{LOCAL}\n\
++             ||special.example^$permissions=idle-detection=()|keyboard-map=()\n\
++             @@||shop.example^$permissions=browsing-topics=()\n@@||bank.example^$permissions\n||ads.example^\n"
++        ));
++        assert_eq!(rules.text.lines().count(), 5, "{}", rules.text);
++        let page = |url: &str| rules.policy(url, url, true);
++        assert_eq!(page("https://news.example/story"), "browsing-topics=(), run-ad-auction=()");
++        assert_eq!(
++            page("https://special.example/"),
++            "browsing-topics=(), idle-detection=(), keyboard-map=(), run-ad-auction=()"
++        );
++        // an exception takes one policy away, or all of them
++        assert_eq!(page("https://shop.example/"), "run-ad-auction=()");
++        assert_eq!(page("https://bank.example/"), "");
++        // pages on the PC itself are left alone, as the lists ask
++        assert_eq!(page("http://localhost/"), "");
++        assert_eq!(page("http://127.0.0.1:8080/x"), "");
++        // a frame is a document too; the site of the page it is in decides
++        assert_eq!(rules.policy("https://frame.example/", "https://news.example/", false), "browsing-topics=(), run-ad-auction=()");
++        assert_eq!(rules.policy("https://frame.example/", "http://localhost/", false), "");
++        assert_eq!(page("not a url"), "");
++    }
++
++    #[test]
++    fn no_rules_no_policy() {
++        let none = PermissionRules::from_trusted_text("||ads.example^\n*$permissions=camera=*\n");
++        assert!(none.text.is_empty());
++        assert_eq!(none.policy("https://news.example/", "https://news.example/", true), "");
++    }
++}
 diff --git a/components/thoron_adblock/procedural.js b/components/thoron_adblock/procedural.js
 new file mode 100644
 index 0000000000000000000000000000000000000000..af9b12d8d3e62c71057f9b31b80917a817439332

@@ -22,7 +22,16 @@ $removeparam=_hsenc
 $removeparam=mtm_source
 ||msn.example^$doc,removeparam=ei
 $csp=child-src 'none'; frame-src 'self' *; worker-src 'none',domain=file.example|other.example
+! thoron-list: ublock-privacy
+*$permissions=idle-detection=(),from=~localhost|~127.0.0.1|~[::1]|~local
+*$permissions=browsing-topics=(),from=~localhost|~127.0.0.1|~[::1]|~local
+*$permissions=camera=*,from=~localhost
+||one.example^$permissions=keyboard-map=()
+@@||xxxcams.example^$permissions=browsing-topics=()
+@@||shop.example^$permissions=browsing-topics=()
+@@||late.example^$permissions=idle-detection=()
 """
+FEATURES = ["idle-detection", "browsing-topics"]
 
 
 class SelectorTests(unittest.TestCase):
@@ -69,6 +78,18 @@ class CaseTests(unittest.TestCase):
         self.assertEqual(only_domain["csp"],
                          {"host": "file.example", "policy": "child-src 'none'; worker-src 'none'", "by_address": False})
 
+    def test_permissions_takes_every_feature_the_lists_switch_off_everywhere(self):
+        self.assertEqual(self.cases["permissions"], {"host": sc.PERMISSIONS_HOST, "features": FEATURES})
+
+    def test_permissions_kept_takes_the_first_exception_for_one_of_them(self):
+        self.assertEqual(self.cases["permissions-kept"],
+                         {"host": "shop.example", "kept": "browsing-topics", "features": FEATURES})
+        # an exception for a feature that no rule switches off shows nothing
+        self.assertNotIn("permissions-kept",
+                         sc.cases("*$permissions=idle-detection=(),from=~localhost\n"
+                                  "@@||shop.example^$permissions=browsing-topics=()\n"))
+        self.assertNotIn("permissions", sc.cases("@@||shop.example^$permissions=browsing-topics=()\n"))
+
     def test_hosts_not_fit_for_a_report_are_skipped(self):
         self.assertNotIn("xxxtube.example", [c.get("host") for c in self.cases.values()])
         self.assertNotIn("has-text", sc.cases("xxxtube.example##.card:has-text(Advert)\n"))
@@ -83,7 +104,7 @@ class CaseTests(unittest.TestCase):
     def test_hosts_of_all_cases(self):
         self.assertEqual(sc.hosts(self.cases),
                          sorted(["blog.example", "files.example", "games.example", "news.example", "shop.example",
-                                 sc.PARAM_HOST, "video.example", "wall.example"]))
+                                 sc.PARAM_HOST, sc.PERMISSIONS_HOST, "video.example", "wall.example"]))
 
 
 class PageTests(unittest.TestCase):
@@ -111,11 +132,27 @@ class PageTests(unittest.TestCase):
         for path in ("/data.json?_hsenc=abc&keep=1", "/shape.gif?_hsenc=abc&keep=1", "/inner.html?_hsenc=abc&keep=1"):
             self.assertIn(path, html)
 
+    def test_the_permissions_pages_ask_about_every_feature(self):
+        for kind in ("permissions", "permissions-kept"):
+            html = sc.page_html(kind, self.cases[kind])
+            self.assertIn('["idle-detection", "browsing-topics"]', html)
+            self.assertIn("allowsFeature", html)
+
+    def test_the_permissions_page_comes_with_the_sites_own_header(self):
+        # the site says the features are its own to use: the rules must win over that
+        self.assertEqual(sc.page_headers("permissions", self.cases["permissions"]),
+                         {"Permissions-Policy": "idle-detection=(self), browsing-topics=(self)"})
+        for kind in ("permissions-kept", "csp", "remove"):
+            self.assertEqual(sc.page_headers(kind, self.cases[kind]), {}, kind)
+
     def test_the_parent_page_frames_what_applies_inside_a_frame(self):
         html = sc.parent_html(self.cases)
         for host in ("news.example", "games.example", "shop.example", "video.example"):
             self.assertIn(f'src="http://{host}/', html)
         self.assertNotIn(sc.PARAM_HOST, html)   # the removeparam page brings its own frame
+        # the permissions rules leave pages on this PC alone, and the parent page is one
+        self.assertNotIn(sc.PERMISSIONS_HOST, html)
+        self.assertEqual(html.count("<iframe"), 7)
         # a csp rule that goes by the page's site does not apply to a frame of another page
         by_domain = dict(self.cases, csp={"host": "file.example", "policy": "worker-src 'none'", "by_address": False})
         self.assertNotIn("file.example", sc.parent_html(by_domain))
@@ -136,6 +173,8 @@ class ProblemTests(unittest.TestCase):
             "removeparam": {"search": "?keep=1", "seen": {"/clean.html": "keep=1", "/data.json": "keep=1",
                                                          "/inner.html": "keep=1", "/shape.gif": "_hsenc=abc&keep=1"}},
             "csp": {"worker": "refused", "violations": [{"directive": "worker-src", "policy": "worker-src 'none'"}]},
+            "permissions": {"known": FEATURES, "allowed": []},
+            "permissions-kept": {"known": FEATURES, "allowed": ["browsing-topics"]},
         }[kind]
 
     def untouched(self, kind):
@@ -150,6 +189,8 @@ class ProblemTests(unittest.TestCase):
             "removeparam": {"search": "?" + dirty, "seen": {"/clean.html": dirty, "/data.json": dirty,
                                                            "/inner.html": dirty, "/shape.gif": dirty}},
             "csp": {"worker": "started", "violations": []},
+            "permissions": {"known": FEATURES, "allowed": FEATURES},
+            "permissions-kept": {"known": FEATURES, "allowed": FEATURES},
         }[kind]
 
     def test_with_blocking_on_every_rule_must_have_acted(self):
@@ -195,6 +236,40 @@ class ProblemTests(unittest.TestCase):
         case = self.cases["csp"]
         other = {"worker": "refused", "violations": [{"directive": "worker-src", "policy": "worker-src 'self'"}]}
         self.assertTrue(sc.problems("native", "csp", case, other))
+
+    def test_permissions_are_judged_feature_by_feature(self):
+        case = self.cases["permissions"]
+        found = sc.problems("native", "permissions", case, {"known": FEATURES, "allowed": ["idle-detection"]})
+        self.assertEqual(found, ["idle-detection is still allowed"])
+        found = sc.problems("control", "permissions", case, {"known": FEATURES, "allowed": ["idle-detection"]})
+        self.assertEqual(len(found), 1)
+        self.assertIn("browsing-topics is switched off", found[0])
+        # a feature this browser does not have cannot be on or off
+        only_one = {"known": ["idle-detection"], "allowed": []}
+        self.assertEqual(sc.problems("native", "permissions", case, only_one), [])
+        # with none of them there is nothing to see, and that is a problem
+        for mode in ("native", "control"):
+            found = sc.problems(mode, "permissions", case, {"known": [], "allowed": []})
+            self.assertEqual(len(found), 1, mode)
+            self.assertIn("knows none", found[0])
+
+    def test_an_exception_keeps_its_feature_and_only_that(self):
+        case = self.cases["permissions-kept"]
+        found = sc.problems("native", "permissions-kept", case, {"known": FEATURES, "allowed": []})
+        self.assertEqual(len(found), 1)
+        self.assertIn("exception", found[0])
+        found = sc.problems("native", "permissions-kept", case, {"known": FEATURES, "allowed": FEATURES})
+        self.assertEqual(found, ["idle-detection is still allowed"])
+
+    def test_what_the_run_with_blocking_off_cannot_show_is_not_judged(self):
+        kept = self.cases["permissions-kept"]
+        self.assertFalse(sc.judgeable("remove", self.cases["remove"], None))
+        self.assertTrue(sc.judgeable("remove", self.cases["remove"], {"present": True}))
+        self.assertTrue(sc.judgeable("permissions-kept", kept, {"known": FEATURES, "allowed": FEATURES}))
+        # the browser does not have the feature the exception is about
+        self.assertFalse(sc.judgeable("permissions-kept", kept, {"known": ["idle-detection"], "allowed": []}))
+        # the plain permissions case stays in: a browser without any of the features fails it
+        self.assertTrue(sc.judgeable("permissions", self.cases["permissions"], {"known": [], "allowed": []}))
 
     def test_an_unknown_mode_is_an_error(self):
         with self.assertRaises(ValueError):
