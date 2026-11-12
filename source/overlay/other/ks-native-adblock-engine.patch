@@ -78,10 +78,10 @@ index 0f7d54fe9798d8726656c6cd8f30ea2194b8c4e1..908235300b443a23bea4c2a9b39d0715
        "//sandbox:sandbox_unittests",
 diff --git a/components/thoron_adblock/BUILD.gn b/components/thoron_adblock/BUILD.gn
 new file mode 100644
-index 0000000000000000000000000000000000000000..09c18d3b5516fb8afb14d02cd2503d5f7fde707b
+index 0000000000000000000000000000000000000000..32cd0cbbfb7843ec7e6be37f155aca25ea09bce1
 --- /dev/null
 +++ b/components/thoron_adblock/BUILD.gn
-@@ -0,0 +1,223 @@
+@@ -0,0 +1,226 @@
 +# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
 +
@@ -98,6 +98,7 @@ index 0000000000000000000000000000000000000000..09c18d3b5516fb8afb14d02cd2503d5f
 +    "cosmetics.rs",
 +    "engine_core.rs",
 +    "procedural.rs",
++    "header.rs",
 +    "permissions.rs",
 +    "query.rs",
 +    "urlskip.rs",
@@ -258,6 +259,7 @@ index 0000000000000000000000000000000000000000..09c18d3b5516fb8afb14d02cd2503d5f
 +  sources = [
 +    crate_root,
 +    "engine_core.rs",
++    "header.rs",
 +    "permissions.rs",
 +    "query.rs",
 +    "urlskip.rs",
@@ -280,6 +282,7 @@ index 0000000000000000000000000000000000000000..09c18d3b5516fb8afb14d02cd2503d5f
 +    "cosmetics.rs",
 +    "engine_core.rs",
 +    "procedural.rs",
++    "header.rs",
 +    "permissions.rs",
 +    "query.rs",
 +    "urlskip.rs",
@@ -503,10 +506,10 @@ index 0000000000000000000000000000000000000000..9a8463187282205213e69cf31f75289e
 +#endif  // COMPONENTS_THORON_ADBLOCK_BLOCKED_COUNT_H_
 diff --git a/components/thoron_adblock/compile_engine.rs b/components/thoron_adblock/compile_engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..73039521675d26432b6177b8026f97891fa11714
+index 0000000000000000000000000000000000000000..e79ea1b385a03f56412c49b4d3ff243d8d3e1b73
 --- /dev/null
 +++ b/components/thoron_adblock/compile_engine.rs
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,159 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -520,6 +523,8 @@ index 0000000000000000000000000000000000000000..73039521675d26432b6177b8026f9789
 +// This tool uses only part of what it shares with the browser's engine.
 +#[allow(dead_code)]
 +mod engine_core;
++#[allow(dead_code)]
++mod header;
 +#[allow(dead_code)]
 +mod permissions;
 +#[allow(dead_code)]
@@ -536,6 +541,12 @@ index 0000000000000000000000000000000000000000..73039521675d26432b6177b8026f9789
 +    }
 +    if args.len() == 4 && args[1] == "--skip" {
 +        return skip(&args[2], &args[3]);
++    }
++    if args.len() == 4 && args[1] == "--header" {
++        return header(&args[2], &args[3]);
++    }
++    if args.len() == 3 && args[1] == "--time" {
++        return time(&args[2]);
 +    }
 +    if args.len() != 3 {
 +        eprintln!("usage: compile_engine <lists.txt> <engine.dat>");
@@ -573,6 +584,71 @@ index 0000000000000000000000000000000000000000..73039521675d26432b6177b8026f9789
 +    println!("urlskip: {} of {written} rules of the lists are taken", filters.skips.text.lines().count());
 +    let to = engine_core::skip(&filters, url, url);
 +    println!("{url} -> {}", if to.is_empty() { "(stays)" } else { &to });
++    ExitCode::SUCCESS
++}
++
++/// How many `$header` rules of the lists are understood, and what the answer to a script request
++/// for `url` from another site would be held against.
++fn header(lists: &str, url: &str) -> ExitCode {
++    let Ok(rules) = std::fs::read_to_string(lists) else {
++        eprintln!("compile_engine: cannot read filter lists from {lists}");
++        return ExitCode::FAILURE;
++    };
++    let filters = engine_core::build(&rules);
++    let written = rules.lines().filter(|l| l.contains("header=") && !l.trim_start().starts_with('!')).count();
++    println!("header: {} of {written} rules of the lists are taken", filters.headers.text.lines().count());
++    for line in rules.lines().filter(|l| l.contains("header=") && !l.trim_start().starts_with('!')) {
++        if !filters.headers.text.lines().any(|taken| taken == line.trim()) {
++            println!("  not taken: {line}");
++        }
++    }
++    let d = engine_core::decide(&filters, url, "https://page.example/", "script", "GET", false);
++    println!("{url} -> blocked {}, tests {:?}", d.blocked, d.header_tests);
++    ExitCode::SUCCESS
++}
++
++/// How long the engine takes over one request, and how much of that the `$header` rules are.
++fn time(lists: &str) -> ExitCode {
++    let Ok(rules) = std::fs::read_to_string(lists) else {
++        eprintln!("compile_engine: cannot read filter lists from {lists}");
++        return ExitCode::FAILURE;
++    };
++    let mut filters = engine_core::build(&rules);
++    // what a page asks for: its own scripts and those of others, images, style sheets, fetches
++    let kinds = ["script", "image", "xmlhttprequest", "stylesheet", "script", "image", "font", "image"];
++    let requests: Vec<(String, &str)> = (0..400)
++        .map(|i| {
++            let kind = kinds[i % kinds.len()];
++            let url = match i % 5 {
++                0 => format!("https://www.site{i}example.com/assets/app{i}.min.js"),
++                1 => format!("https://cdn{i}.example.net/img/photo-{i}.png?w=640"),
++                2 => format!("https://news.example/api/v1/items?id={i}"),
++                3 => format!("https://static{i}.example.org/css/main.{i}.css"),
++                _ => format!("https://d{i}abc.cloudfront.net/lib/widget{i}.js"),
++            };
++            (url, kind)
++        })
++        .collect();
++    let run = |filters: &engine_core::Filters| {
++        let start = std::time::Instant::now();
++        let (mut blocked, mut with_tests) = (0u32, 0u32);
++        for _ in 0..50 {
++            for (url, kind) in &requests {
++                let d = engine_core::decide(filters, url, "https://news.example/story", kind, "GET", false);
++                blocked += d.blocked as u32;
++                with_tests += !d.header_tests.is_empty() as u32;
++            }
++        }
++        (start.elapsed().as_secs_f64() * 1e6 / (50.0 * requests.len() as f64), blocked / 50, with_tests / 50)
++    };
++    run(&filters); // the first round prepares the engine's regular expressions
++    let (with, blocked, with_tests) = run(&filters);
++    filters.headers = header::HeaderRules::default();
++    let (without, _, _) = run(&filters);
++    println!(
++        "{} requests: {blocked} blocked, {with_tests} wait for their answer; {with:.1} us a request, {without:.1} us without the header rules",
++        requests.len()
++    );
 +    ExitCode::SUCCESS
 +}
 +
@@ -889,10 +965,10 @@ index 0000000000000000000000000000000000000000..74b512c246f45abbe61e2b2693a13d25
 +};
 diff --git a/components/thoron_adblock/document_loader_throttle.cc b/components/thoron_adblock/document_loader_throttle.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5bff00af84bf66e504843f0b95898ebc578e6830
+index 0000000000000000000000000000000000000000..323361807fa8c9aecb49018554887ac971ae673f
 --- /dev/null
 +++ b/components/thoron_adblock/document_loader_throttle.cc
-@@ -0,0 +1,110 @@
+@@ -0,0 +1,155 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -906,10 +982,13 @@ index 0000000000000000000000000000000000000000..5bff00af84bf66e504843f0b95898ebc
 +#include "base/feature_list.h"
 +#include "base/memory/ptr_util.h"
 +#include "components/content_settings/core/browser/host_content_settings_map.h"
++#include "components/thoron_adblock/blocked_count.h"
 +#include "components/thoron_adblock/engine_service.h"
 +#include "components/thoron_adblock/features.h"
 +#include "components/thoron_adblock/proxying_url_loader_factory.h"
++#include "net/base/net_errors.h"
 +#include "net/http/http_response_headers.h"
++#include "net/url_request/redirect_info.h"
 +#include "services/network/public/cpp/content_security_policy/content_security_policy.h"
 +#include "services/network/public/cpp/resource_request.h"
 +#include "services/network/public/mojom/content_security_policy.mojom.h"
@@ -939,21 +1018,63 @@ index 0000000000000000000000000000000000000000..5bff00af84bf66e504843f0b95898ebc
 +  if (!document) {
 +    return nullptr;
 +  }
-+  return base::WrapUnique(
-+      new DocumentLoaderThrottle(std::move(settings), std::move(*document)));
++  return base::WrapUnique(new DocumentLoaderThrottle(
++      std::move(settings), std::move(*document), request));
 +}
 +
 +DocumentLoaderThrottle::DocumentLoaderThrottle(
 +    scoped_refptr<HostContentSettingsMap> settings,
-+    DocumentRequest document)
-+    : settings_(std::move(settings)), document_(std::move(document)) {}
++    DocumentRequest document,
++    const network::ResourceRequest& request)
++    : settings_(std::move(settings)),
++      document_(std::move(document)),
++      destination_(request.destination),
++      url_(request.url),
++      method_(request.method) {}
 +
 +DocumentLoaderThrottle::~DocumentLoaderThrottle() = default;
++
++bool DocumentLoaderThrottle::EndedByAnswer(
++    const net::HttpResponseHeaders* headers) {
++  // A page's own request is never ended, and nothing is on a site where the
++  // person allowed ads.
++  if (document_.main_frame || !headers || !url_.SchemeIsHTTPOrHTTPS() ||
++      ProxyingURLLoaderFactory::AdsAllowedOn(settings_.get(),
++                                             document_.SiteFor(url_))) {
++    return false;
++  }
++  const EngineService::Decision decision = EngineService::Get().Check(
++      url_, document_.SourceFor(url_), destination_, method_);
++  if (!EngineService::HeaderTestsBlock(decision.header_tests, headers)) {
++    return false;
++  }
++  if (document_.frame) {
++    BlockedCount::Record(document_.frame);
++  }
++  delegate_->CancelWithError(net::ERR_BLOCKED_BY_CLIENT, "ThoronAdblock");
++  return true;
++}
++
++void DocumentLoaderThrottle::WillRedirectRequest(
++    net::RedirectInfo* redirect_info,
++    const network::mojom::URLResponseHead& response_head,
++    bool* defer,
++    network::HttpRequestHeadersUpdateParams* headers_update_params) {
++  // A redirect is an answer too.
++  if (EndedByAnswer(response_head.headers.get())) {
++    return;
++  }
++  url_ = redirect_info->new_url;
++  method_ = redirect_info->new_method;
++}
 +
 +void DocumentLoaderThrottle::WillProcessResponse(
 +    const GURL& response_url,
 +    network::mojom::URLResponseHead* response_head,
 +    bool* defer) {
++  if (response_head && EndedByAnswer(response_head->headers.get())) {
++    return;
++  }
 +  if (!response_head || !response_url.SchemeIsHTTPOrHTTPS() ||
 +      ProxyingURLLoaderFactory::AdsAllowedOn(
 +          settings_.get(), document_.SiteFor(response_url))) {
@@ -1005,10 +1126,10 @@ index 0000000000000000000000000000000000000000..5bff00af84bf66e504843f0b95898ebc
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/document_loader_throttle.h b/components/thoron_adblock/document_loader_throttle.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..958f38cbe7b0b61e0efbab7b1ebb0b5031f380de
+index 0000000000000000000000000000000000000000..9c637f7f4801d4388dfa412c3768687bd26b5e18
 --- /dev/null
 +++ b/components/thoron_adblock/document_loader_throttle.h
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,90 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1021,6 +1142,7 @@ index 0000000000000000000000000000000000000000..958f38cbe7b0b61e0efbab7b1ebb0b50
 +#include "base/memory/scoped_refptr.h"
 +#include "components/thoron_adblock/document_request.h"
 +#include "content/public/browser/frame_tree_node_id.h"
++#include "services/network/public/mojom/fetch_api.mojom.h"
 +#include "third_party/blink/public/common/loader/url_loader_throttle.h"
 +#include "url/gurl.h"
 +
@@ -1030,17 +1152,23 @@ index 0000000000000000000000000000000000000000..958f38cbe7b0b61e0efbab7b1ebb0b50
 +class WebContents;
 +}
 +
++namespace net {
++class HttpResponseHeaders;
++}
++
 +namespace network {
 +struct ResourceRequest;
 +}
 +
 +namespace thoron_adblock {
 +
-+// `$csp`: when the response for a document arrives (a page's, or a frame's
-+// inside one), the content security policy the lists ask for is added to the
-+// document's own. It lives in the browser, on the navigation's loader. Nothing
-+// is done on a site where the person allowed ads. (What happens to a
-+// document's request before it goes out is DocumentRequestInterceptor's.)
++// `$csp` and `$permissions`: when the response for a document arrives (a
++// page's, or a frame's inside one), the content security policy the lists ask
++// for is added to the document's own, and the features they switch off.
++// `$header`: a frame whose server answers with a header a rule names is not
++// loaded. It lives in the browser, on the navigation's loader. Nothing is
++// done on a site where the person allowed ads. (What happens to a document's
++// request before it goes out is DocumentRequestInterceptor's.)
 +class DocumentLoaderThrottle : public blink::URLLoaderThrottle {
 + public:
 +  // Null when native ad blocking is off, or `request` is not for a document.
@@ -1064,15 +1192,29 @@ index 0000000000000000000000000000000000000000..958f38cbe7b0b61e0efbab7b1ebb0b50
 +
 + private:
 +  DocumentLoaderThrottle(scoped_refptr<HostContentSettingsMap> settings,
-+                         DocumentRequest document);
++                         DocumentRequest document,
++                         const network::ResourceRequest& request);
 +
 +  // blink::URLLoaderThrottle:
++  void WillRedirectRequest(
++      net::RedirectInfo* redirect_info,
++      const network::mojom::URLResponseHead& response_head,
++      bool* defer,
++      network::HttpRequestHeadersUpdateParams* headers_update_params) override;
 +  void WillProcessResponse(const GURL& response_url,
 +                           network::mojom::URLResponseHead* response_head,
 +                           bool* defer) override;
 +
++  // `$header`, for a frame: true when the answer with `headers` to the
++  // request for `url_` ended the navigation.
++  bool EndedByAnswer(const net::HttpResponseHeaders* headers);
++
 +  const scoped_refptr<HostContentSettingsMap> settings_;
 +  const DocumentRequest document_;
++  const network::mojom::RequestDestination destination_;
++  // The address the request is at, and its method: both change at a redirect.
++  GURL url_;
++  std::string method_;
 +};
 +
 +}  // namespace thoron_adblock
@@ -1385,10 +1527,10 @@ index 0000000000000000000000000000000000000000..bc172c09dcfab5376a6cb3a397be1df8
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_H_
 diff --git a/components/thoron_adblock/document_request_interceptor.cc b/components/thoron_adblock/document_request_interceptor.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..f2365b56a15f03a64073ad177b24382e4dcba6d2
+index 0000000000000000000000000000000000000000..b5614084a075e7adbb18e9ec76039c7b803c3f3a
 --- /dev/null
 +++ b/components/thoron_adblock/document_request_interceptor.cc
-@@ -0,0 +1,170 @@
+@@ -0,0 +1,171 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1471,7 +1613,8 @@ index 0000000000000000000000000000000000000000..f2365b56a15f03a64073ad177b24382e
 +    }
 +  } else {
 +    const EngineService::Decision decision = EngineService::Get().Check(
-+        url, document->SourceFor(url), tentative_resource_request.destination);
++        url, document->SourceFor(url), tentative_resource_request.destination,
++        tentative_resource_request.method);
 +    if (decision.blocked) {
 +      if (document->frame) {
 +        BlockedCount::Record(document->frame);
@@ -1665,10 +1808,10 @@ index 0000000000000000000000000000000000000000..43051154413e4f2354bc088827e16717
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_INTERCEPTOR_H_
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077ab999fe09
+index 0000000000000000000000000000000000000000..858f61774ef96a2caf249fbf98f78c3932a193d7
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,802 @@
+@@ -0,0 +1,880 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1680,6 +1823,7 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +
 +mod cosmetics;
 +mod engine_core;
++mod header;
 +mod permissions;
 +mod procedural;
 +mod query;
@@ -1698,6 +1842,10 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +        /// Only without `blocked`: the address to ask for instead, the request's own without the
 +        /// parameters `$removeparam` rules take out. Empty: the address stays as it is.
 +        clean_url: String,
++        /// Only without `blocked`: `$header` rules could apply to the request, and this is what
++        /// its answer is to be held against (`header_tests_block`). Empty, nearly always: the
++        /// answer does not matter.
++        header_tests: String,
 +    }
 +
 +    /// What one document needs.
@@ -1749,8 +1897,20 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +
 +        /// What to do with a request. `request_type` is one of the filter-list types: "document",
 +        /// "subdocument", "script", "image", "stylesheet", "font", "media", "xmlhttprequest",
-+        /// "websocket", "ping", "other". Invalid URLs are never blocked.
-+        fn check_request(self: &Engine, url: &str, source_url: &str, request_type: &str) -> RequestDecision;
++        /// "websocket", "ping", "other"; `method` is the HTTP method ("GET"). Invalid URLs are never
++        /// blocked.
++        fn check_request(
++            self: &Engine,
++            url: &str,
++            source_url: &str,
++            request_type: &str,
++            method: &str,
++        ) -> RequestDecision;
++
++        /// True when the answer to a request ends it (`$header` rules). `tests` is the
++        /// `header_tests` of the request's decision; `headers` is the answer's headers, one
++        /// "name:value" per line in the order they came. Needs no engine: any thread may ask.
++        fn header_tests_block(tests: &str, headers: &[u8]) -> bool;
 +
 +        /// True when the request should be blocked (`check_request` without the stand-in).
 +        fn should_block(self: &Engine, url: &str, source_url: &str, request_type: &str) -> bool;
@@ -1842,24 +2002,36 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +        count
 +    }
 +
-+    fn decide(&self, url: &str, source_url: &str, request_type: &str, clean_blocked: bool) -> RequestDecision {
++    fn decide(
++        &self,
++        url: &str,
++        source_url: &str,
++        request_type: &str,
++        method: &str,
++        clean_blocked: bool,
++    ) -> RequestDecision {
 +        let Some(filters) = &self.0 else {
-+            return RequestDecision { blocked: false, stand_in: String::new(), clean_url: String::new() };
++            return RequestDecision {
++                blocked: false,
++                stand_in: String::new(),
++                clean_url: String::new(),
++                header_tests: String::new(),
++            };
 +        };
-+        let d = engine_core::decide(filters, url, source_url, request_type, clean_blocked);
-+        RequestDecision { blocked: d.blocked, stand_in: d.stand_in, clean_url: d.clean_url }
++        let d = engine_core::decide(filters, url, source_url, request_type, method, clean_blocked);
++        RequestDecision { blocked: d.blocked, stand_in: d.stand_in, clean_url: d.clean_url, header_tests: d.header_tests }
 +    }
 +
-+    fn check_request(&self, url: &str, source_url: &str, request_type: &str) -> RequestDecision {
-+        self.decide(url, source_url, request_type, false)
++    fn check_request(&self, url: &str, source_url: &str, request_type: &str, method: &str) -> RequestDecision {
++        self.decide(url, source_url, request_type, method, false)
 +    }
 +
 +    fn should_block(&self, url: &str, source_url: &str, request_type: &str) -> bool {
-+        self.check_request(url, source_url, request_type).blocked
++        self.check_request(url, source_url, request_type, "GET").blocked
 +    }
 +
 +    fn clean_url(&self, url: &str, source_url: &str, request_type: &str) -> String {
-+        self.decide(url, source_url, request_type, true).clean_url
++        self.decide(url, source_url, request_type, "GET", true).clean_url
 +    }
 +
 +    fn document_policy(&self, url: &str, source_url: &str, main_frame: bool) -> String {
@@ -1897,6 +2069,10 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +
 +fn rule_lines(text: &str) -> impl Iterator<Item = &str> {
 +    text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('!') && !l.starts_with('['))
++}
++
++fn header_tests_block(tests: &str, headers: &[u8]) -> bool {
++    header::blocked_by(tests, headers)
 +}
 +
 +fn count_rules(text: &str) -> usize {
@@ -2043,7 +2219,7 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +    #[test]
 +    fn a_redirect_filter_offers_its_stand_in() {
 +        let e = with_resources("||ads.example/ad.js$script,redirect=noop.js\n");
-+        let d = e.check_request("https://ads.example/ad.js", "https://news.example/", "script");
++        let d = e.check_request("https://ads.example/ad.js", "https://news.example/", "script", "GET");
 +        assert!(d.blocked);
 +        assert_eq!(d.stand_in, "data:application/javascript;base64,KGZ1bmN0aW9uKCl7fSkoKTs=");
 +    }
@@ -2051,15 +2227,15 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +    #[test]
 +    fn a_redirect_rule_needs_a_blocking_filter() {
 +        let alone = with_resources("||ads.example/ad.js$script,redirect-rule=noopjs\n");
-+        let d = alone.check_request("https://ads.example/ad.js", "https://news.example/", "script");
++        let d = alone.check_request("https://ads.example/ad.js", "https://news.example/", "script", "GET");
 +        assert!(!d.blocked);
 +        assert!(d.stand_in.is_empty());
 +        let both = with_resources("||ads.example^\n||ads.example/ad.js$script,redirect-rule=noopjs\n");
-+        let d = both.check_request("https://ads.example/ad.js", "https://news.example/", "script");
++        let d = both.check_request("https://ads.example/ad.js", "https://news.example/", "script", "GET");
 +        assert!(d.blocked);
 +        assert!(d.stand_in.starts_with("data:application/javascript;base64,"));
 +        // another request of the blocked host has no stand-in
-+        let d = both.check_request("https://ads.example/other.js", "https://news.example/", "script");
++        let d = both.check_request("https://ads.example/other.js", "https://news.example/", "script", "GET");
 +        assert!(d.blocked);
 +        assert!(d.stand_in.is_empty());
 +    }
@@ -2067,7 +2243,7 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +    #[test]
 +    fn without_resources_a_redirect_filter_still_blocks() {
 +        let e = engine_from_rules("||ads.example/ad.js$script,redirect=noop.js\n");
-+        let d = e.check_request("https://ads.example/ad.js", "https://news.example/", "script");
++        let d = e.check_request("https://ads.example/ad.js", "https://news.example/", "script", "GET");
 +        assert!(d.blocked);
 +        assert!(d.stand_in.is_empty());
 +    }
@@ -2187,6 +2363,51 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +    }
 +
 +    #[test]
++    fn a_header_rule_waits_for_the_answer_and_survives_saving() {
++        const NEWS: &str = "https://news.example/";
++        let lists = "! thoron-list: easylist\n||ads.example^\n@@||good.example^$script\n\
++                     ! thoron-list: my-filters\n\
++                     /^https:\\/\\/www\\.[a-z]{3,9}\\.com\\/[a-z]{1,4}\\.js$/$script,3p,match-case,header=x-powered-by:Express\n\
++                     ||good.example/a.js$script,header=x-ad\n||ads.example/b.js$script,header=x-ad\n";
++        let built = engine_from_rules(lists);
++        let restored = engine_from_serialized(&built.serialize());
++        for e in [&built, &restored] {
++            // the request goes out, and its answer decides
++            let d = e.check_request("https://www.popular.com/ab.js", NEWS, "script", "GET");
++            assert!(!d.blocked);
++            assert_eq!(d.header_tests, "bx-powered-by:Express");
++            assert!(header_tests_block(&d.header_tests, b"Content-Type: text/javascript\nX-Powered-By: Express\n"));
++            assert!(!header_tests_block(&d.header_tests, b"Content-Type: text/javascript\nX-Powered-By: PHP/8\n"));
++            // other requests carry nothing
++            for (url, kind) in [
++                ("https://www.popular.com/ab.js", "image"),
++                ("https://www.popular.com/abcde.js", "script"),
++                ("https://www.popular.com/Ab.js", "script"),
++                ("https://news.example/ab.js", "script"),
++            ] {
++                assert_eq!(e.check_request(url, NEWS, kind, "GET").header_tests, "", "{url} {kind}");
++            }
++            // an exception rule of the lists for the request spares it
++            assert_eq!(e.check_request("https://good.example/a.js", NEWS, "script", "GET").header_tests, "");
++            // a request that is blocked anyway has no answer to wait for
++            let d = e.check_request("https://ads.example/b.js", NEWS, "script", "GET");
++            assert!(d.blocked && d.header_tests.is_empty());
++        }
++        assert!(!header_tests_block("", b"X-Powered-By: Express\n"));
++    }
++
++    #[test]
++    fn the_method_of_a_request_counts() {
++        const NEWS: &str = "https://news.example/";
++        let e = engine_from_rules("||track.example/rec$method=post\n||probe.example^$xhr,3p,method=head\n");
++        assert!(e.check_request("https://track.example/rec", NEWS, "xmlhttprequest", "POST").blocked);
++        assert!(!e.check_request("https://track.example/rec", NEWS, "xmlhttprequest", "GET").blocked);
++        assert!(e.check_request("https://probe.example/", NEWS, "xmlhttprequest", "HEAD").blocked);
++        assert!(!e.check_request("https://probe.example/", NEWS, "xmlhttprequest", "GET").blocked);
++        assert!(!e.check_request("https://probe.example/", NEWS, "xmlhttprequest", "PUT").blocked);
++    }
++
++    #[test]
 +    fn permissions_rules_count_only_in_trusted_lists_and_survive_saving() {
 +        let rule = "*$permissions=browsing-topics=(),from=~localhost\n";
 +        let url = "https://news.example/";
@@ -2256,18 +2477,18 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +        let e = engine_from_rules("$removeparam=utm_source\n||shop.example^$doc,removeparam=ref\n||ads.example^\n");
 +        // a rule without a type is for documents, frames and fetches
 +        for kind in ["document", "subdocument", "xmlhttprequest"] {
-+            let d = e.check_request("https://news.example/a?utm_source=mail&id=7", NEWS, kind);
++            let d = e.check_request("https://news.example/a?utm_source=mail&id=7", NEWS, kind, "GET");
 +            assert!(!d.blocked);
 +            assert_eq!(d.clean_url, "https://news.example/a?id=7", "{kind}");
 +        }
-+        assert!(e.check_request("https://news.example/a.js?utm_source=mail", NEWS, "script").clean_url.is_empty());
++        assert!(e.check_request("https://news.example/a.js?utm_source=mail", NEWS, "script", "GET").clean_url.is_empty());
 +        // nothing to remove: the address stays
-+        assert!(e.check_request("https://news.example/a?id=7", NEWS, "document").clean_url.is_empty());
-+        assert!(e.check_request("https://news.example/a", NEWS, "document").clean_url.is_empty());
++        assert!(e.check_request("https://news.example/a?id=7", NEWS, "document", "GET").clean_url.is_empty());
++        assert!(e.check_request("https://news.example/a", NEWS, "document", "GET").clean_url.is_empty());
 +        // the last parameter takes the "?" with it; the fragment stays
 +        assert_eq!(e.clean_url("https://news.example/a?utm_source=x#top", NEWS, "document"), "https://news.example/a#top");
 +        // a blocked request is blocked, not cleaned; clean_url alone still answers
-+        let d = e.check_request("https://ads.example/p?utm_source=x", NEWS, "xmlhttprequest");
++        let d = e.check_request("https://ads.example/p?utm_source=x", NEWS, "xmlhttprequest", "GET");
 +        assert!(d.blocked && d.clean_url.is_empty());
 +        assert_eq!(e.clean_url("https://ads.example/p?utm_source=x", NEWS, "xmlhttprequest"), "https://ads.example/p");
 +        // a rule for documents of one site
@@ -2473,10 +2694,10 @@ index 0000000000000000000000000000000000000000..a28d15914e8686f4d966a607a6c1077a
 +}
 diff --git a/components/thoron_adblock/engine_core.rs b/components/thoron_adblock/engine_core.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..2c3705a17fd971a8319a99f068fe5100e3a1bc19
+index 0000000000000000000000000000000000000000..49988d4ee09d0f9436a65de1e72943812f76ce7c
 --- /dev/null
 +++ b/components/thoron_adblock/engine_core.rs
-@@ -0,0 +1,321 @@
+@@ -0,0 +1,354 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2484,6 +2705,7 @@ index 0000000000000000000000000000000000000000..2c3705a17fd971a8319a99f068fe5100
 +//! file becomes filters, and how filters are saved and loaded, so the engine saved at build time and
 +//! one built in the browser treat every list the same way.
 +
++use crate::header::HeaderRules;
 +use crate::query::{Pattern, Query, Special};
 +use crate::permissions::PermissionRules;
 +use crate::urlskip::SkipRules;
@@ -2666,6 +2888,8 @@ index 0000000000000000000000000000000000000000..2c3705a17fd971a8319a99f068fe5100
 +pub struct Filters {
 +    pub engine: adblock::Engine,
 +    pub params: ParamRules,
++    /// The `$header` rules.
++    pub headers: HeaderRules,
 +    /// The `$urlskip` rules of the trusted lists.
 +    pub skips: SkipRules,
 +    /// The `$permissions` rules of the trusted lists.
@@ -2676,8 +2900,14 @@ index 0000000000000000000000000000000000000000..2c3705a17fd971a8319a99f068fe5100
 +}
 +
 +impl Filters {
-+    fn new(engine: adblock::Engine, params: ParamRules, skips: SkipRules, permissions: PermissionRules) -> Filters {
-+        Filters { engine, params, skips, permissions, siteless: std::sync::OnceLock::new() }
++    fn new(
++        engine: adblock::Engine,
++        params: ParamRules,
++        headers: HeaderRules,
++        skips: SkipRules,
++        permissions: PermissionRules,
++    ) -> Filters {
++        Filters { engine, params, headers, skips, permissions, siteless: std::sync::OnceLock::new() }
 +    }
 +}
 +
@@ -2686,6 +2916,7 @@ index 0000000000000000000000000000000000000000..2c3705a17fd971a8319a99f068fe5100
 +    Filters::new(
 +        adblock::Engine::new_with_filter_set(filter_set(rules)),
 +        ParamRules::from_rules(rules),
++        HeaderRules::from_rules(rules),
 +        SkipRules::from_trusted_text(&trusted_lines(rules, "urlskip")),
 +        PermissionRules::from_trusted_text(&trusted_lines(rules, "permissions")),
 +    )
@@ -2703,16 +2934,37 @@ index 0000000000000000000000000000000000000000..2c3705a17fd971a8319a99f068fe5100
 +    pub blocked: bool,
 +    pub stand_in: String,
 +    pub clean_url: String,
++    /// Only without `blocked`: what the answer is to be held against (header.rs). Nearly always "".
++    pub header_tests: String,
 +}
 +
 +/// The decision for a request. The clean address of a request that is blocked is only worked out
 +/// with `clean_blocked`: a blocked request goes nowhere, so its address does not matter, except for
 +/// a page's own navigation, which is never blocked. An address that is not one is allowed.
-+pub fn decide(filters: &Filters, url: &str, source_url: &str, request_type: &str, clean_blocked: bool) -> Decision {
-+    let allowed = Decision { blocked: false, stand_in: String::new(), clean_url: String::new() };
-+    let Ok(request) = Request::new(url, source_url, request_type, "GET") else { return allowed };
++pub fn decide(
++    filters: &Filters,
++    url: &str,
++    source_url: &str,
++    request_type: &str,
++    method: &str,
++    clean_blocked: bool,
++) -> Decision {
++    let allowed =
++        Decision { blocked: false, stand_in: String::new(), clean_url: String::new(), header_tests: String::new() };
++    let Ok(request) = Request::new(url, source_url, request_type, method) else { return allowed };
 +    let result = filters.engine.check_network_request(&request);
 +    let blocked = result.should_block();
++    // `$header`: the answer will decide. An exception rule of the lists for the request spares it;
++    // the engine only looks for one after a blocking rule matched, so it is asked again.
++    let header_tests = if blocked {
++        String::new()
++    } else {
++        let excepted = || {
++            result.exception.is_some()
++                || filters.engine.check_network_request_subset(&request, true, true).exception.is_some()
++        };
++        filters.headers.tests(url, source_url, request_type, method, excepted)
++    };
 +    let clean_url = if (!blocked || clean_blocked) && url.contains('?') {
 +        filters.params.clean(&request, url, result.rewritten_url.as_deref()).unwrap_or_default()
 +    } else {
@@ -2720,7 +2972,7 @@ index 0000000000000000000000000000000000000000..2c3705a17fd971a8319a99f068fe5100
 +    };
 +    // a `redirect-rule` alone does not block: its stand-in is only for a blocked request
 +    let stand_in = if blocked { result.redirect.unwrap_or_default() } else { String::new() };
-+    Decision { blocked, stand_in, clean_url }
++    Decision { blocked, stand_in, clean_url, header_tests }
 +}
 +
 +/// A `$csp` rule's policy becomes a response header: printable ASCII only, and not endless. As in
@@ -2752,17 +3004,18 @@ index 0000000000000000000000000000000000000000..2c3705a17fd971a8319a99f068fe5100
 +    }
 +}
 +
-+/// A saved engine starts with this: a name and the version of this layout. After it: the length
-+/// of the special `$removeparam` rules (four bytes, little endian), those rules as text, then the
-+/// engine as adblock-rust saves it.
-+const SAVED: &[u8; 8] = b"THRNAB\x00\x03";
++/// A saved engine starts with this: a name and the version of this layout. After it come two
++/// sections of rules as text, each after its length (four bytes, little endian), then the engine
++/// as adblock-rust saves it.
++const SAVED: &[u8; 8] = b"THRNAB\x00\x04";
 +
 +pub fn save(filters: &Filters) -> Vec<u8> {
-+    // The rules adblock-rust does not keep, one per line, in two sections: the `$removeparam`
-+    // specials of every list, then the lines that only trusted lists may bring (`$urlskip`,
-+    // `$permissions`). They are kept apart so that a line of the first can never count as one of
-+    // the second.
-+    let any_list = filters.params.text.as_bytes();
++    // The rules adblock-rust does not keep, one per line, in two sections: those every list may
++    // bring (the `$removeparam` specials, `$header`), then the lines that only trusted lists may
++    // bring (`$urlskip`, `$permissions`). They are kept apart so that a line of the first can
++    // never count as one of the second.
++    let any_list = format!("{}{}", filters.params.text, filters.headers.text);
++    let any_list = any_list.as_bytes();
 +    let trusted = format!("{}{}", filters.skips.text, filters.permissions.text);
 +    let engine = filters.engine.serialize();
 +    let mut data = Vec::with_capacity(SAVED.len() + 8 + any_list.len() + trusted.len() + engine.len());
@@ -2794,16 +3047,17 @@ index 0000000000000000000000000000000000000000..2c3705a17fd971a8319a99f068fe5100
 +    Some(Filters::new(
 +        engine,
 +        ParamRules::from_rules(any_list),
++        HeaderRules::from_rules(any_list),
 +        SkipRules::from_trusted_text(trusted),
 +        PermissionRules::from_trusted_text(trusted),
 +    ))
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..94607105147d71a1b3e9af0f8235a7f93fb8ea1f
+index 0000000000000000000000000000000000000000..3a7a3fe787a1dc09ec4a23ab2efb853900740461
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,453 @@
+@@ -0,0 +1,481 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2822,6 +3076,7 @@ index 0000000000000000000000000000000000000000..94607105147d71a1b3e9af0f8235a7f9
 +#include "base/version_info/version_info.h"
 +#include "components/thoron_adblock/list_fetch.h"
 +#include "net/base/url_util.h"
++#include "net/http/http_response_headers.h"
 +#include "services/network/public/cpp/shared_url_loader_factory.h"
 +#include "url/url_constants.h"
 +
@@ -2962,9 +3217,11 @@ index 0000000000000000000000000000000000000000..94607105147d71a1b3e9af0f8235a7f9
 +EngineService::Decision EngineService::Check(
 +    const GURL& url,
 +    const GURL& source,
-+    network::mojom::RequestDestination destination) const {
++    network::mojom::RequestDestination destination,
++    std::string_view method) const {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-+  if (!engine_ || !IsBlockableScheme(url) || !source.is_valid()) {
++  if (!engine_ || !IsBlockableScheme(url) || !source.is_valid() ||
++      !base::IsStringASCII(method)) {
 +    return {};
 +  }
 +  const std::string& u = url.spec();
@@ -2972,9 +3229,34 @@ index 0000000000000000000000000000000000000000..94607105147d71a1b3e9af0f8235a7f9
 +  const std::string_view t = RequestType(destination);
 +  RequestDecision found = (*engine_)->check_request(
 +      rust::Str(u.data(), u.size()), rust::Str(s.data(), s.size()),
-+      rust::Str(t.data(), t.size()));
++      rust::Str(t.data(), t.size()), rust::Str(method.data(), method.size()));
 +  return {found.blocked, std::string(found.stand_in),
-+          CheckedClean(url, std::string(found.clean_url))};
++          CheckedClean(url, std::string(found.clean_url)),
++          std::string(found.header_tests)};
++}
++
++// static
++bool EngineService::HeaderTestsBlock(const std::string& tests,
++                                     const net::HttpResponseHeaders* headers) {
++  // "Non-Authoritative-Reason" marks a redirect the browser made up itself
++  // (to https, or to an address without tracking parameters).
++  if (tests.empty() || !headers ||
++      headers->HasHeader("Non-Authoritative-Reason")) {
++    return false;
++  }
++  // One "name:value" per line, in the order the headers came. A value is
++  // whatever bytes the server sent; a line break is never among them.
++  std::string lines;
++  size_t iter = 0;
++  std::string name;
++  std::string value;
++  while (headers->EnumerateHeaderLines(&iter, &name, &value)) {
++    base::StrAppend(&lines, {name, ":", value, "\n"});
++  }
++  return header_tests_block(
++      rust::Str(tests.data(), tests.size()),
++      rust::Slice<const uint8_t>(
++          reinterpret_cast<const uint8_t*>(lines.data()), lines.size()));
 +}
 +
 +bool EngineService::BlocksWebSocket(const GURL& url, const GURL& source) const {
@@ -3259,10 +3541,10 @@ index 0000000000000000000000000000000000000000..94607105147d71a1b3e9af0f8235a7f9
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..bc86ae3b288e2ece9f2989c8a3c2b699b0eeea38
+index 0000000000000000000000000000000000000000..fc19bdd762493d90f5076722d6a351d1008b6bf5
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,184 @@
+@@ -0,0 +1,200 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3286,6 +3568,10 @@ index 0000000000000000000000000000000000000000..bc86ae3b288e2ece9f2989c8a3c2b699
 +#include "services/network/public/mojom/fetch_api.mojom-shared.h"
 +#include "third_party/rust/cxx/v1/cxx.h"
 +#include "url/gurl.h"
++
++namespace net {
++class HttpResponseHeaders;
++}
 +
 +namespace thoron_adblock {
 +
@@ -3323,13 +3609,25 @@ index 0000000000000000000000000000000000000000..bc86ae3b288e2ece9f2989c8a3c2b699
 +    // own without the parameters `$removeparam` rules take out. Invalid
 +    // (empty): the address stays as it is.
 +    GURL clean_url;
++    // Only without `blocked`: `$header` rules could apply to the request, and
++    // this is what its answer is to be held against (HeaderTestsBlock). Empty,
++    // nearly always: the answer does not matter.
++    std::string header_tests;
 +  };
 +
 +  // Only http(s) and ws(s) requests with a known initiator are considered;
-+  // every other request is allowed.
++  // every other request is allowed. `method` is the HTTP method ("GET").
 +  Decision Check(const GURL& url,
 +                 const GURL& source,
-+                 network::mojom::RequestDestination destination) const;
++                 network::mojom::RequestDestination destination,
++                 std::string_view method) const;
++
++  // True when a server's answer with `headers` ends the request whose
++  // decision carried `tests` (Decision::header_tests). An answer the browser
++  // made up itself (an internal redirect) ends nothing. Needs no engine: any
++  // thread may ask.
++  static bool HeaderTestsBlock(const std::string& tests,
++                               const net::HttpResponseHeaders* headers);
 +
 +  // True when the lists block a WebSocket connection to `url` (ws or wss)
 +  // from the document at `source`.
@@ -3354,7 +3652,6 @@ index 0000000000000000000000000000000000000000..bc86ae3b288e2ece9f2989c8a3c2b699
 +                             const GURL& source,
 +                             bool main_frame) const;
 +
-+  // What a document needs besides request blocking.
 +  // The value of the Permissions-Policy header for a document: the features
 +  // that `$permissions` rules of the trusted lists switch off. Empty when
 +  // there are none. It can only take features away from a page.
@@ -3362,6 +3659,7 @@ index 0000000000000000000000000000000000000000..bc86ae3b288e2ece9f2989c8a3c2b699
 +                                  const GURL& source,
 +                                  bool main_frame) const;
 +
++  // What a document needs besides request blocking.
 +  struct Document {
 +    // Hides elements; to insert as a user style sheet. Empty: nothing to hide.
 +    std::string stylesheet;
@@ -3655,10 +3953,10 @@ index 0000000000000000000000000000000000000000..1e9ac4ba59dde97b1c62b1e15042525b
 +#endif  // COMPONENTS_THORON_ADBLOCK_FEATURES_H_
 diff --git a/components/thoron_adblock/fuzz_lists.rs b/components/thoron_adblock/fuzz_lists.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..f22f85799c7906530b424f31d19fd93c09429265
+index 0000000000000000000000000000000000000000..428d37807457935efe2cd2f9c4334a907a912d86
 --- /dev/null
 +++ b/components/thoron_adblock/fuzz_lists.rs
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,287 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3685,6 +3983,8 @@ index 0000000000000000000000000000000000000000..f22f85799c7906530b424f31d19fd93c
 +mod engine_core;
 +#[allow(dead_code)]
 +mod procedural;
++#[allow(dead_code)]
++mod header;
 +#[allow(dead_code)]
 +mod permissions;
 +#[allow(dead_code)]
@@ -3833,7 +4133,7 @@ index 0000000000000000000000000000000000000000..f22f85799c7906530b424f31d19fd93c
 +        ];
 +        for (j, url) in urls.iter().enumerate() {
 +            let kind = TYPES[(i + j) % TYPES.len()];
-+            let d = engine_core::decide(&filters, url, &source, kind, true);
++            let d = engine_core::decide(&filters, url, &source, kind, "GET", true);
 +            totals.decisions += 1;
 +            totals.blocked += d.blocked as u64;
 +            assert!(d.blocked || d.stand_in.is_empty(), "a stand-in without a block for {url}");
@@ -3844,7 +4144,7 @@ index 0000000000000000000000000000000000000000..f22f85799c7906530b424f31d19fd93c
 +                assert!(d.clean_url.starts_with(before), "{url} was cleaned to {}", d.clean_url);
 +                assert!(d.clean_url.len() < url.len(), "{url} was cleaned to {}", d.clean_url);
 +            }
-+            if engine_core::decide(&reloaded, url, &source, kind, true).blocked != d.blocked {
++            if engine_core::decide(&reloaded, url, &source, kind, "GET", true).blocked != d.blocked {
 +                totals.reload_differences += 1;
 +                totals.first_difference.get_or_insert_with(|| format!("{url} from {source} as {kind}"));
 +            }
@@ -3943,6 +4243,695 @@ index 0000000000000000000000000000000000000000..f22f85799c7906530b424f31d19fd93c
 +        totals.first_difference.map(|d| format!(" (first: {d})")).unwrap_or_default()
 +    );
 +    ExitCode::SUCCESS
++}
+diff --git a/components/thoron_adblock/header.rs b/components/thoron_adblock/header.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..ef3d0d3b2ef472dab438d72694de55cdf2f497e7
+--- /dev/null
++++ b/components/thoron_adblock/header.rs
+@@ -0,0 +1,683 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++//! `$header`: a request is ended when the answer to it carries a header a rule names, as in
++//! `/^https:\/\/www\.[a-z]{8,14}\.com\/[a-z]{1,4}\.js$/$script,3p,match-case,header=x-powered-by:Express`.
++//! The lists use it against ad servers whose addresses change all the time but whose answers
++//! give them away.
++//!
++//! adblock-rust does not know the option. The work is in two steps:
++//!
++//! 1. When a request starts, it is known which rules could apply to it (its address, who asks, its
++//!    type and method). The rules are kept in a small engine of their own for that. adblock-rust
++//!    names only one matching rule per question, except for `$csp` rules, of which it names all:
++//!    so each rule is rewritten as a `$csp` rule whose "policy" is the rule's number. What those
++//!    rules ask of the answer goes with the request as a few lines of text (`HeaderRules::tests`);
++//!    for nearly every request there are none.
++//! 2. When the answer arrives, its headers are held against those lines (`blocked_by`). This step
++//!    needs no engine, so it can be done wherever the answer is seen.
++//!
++//! A rule can only end a request, like any blocking rule, so every list may bring such rules.
++//!
++//! Not supported: `requestheader=` (a test of what the browser sends; the cookies are added where
++//! this code does not see them). Such a rule is not used.
++
++use crate::urlskip::host_is_in;
++use adblock::lists::{parse_filter, FilterSet, ParseOptions, ParsedLine};
++use adblock::request::Request;
++use regex::bytes::{Regex, RegexBuilder};
++
++/// At most this many rules are carried with one request.
++const MAX_TESTS: usize = 16;
++/// The longest `header=` value that is read.
++const MAX_VALUE: usize = 1024;
++
++/// What a rule asks of one header of the answer. Read as uBlock Origin reads it (parseHeaderValue):
++/// "name" (the header is there), "name:text" (its value holds the text, in any case; `*` and `?`
++/// stand for any run of characters and for at most one), "name:/re/" or "name:/re/i" (its value
++/// matches), and "name:~..." for the opposite, which is also true without the header.
++pub struct Test {
++    name: Vec<u8>,
++    not: bool,
++    value: Option<Regex>,
++}
++
++impl Test {
++    pub fn parse(option: &str) -> Option<Test> {
++        let option = option.trim();
++        if option.len() > MAX_VALUE {
++            return None;
++        }
++        let (name, value) = option.split_once(':').unwrap_or((option, ""));
++        if name.is_empty() || !name.bytes().all(|b| b.is_ascii_graphic()) {
++            return None;
++        }
++        let (not, value) = match value.strip_prefix('~') {
++            Some(rest) => (true, rest),
++            None => (false, value),
++        };
++        if value.is_empty() {
++            // "name:~" asks for nothing that can be told
++            return (!not).then(|| Test { name: name.to_ascii_lowercase().into_bytes(), not, value: None });
++        }
++        let (source, any_case) = match regex_literal(value) {
++            Some(literal) => literal,
++            None => (glob(value), true),
++        };
++        // Bytes, not text: a header's value is whatever the server sent. The size limit keeps a
++        // rule from costing much to prepare; matching takes time in line with the value's length.
++        let value = RegexBuilder::new(&source).case_insensitive(any_case).unicode(false).size_limit(1 << 20).build().ok()?;
++        Some(Test { name: name.to_ascii_lowercase().into_bytes(), not, value: Some(value) })
++    }
++
++    /// `headers`: the answer's headers in the order they came, names in lower case. As in uBlock
++    /// Origin, the first header of the name is the one that counts.
++    fn passes(&self, headers: &[(Vec<u8>, &[u8])]) -> bool {
++        match headers.iter().find(|(name, _)| *name == self.name) {
++            None => self.not,
++            Some((_, value)) => match &self.value {
++                None => true,
++                Some(re) => re.is_match(value) != self.not,
++            },
++        }
++    }
++}
++
++/// "/re/" and "/re/i" as (the expression, whether the case is ignored).
++fn regex_literal(value: &str) -> Option<(String, bool)> {
++    let rest = value.strip_prefix('/')?;
++    let (source, any_case) = match rest.strip_suffix("/i") {
++        Some(source) => (source, true),
++        None => (rest.strip_suffix('/')?, false),
++    };
++    (!source.is_empty()).then(|| (source.to_string(), any_case))
++}
++
++/// Plain text with `*` and `?` as the expression that finds it; "\*" and "\?" are not wildcards.
++fn glob(value: &str) -> String {
++    let (mut out, mut literal, mut previous) = (String::new(), String::new(), '\0');
++    for c in value.chars() {
++        if (c == '*' || c == '?') && previous != '\\' {
++            out.push_str(&regex::escape(&literal));
++            literal.clear();
++            out.push_str(if c == '*' { ".*" } else { ".?" });
++        } else {
++            literal.push(c);
++        }
++        previous = c;
++    }
++    out.push_str(&regex::escape(&literal));
++    out
++}
++
++/// The request types a rule can name, as the lists write them and as the browser names them.
++const TYPES: &[(&str, &str)] = &[
++    ("script", "script"),
++    ("xhr", "xmlhttprequest"),
++    ("xmlhttprequest", "xmlhttprequest"),
++    ("frame", "subdocument"),
++    ("subdocument", "subdocument"),
++    ("image", "image"),
++    ("css", "stylesheet"),
++    ("stylesheet", "stylesheet"),
++    ("font", "font"),
++    ("media", "media"),
++    ("object", "object"),
++    ("object-subrequest", "object"),
++    ("other", "other"),
++    ("ping", "ping"),
++    ("beacon", "ping"),
++];
++
++/// One `$header` rule: what the small engine does not check for it.
++struct Rule {
++    /// The request types it is for (empty: all) and those it is not for.
++    only: Vec<&'static str>,
++    never: Vec<&'static str>,
++    /// `to=`: the hosts the request may go to (empty: any; "com" covers "shop.example.com") and
++    /// those it may not. adblock-rust reads the option and then leaves the whole rule out.
++    to: Vec<String>,
++    not_to: Vec<String>,
++    /// `strict1p`: the request goes to the very host of the document that asks; `strict3p`: not.
++    same_host: Option<bool>,
++    important: bool,
++    /// The value of `header=`, for `Test::parse`.
++    test: String,
++}
++
++impl Rule {
++    fn is_for(&self, request_type: &str, host: &str, same_host: impl Fn() -> bool) -> bool {
++        (self.only.is_empty() || self.only.contains(&request_type))
++            && !self.never.contains(&request_type)
++            && (self.to.is_empty() || host_is_in(host, &self.to))
++            && !host_is_in(host, &self.not_to)
++            && self.same_host.is_none_or(|wanted| wanted == same_host())
++    }
++}
++
++/// True when `text` reads as the start of an option: a name of lower-case letters, "1", "3" and
++/// "-" (or a run of "_"), then the end, a comma or "=". uBlock Origin's test (reNetOptionComma).
++fn option_starts(text: &[u8]) -> bool {
++    let blanks = text.iter().take_while(|&&b| b == b'_').count();
++    if blanks > 0 {
++        return blanks == text.len() || text[blanks] == b',';
++    }
++    let not = usize::from(text.first() == Some(&b'~'));
++    let name = text[not..].iter().take_while(|&&b| b.is_ascii_lowercase() || b == b'1' || b == b'3' || b == b'-').count();
++    name > 0 && matches!(text.get(not + name), None | Some(b',') | Some(b'='))
++}
++
++/// Where the options of a rule start: at the last "$" that an option follows, as in uBlock Origin
++/// (a pattern or a value may hold a "$" of its own).
++fn options_start(line: &str) -> Option<usize> {
++    line.rmatch_indices('$').map(|(at, _)| at).find(|&at| option_starts(&line.as_bytes()[at + 1..]))
++}
++
++/// The options of a rule, split as uBlock Origin splits them: a comma ends an option only when
++/// another option follows it, so a value may hold commas ("header=via:/, 1\.1 google$/"). "\," is
++/// a comma inside a value.
++fn split_options(options: &str) -> Vec<String> {
++    let bytes = options.as_bytes();
++    let mut out = Vec::new();
++    let mut start = 0;
++    for at in 0..bytes.len() {
++        if bytes[at] == b',' && option_starts(&bytes[at + 1..]) {
++            out.push(options[start..at].replace("\\,", ","));
++            start = at + 1;
++        }
++    }
++    out.push(options[start..].replace("\\,", ","));
++    out
++}
++
++/// A `$header` line of a list as the rule, the `$csp` rule the small engine reads for it, and
++/// whether it is an exception. `None` for every other line and for a rule that is not understood
++/// in full.
++fn rule(line: &str, number: usize) -> Option<(Rule, String, bool)> {
++    let line = line.trim();
++    if line.is_empty() || line.starts_with('!') || line.contains("##") || line.contains("#@#") {
++        return None;
++    }
++    let dollar = options_start(line)?;
++    let (pattern, exception) = match line[..dollar].strip_prefix("@@") {
++        Some(pattern) => (pattern, true),
++        None => (&line[..dollar], false),
++    };
++    let mut rule = Rule {
++        only: Vec::new(),
++        never: Vec::new(),
++        to: Vec::new(),
++        not_to: Vec::new(),
++        same_host: None,
++        important: false,
++        test: String::new(),
++    };
++    let mut kept = Vec::new();
++    for option in split_options(&line[dollar + 1..]) {
++        let option = option.trim();
++        let (negated, plain) = match option.strip_prefix('~') {
++            Some(plain) => (true, plain),
++            None => (false, option),
++        };
++        let (name, value) = match plain.split_once('=') {
++            Some((name, value)) => (name, Some(value)),
++            None => (plain, None),
++        };
++        match (name, value) {
++            ("header" | "responseheader", Some(value)) if !negated && rule.test.is_empty() => {
++                Test::parse(value)?;
++                rule.test = value.trim().to_string();
++            }
++            ("strict1p" | "strict3p", None) if !negated && rule.same_host.is_none() => {
++                rule.same_host = Some(name == "strict1p");
++            }
++            ("important", None) if !negated => rule.important = true,
++            ("3p" | "third-party" | "1p" | "first-party", None) => kept.push(option.to_string()),
++            ("match-case", None) if !negated => kept.push(option.to_string()),
++            ("to", Some(value)) if !negated && rule.to.is_empty() && rule.not_to.is_empty() => {
++                for host in value.split('|') {
++                    let (hosts, host) = match host.strip_prefix('~') {
++                        Some(host) => (&mut rule.not_to, host),
++                        None => (&mut rule.to, host),
++                    };
++                    // a name as it is; "shop.*" (any ending) is not read here
++                    if host.is_empty() || !host.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-') {
++                        return None;
++                    }
++                    hosts.push(host.to_ascii_lowercase());
++                }
++            }
++            ("from" | "domain" | "method", Some(value)) if !negated && !value.is_empty() && !value.contains(',') => {
++                kept.push(option.to_string());
++            }
++            (_, None) => {
++                // a request type, or an option that is not known here
++                let (_, named) = TYPES.iter().find(|(written, _)| *written == name)?;
++                (if negated { &mut rule.never } else { &mut rule.only }).push(*named);
++            }
++            _ => return None,
++        }
++    }
++    if rule.test.is_empty() {
++        return None;
++    }
++    let mut filter = format!("{pattern}$csp=h{number}");
++    for option in &kept {
++        filter.push(',');
++        filter.push_str(option);
++    }
++    // adblock-rust must read it as written
++    matches!(parse_filter(&filter, false, ParseOptions::default()), Ok(ParsedLine::Network(_))).then_some((rule, filter, exception))
++}
++
++/// The host of an address the browser wrote ("https://host:port/path").
++fn host_of(url: &str) -> &str {
++    let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
++    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
++    let host = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
++    match host.rsplit_once(':') {
++        Some((name, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => name,
++        _ => host,
++    }
++}
++
++fn small_engine(filters: &[String]) -> Option<adblock::Engine> {
++    if filters.is_empty() {
++        return None;
++    }
++    let mut set = FilterSet::new(false);
++    set.add_filter_list(filters.join("\n"), ParseOptions::default());
++    Some(adblock::Engine::new_with_filter_set(set))
++}
++
++/// Every `$header` rule of the lists.
++#[derive(Default)]
++pub struct HeaderRules {
++    rules: Vec<Rule>,
++    /// The request types the rules are for, so that every other request is passed over at once
++    /// (the lists' rules are for scripts, fetches and frames). `None`: a rule is for every type.
++    types: Option<Vec<&'static str>>,
++    blocking: Option<adblock::Engine>,
++    allowing: Option<adblock::Engine>,
++    /// The rules as the lists wrote them, one per line: what is saved with the engine.
++    pub text: String,
++}
++
++impl HeaderRules {
++    /// From list text; every line that is not a `$header` rule is skipped.
++    pub fn from_rules(lines: &str) -> HeaderRules {
++        let mut found = HeaderRules::default();
++        let (mut blocking, mut allowing) = (Vec::new(), Vec::new());
++        for line in lines.lines().filter(|l| l.contains("header=")) {
++            let Some((rule, filter, exception)) = rule(line, found.rules.len()) else { continue };
++            found.text.push_str(line.trim());
++            found.text.push('\n');
++            found.rules.push(rule);
++            (if exception { &mut allowing } else { &mut blocking }).push(filter);
++        }
++        found.blocking = small_engine(&blocking);
++        found.allowing = small_engine(&allowing);
++        if found.rules.iter().all(|rule| !rule.only.is_empty()) {
++            let mut types: Vec<&'static str> = found.rules.iter().flat_map(|rule| rule.only.iter().copied()).collect();
++            types.sort_unstable();
++            types.dedup();
++            found.types = Some(types);
++        }
++        found
++    }
++
++    /// The rules of one of the small engines that apply to a request, in the order of the lists.
++    fn matching(&self, engine: Option<&adblock::Engine>, request: &Request, request_type: &str, hosts: (&str, &str)) -> Vec<&Rule> {
++        let Some(found) = engine.and_then(|engine| engine.get_csp_directives(request)) else { return Vec::new() };
++        let mut numbers: Vec<usize> = found.split(',').filter_map(|n| n.trim().strip_prefix('h')?.parse().ok()).collect();
++        numbers.sort_unstable();
++        numbers.dedup();
++        let host = host_of(hosts.0).to_ascii_lowercase();
++        let same_host = || host.eq_ignore_ascii_case(host_of(hosts.1));
++        numbers.into_iter().filter_map(|n| self.rules.get(n)).filter(|rule| rule.is_for(request_type, &host, same_host)).collect()
++    }
++
++    /// What the answer to a request is to be held against (`blocked_by`): one line per rule that
++    /// could apply, "" when none does. `request_type` is the browser's name for the type; a page's
++    /// own request is never ended. `excepted` says whether an exception rule of the lists matches
++    /// the request ("@@||site.example^"); it is only asked when a rule applies. Such a request is
++    /// spared, as in uBlock Origin, except by a rule marked `important`.
++    pub fn tests(&self, url: &str, source_url: &str, request_type: &str, method: &str, excepted: impl FnOnce() -> bool) -> String {
++        if self.rules.is_empty()
++            || request_type == "document"
++            || self.types.as_ref().is_some_and(|types| !types.contains(&request_type))
++        {
++            return String::new();
++        }
++        // The small engines only name `$csp` rules for a document; the type is checked here.
++        let Ok(request) = Request::new(url, source_url, "subdocument", method) else { return String::new() };
++        let hosts = (url, source_url);
++        let blocking = self.matching(self.blocking.as_ref(), &request, request_type, hosts);
++        if blocking.is_empty() {
++            return String::new();
++        }
++        let spared = excepted();
++        let mut lines: Vec<String> = blocking
++            .into_iter()
++            .filter(|rule| rule.important || !spared)
++            .map(|rule| format!("{}{}", if rule.important { 'B' } else { 'b' }, rule.test))
++            .collect();
++        if lines.is_empty() {
++            return String::new();
++        }
++        // exceptions of this kind count only when the answer is as they say
++        lines.extend(
++            self.matching(self.allowing.as_ref(), &request, request_type, hosts).into_iter().map(|rule| format!("a{}", rule.test)),
++        );
++        lines.truncate(MAX_TESTS);
++        lines.join("\n")
++    }
++}
++
++/// True when the answer with these headers ends the request. `tests` is what `HeaderRules::tests`
++/// gave for it; `headers` is one "name:value" per line, in the order the headers came.
++pub fn blocked_by(tests: &str, headers: &[u8]) -> bool {
++    let headers: Vec<(Vec<u8>, &[u8])> = headers
++        .split(|&b| b == b'\n')
++        .filter_map(|line| {
++            let colon = line.iter().position(|&b| b == b':')?;
++            Some((line[..colon].trim_ascii().to_ascii_lowercase(), line[colon + 1..].trim_ascii()))
++        })
++        .collect();
++    let (mut blocked, mut important, mut allowed) = (false, false, false);
++    for line in tests.lines().take(MAX_TESTS) {
++        let Some(kind) = line.chars().next() else { continue };
++        if !Test::parse(&line[kind.len_utf8()..]).is_some_and(|test| test.passes(&headers)) {
++            continue;
++        }
++        match kind {
++            'B' => important = true,
++            'b' => blocked = true,
++            'a' => allowed = true,
++            _ => {}
++        }
++    }
++    important || (blocked && !allowed)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn passes(option: &str, headers: &str) -> bool {
++        // through `blocked_by`, as the browser asks
++        Test::parse(option).expect(option);
++        blocked_by(&format!("b{option}"), headers.as_bytes())
++    }
++
++    const ANSWER: &str = "Content-Type: text/javascript\nX-Powered-By: Express\nVia: 2.3 Tomcat\n\
++                          ETag: W/\"5e1c-18a2b\"\nLink: <https://adsco.re/>;rel=preconnect\nX-Request-ID: 0123456789abcdef0123456789abcdef\n";
++
++    #[test]
++    fn a_header_that_is_there() {
++        assert!(passes("x-powered-by", ANSWER));
++        assert!(passes("X-Powered-By", ANSWER));
++        assert!(!passes("x-77-pop", ANSWER));
++        assert!(!passes("x-powered", ANSWER)); // the whole name
++        assert!(!passes("x-powered-by", ""));
++    }
++
++    #[test]
++    fn a_value_in_plain_text_is_found_in_any_case() {
++        assert!(passes("x-powered-by:Express", ANSWER));
++        assert!(passes("x-powered-by:express", ANSWER));
++        assert!(passes("x-powered-by:pres", ANSWER));
++        assert!(passes("via:2.3 tomcat", ANSWER));
++        assert!(!passes("via:2x3 tomcat", ANSWER)); // "." is a dot
++        assert!(!passes("x-powered-by:PHP", ANSWER));
++        // "*" is any run of characters, "?" at most one
++        assert!(passes("etag:W/\"*-*\"", ANSWER));
++        assert!(passes("link:*adsco.re*", ANSWER));
++        assert!(passes("link:*/>;rel=preconnect", ANSWER));
++        assert!(passes("x-powered-by:Expres?s", ANSWER));
++        assert!(!passes("x-powered-by:Exp?ss", ANSWER));
++        assert!(!passes("etag:W/\"*_*\"", ANSWER));
++        // what the lists wrote without the closing "/" is plain text, and never found
++        assert!(!passes("via:/^2\\.\\d (apache|tomcat|nginx)$", ANSWER));
++    }
++
++    #[test]
++    fn a_value_as_a_regular_expression() {
++        assert!(passes("x-request-id:/^[0-9a-f]{32}$/", ANSWER));
++        assert!(!passes("x-request-id:/^[0-9a-f]{31}$/", ANSWER));
++        assert!(passes("link:/adsco\\.re\\/>;rel=preconnect/", ANSWER));
++        assert!(passes("etag:/^W\\/\"[0-9a-z]+-[0-9a-zA-Z]+(?:\\/[0-9a-zA-Z]+)?\"$/", ANSWER));
++        // the case counts unless the rule says otherwise
++        assert!(!passes("via:/tomcat/", ANSWER));
++        assert!(passes("via:/tomcat/i", ANSWER));
++        assert!(passes("via:/^2\\.\\d (apache|tomcat|nginx)$/i", ANSWER));
++    }
++
++    #[test]
++    fn the_opposite() {
++        assert!(passes("x-powered-by:~PHP", ANSWER));
++        assert!(!passes("x-powered-by:~Express", ANSWER));
++        assert!(passes("via:~/apache/i", ANSWER));
++        assert!(!passes("via:~/tomcat/i", ANSWER));
++        // without the header it is true as well
++        assert!(passes("server:~nginx", ANSWER));
++    }
++
++    #[test]
++    fn the_first_header_of_a_name_counts_and_values_are_bytes() {
++        assert!(passes("set-cookie:first", "Set-Cookie: first=1\nSet-Cookie: second=2\n"));
++        assert!(!passes("set-cookie:second", "Set-Cookie: first=1\nSet-Cookie: second=2\n"));
++        assert!(blocked_by("bserver:caf", b"Server: caf\xe9\xff\n"));
++        assert!(blocked_by("bserver:/^caf.{2}$/", b"Server: caf\xe9\xff\n"));
++        // a value with a colon, and lines that are not headers
++        assert!(passes("location:https://stg.*", "Location: https://stg.example.com/x\n\nnot a header\n"));
++    }
++
++    #[test]
++    fn a_test_that_is_not_understood_is_none() {
++        for bad in ["", ":value", "na me:value", "name:~", "name:/(?=x)y/", "name:/(x)\\1/", "name:/[/"] {
++            assert!(Test::parse(bad).is_none(), "{bad}");
++        }
++        assert!(Test::parse(&format!("name:{}", "x".repeat(MAX_VALUE))).is_none());
++        // too large to prepare
++        assert!(Test::parse("name:/(?:[a-z]{1000}){1000}/").is_none());
++    }
++
++    #[test]
++    fn a_rule_is_rewritten_for_the_small_engine() {
++        let (found, filter, exception) =
++            rule("/^https:\\/\\/www\\.[a-z]{8,14}\\.com\\/[a-z]{1,4}\\.js$/$script,3p,match-case,header=x-powered-by:Express,from=~edu|~gov,to=com|~photopea.com", 7)
++                .unwrap();
++        assert_eq!(
++            filter,
++            "/^https:\\/\\/www\\.[a-z]{8,14}\\.com\\/[a-z]{1,4}\\.js$/$csp=h7,3p,match-case,from=~edu|~gov"
++        );
++        assert_eq!((found.only, found.never, found.same_host, found.important, exception), (vec!["script"], vec![], None, false, false));
++        assert_eq!((found.to, found.not_to), (vec!["com".to_string()], vec!["photopea.com".to_string()]));
++        assert_eq!(found.test, "x-powered-by:Express");
++
++        let (found, filter, _) = rule("/^https?:\\/\\/[^\\/]+\\/_fd$/$xhr,1p,strict1p,header=X-Request-Id:/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/", 0).unwrap();
++        assert_eq!(filter, "/^https?:\\/\\/[^\\/]+\\/_fd$/$csp=h0,1p");
++        assert_eq!((found.only, found.same_host), (vec!["xmlhttprequest"], Some(true)));
++        assert_eq!(found.test, "X-Request-Id:/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/");
++
++        // the option first, a comma inside its value, an exception, other names for it
++        let (found, filter, exception) = rule("@@||cdn.example^$responseheader=vary:/^referer\\,accept/i,script,~image,important", 3).unwrap();
++        assert_eq!((filter.as_str(), exception, found.important), ("||cdn.example^$csp=h3", true, true));
++        assert_eq!((found.only, found.never), (vec!["script"], vec!["image"]));
++        assert_eq!(found.test, "vary:/^referer,accept/i");
++        let (found, filter, _) = rule("://www.*.css|$script,xhr,3p,to=com,method=get|head,header=popads-node", 1).unwrap();
++        assert_eq!(filter, "://www.*.css|$csp=h1,3p,method=get|head");
++        assert_eq!(found.only, vec!["script", "xmlhttprequest"]);
++        assert_eq!(found.to, vec!["com".to_string()]);
++    }
++
++    #[test]
++    fn the_options_are_found_and_split_as_ublock_origin_does() {
++        // the last "$" that an option follows
++        let options = |line: &'static str| options_start(line).map(|at| &line[at + 1..]);
++        assert_eq!(options(r"/^https?:\/\/[a-z]{8,15}\.com\/$/$xhr,3p,header=name:/x$/"), Some("xhr,3p,header=name:/x$/"));
++        assert_eq!(
++            options(r"||x.example^$script,header=via:/^2\.\d (apache|nginx)$"),
++            Some(r"script,header=via:/^2\.\d (apache|nginx)$")
++        );
++        assert_eq!(options("/[$&]/$3p,header=x"), Some("3p,header=x"));
++        assert_eq!(options("||x.example^$~third-party"), Some("~third-party"));
++        assert_eq!(options("||x.example/a$b"), Some("b"));
++        assert_eq!(options("||x.example/a$B"), None);
++        assert_eq!(options("||x.example/a$"), None);
++        assert_eq!(options("||x.example^"), None);
++        // a comma ends an option only when another option follows
++        assert_eq!(split_options("script,3p,header=via:/, 1\\.1 google$/"), ["script", "3p", "header=via:/, 1\\.1 google$/"]);
++        assert_eq!(split_options("header=etag:/^W\\/\"[0-9a-f]{8,}\"$/,from=~edu|~gov"), ["header=etag:/^W\\/\"[0-9a-f]{8,}\"$/", "from=~edu|~gov"]);
++        assert_eq!(split_options("header=vary:/^referer\\,accept/i,script"), ["header=vary:/^referer,accept/i", "script"]);
++        assert_eq!(split_options("script,_,~image,__"), ["script", "_", "~image", "__"]);
++        assert_eq!(split_options("header=a:b,c d,1p"), ["header=a:b,c d", "1p"]);
++        assert_eq!(split_options(""), [""]);
++
++        let (found, filter, _) = rule("/_static/delivery.js?nonce=$script,1p,header=via:/, 1\\.1 google$/", 0).unwrap();
++        assert_eq!((filter.as_str(), found.test.as_str()), ("/_static/delivery.js?nonce=$csp=h0,1p", "via:/, 1\\.1 google$/"));
++        assert!(blocked_by("bvia:/, 1\\.1 google$/", b"Via: 1.1 varnish, 1.1 google\n"));
++    }
++
++    #[test]
++    fn a_rule_that_is_not_understood_is_left_out() {
++        for not_taken in [
++            "||ads.example^$script",
++            "||ads.example/header=x^$script",
++            "! ||ads.example^$script,header=x",
++            "news.example##.header=x",
++            "||ads.example^$script,header=",
++            "||ads.example^$script,header=x,header=y",
++            "||ads.example^$script,~header=x",
++            "||ads.example^$script,requestheader=cookie:*x*",
++            "||ads.example^$script,header=x,requestheader=cookie",
++            "||ads.example^$doc,header=x",
++            "||ads.example^$script,header=x,redirect=noopjs",
++            "||ads.example^$script,header=x,removeparam=y",
++            "||ads.example^$script,header=x,csp=script-src 'none'",
++            "||ads.example^$script,header=x,ipaddress=1.2.3.4",
++            "||ads.example^$script,header=x,denyallow=y.example",
++            "||ads.example^$script,header=x,strict1p,strict3p",
++            "||ads.example^$script,header=x,to=shop.*",
++            "||ads.example^$script,header=x,to=a.example,to=b.example",
++            "||ads.example^$script,header=x,to=",
++            "||ads.example^$script,header=x:/(?=y)z/",
++            "||ads.example^$header=x,match-case", // adblock-rust: only with a regular expression
++            "||ads.example^$script, header=x",
++            "/ads.js?api_key=*&header=$all",
++        ] {
++            assert!(rule(not_taken, 0).is_none(), "{not_taken}");
++        }
++    }
++
++    const PAGE: &str = "https://news.example/story";
++
++    fn rules() -> HeaderRules {
++        HeaderRules::from_rules(
++            "||ads.example^\n\
++             ://www.*.css|$script,xhr,3p,to=com,header=popads-node\n\
++             ://www.*.css|$script,xhr,3p,to=com,header=x-77-pop\n\
++             ||cdn.example/lib.js$script,header=server:/^openresty\\//\n\
++             /^https?:\\/\\/[^\\/]+\\/_fd$/$xhr,1p,strict1p,header=x-request-id\n\
++             ||api.example^$method=head,header=x-partner\n\
++             ||loud.example^$important,header=x-ad\n\
++             ||wide.example^$script,to=~cdn.wide.example|~wide.example.net,header=x-wide\n\
++             @@||cdn.example^$script,header=x-safe:yes\n\
++             ||odd.example^$script,requestheader=cookie\n",
++        )
++    }
++
++    fn tests_for(rules: &HeaderRules, url: &str, request_type: &str, method: &str) -> String {
++        rules.tests(url, PAGE, request_type, method, || false)
++    }
++
++    #[test]
++    fn the_rules_that_could_apply_go_with_the_request() {
++        let rules = rules();
++        assert_eq!(rules.text.lines().count(), 8, "{}", rules.text);
++        // two rules for the same address
++        assert_eq!(tests_for(&rules, "https://www.pop.com/a.css", "script", "GET"), "bpopads-node\nbx-77-pop");
++        assert_eq!(tests_for(&rules, "https://www.pop.com/a.css", "xmlhttprequest", "GET"), "bpopads-node\nbx-77-pop");
++        // not the type, not a .com host, not another site's request
++        assert_eq!(tests_for(&rules, "https://www.pop.com/a.css", "image", "GET"), "");
++        assert_eq!(tests_for(&rules, "https://www.pop.net/a.css", "script", "GET"), "");
++        assert_eq!(rules.tests("https://www.pop.com/a.css", "https://www.pop.com/", "script", "GET", || false), "");
++        // an exception of this kind goes along
++        assert_eq!(tests_for(&rules, "https://cdn.example/lib.js", "script", "GET"), "bserver:/^openresty\\//\nax-safe:yes");
++        assert_eq!(tests_for(&rules, "https://cdn.example/other.js", "script", "GET"), "");
++        // hosts the rule is not for
++        assert_eq!(tests_for(&rules, "https://wide.example/a.js", "script", "GET"), "bx-wide");
++        assert_eq!(tests_for(&rules, "https://img.wide.example/a.js", "script", "GET"), "bx-wide");
++        assert_eq!(tests_for(&rules, "https://cdn.wide.example/a.js", "script", "GET"), "");
++        assert_eq!(tests_for(&rules, "https://a.cdn.wide.example/a.js", "script", "GET"), "");
++        // the method
++        assert_eq!(tests_for(&rules, "https://api.example/", "xmlhttprequest", "HEAD"), "bx-partner");
++        assert_eq!(tests_for(&rules, "https://api.example/", "xmlhttprequest", "GET"), "");
++        // a page's own request is never ended
++        assert_eq!(tests_for(&rules, "https://api.example/", "document", "HEAD"), "");
++        assert_eq!(tests_for(&rules, "https://plain.example/x.js", "script", "GET"), "");
++        assert_eq!(tests_for(&rules, "not an address", "script", "GET"), "");
++        assert_eq!(HeaderRules::default().tests("https://www.pop.com/a.css", PAGE, "script", "GET", || false), "");
++    }
++
++    #[test]
++    fn a_request_of_a_type_no_rule_is_for_is_passed_over() {
++        let some = HeaderRules::from_rules("||a.example^$script,header=x\n||b.example^$xhr,frame,script,header=y\n");
++        assert_eq!(some.types, Some(vec!["script", "subdocument", "xmlhttprequest"]));
++        assert_eq!(tests_for(&some, "https://a.example/x", "script", "GET"), "bx");
++        assert_eq!(tests_for(&some, "https://a.example/x", "image", "GET"), "");
++        // a rule for every type: every request is looked at
++        assert_eq!(rules().types, None);
++        let all = HeaderRules::from_rules("||a.example^$header=x\n");
++        assert_eq!(tests_for(&all, "https://a.example/x", "image", "GET"), "bx");
++        assert_eq!(HeaderRules::default().types, None);
++    }
++
++    #[test]
++    fn strict1p_wants_the_very_host_of_the_document() {
++        let rules = rules();
++        assert_eq!(rules.tests("https://news.example/_fd", PAGE, "xmlhttprequest", "GET", || false), "bx-request-id");
++        // the same site, another host
++        assert_eq!(rules.tests("https://api.news.example/_fd", PAGE, "xmlhttprequest", "GET", || false), "");
++        assert_eq!(host_of("https://News.Example:8443/a?b#c"), "News.Example");
++        assert_eq!(host_of("https://user:pw@localhost:8443/a"), "localhost");
++        assert_eq!(host_of("http://[::1]:8080/"), "[::1]");
++        assert_eq!(host_of("http://[::1]/"), "[::1]");
++        assert_eq!(host_of("https://news.example"), "news.example");
++    }
++
++    #[test]
++    fn an_exception_rule_of_the_lists_spares_the_request_unless_the_rule_is_important() {
++        let rules = rules();
++        assert_eq!(rules.tests("https://www.pop.com/a.css", PAGE, "script", "GET", || true), "");
++        assert_eq!(rules.tests("https://loud.example/a.js", PAGE, "script", "GET", || true), "Bx-ad");
++        assert_eq!(rules.tests("https://loud.example/a.js", PAGE, "script", "GET", || false), "Bx-ad");
++        // the lists are only asked about exceptions when a rule applies
++        assert_eq!(rules.tests("https://plain.example/x.js", PAGE, "script", "GET", || panic!("asked")), "");
++    }
++
++    #[test]
++    fn the_answer_decides() {
++        assert!(blocked_by("bpopads-node\nbx-77-pop", b"Content-Type: text/css\nX-77-Pop: 1\n"));
++        assert!(!blocked_by("bpopads-node\nbx-77-pop", b"Content-Type: text/css\n"));
++        assert!(!blocked_by("", b"X-77-Pop: 1\n"));
++        // an exception whose header is there spares the request, but not from an important rule
++        let tests = "bserver:/^openresty\\//\nax-safe:yes";
++        assert!(blocked_by(tests, b"Server: openresty/1.2\n"));
++        assert!(!blocked_by(tests, b"Server: openresty/1.2\nX-Safe: yes\n"));
++        assert!(!blocked_by(tests, b"Server: nginx\n"));
++        assert!(blocked_by("Bx-ad\nax-safe", b"X-Ad: 1\nX-Safe: yes\n"));
++        // lines that are not tests are passed over, and only so many are read
++        assert!(!blocked_by("?x-ad\n\nbname:/[/", b"X-Ad: 1\nName: x\n"));
++        let many = format!("{}bx-ad", "bnone\n".repeat(MAX_TESTS));
++        assert!(!blocked_by(&many, b"X-Ad: 1\n"));
++    }
++
++    #[test]
++    fn at_most_so_many_rules_go_with_one_request() {
++        let lines: String = (0..40).map(|n| format!("||many.example^$script,header=x-{n}\n")).collect();
++        let rules = HeaderRules::from_rules(&lines);
++        assert_eq!(tests_for(&rules, "https://many.example/a.js", "script", "GET").lines().count(), MAX_TESTS);
++    }
 +}
 diff --git a/components/thoron_adblock/list_fetch.cc b/components/thoron_adblock/list_fetch.cc
 new file mode 100644
@@ -6531,10 +7520,10 @@ index 0000000000000000000000000000000000000000..7f184e809adfa52749d3d5bb1dbf6d84
 +}
 diff --git a/components/thoron_adblock/proxying_url_loader_factory.cc b/components/thoron_adblock/proxying_url_loader_factory.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..6376322631d71e15b5b223f4e797c6dd4d584b8d
+index 0000000000000000000000000000000000000000..29461b0306433e6f175419c7580b7e46e1763a50
 --- /dev/null
 +++ b/components/thoron_adblock/proxying_url_loader_factory.cc
-@@ -0,0 +1,256 @@
+@@ -0,0 +1,259 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -6736,7 +7725,8 @@ index 0000000000000000000000000000000000000000..6376322631d71e15b5b223f4e797c6dd
 +                          ? request.request_initiator->GetURL()
 +                          : GURL();
 +  const EngineService::Decision decision =
-+      EngineService::Get().Check(request.url, source, request.destination);
++      EngineService::Get().Check(request.url, source, request.destination,
++                                 request.method);
 +  if (decision.blocked) {
 +    mojo::Remote<network::mojom::URLLoaderClient> remote(std::move(client));
 +    if (decision.stand_in.empty() ||
@@ -6750,7 +7740,8 @@ index 0000000000000000000000000000000000000000..6376322631d71e15b5b223f4e797c6dd
 +    return;
 +  }
 +  // The request goes out, with a watcher between its loader and its client
-+  // that looks at the redirects it may meet.
++  // that looks at the redirects it may meet, and at its answer when `$header`
++  // rules could apply to it.
 +  mojo::PendingRemote<network::mojom::URLLoader> target_loader;
 +  mojo::PendingRemote<network::mojom::URLLoaderClient> watcher_client;
 +  mojo::PendingReceiver<network::mojom::URLLoaderClient>
@@ -6769,7 +7760,8 @@ index 0000000000000000000000000000000000000000..6376322631d71e15b5b223f4e797c6dd
 +        target_loader.InitWithNewPipeAndPassReceiver(), request_id, options,
 +        request, std::move(watcher_client), traffic_annotation);
 +  }
-+  RedirectWatcher::Start({source, request.destination, frame_},
++  RedirectWatcher::Start({source, request.destination, frame_,
++                          decision.header_tests},
 +                         std::move(loader_receiver), std::move(client),
 +                         std::move(target_loader),
 +                         std::move(watcher_client_receiver));
@@ -7232,10 +8224,10 @@ index 0000000000000000000000000000000000000000..93d4b7aef64a8427c748e773c0b2a3d0
 +}
 diff --git a/components/thoron_adblock/redirect_watcher.cc b/components/thoron_adblock/redirect_watcher.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..c082e4268f2a20d5893ac0c69e2b32de3a92af5a
+index 0000000000000000000000000000000000000000..c465c8e4aa8372d8e34eea5f60c8371da6947fdc
 --- /dev/null
 +++ b/components/thoron_adblock/redirect_watcher.cc
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,263 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7252,6 +8244,7 @@ index 0000000000000000000000000000000000000000..c082e4268f2a20d5893ac0c69e2b32de
 +#include "content/public/browser/browser_task_traits.h"
 +#include "content/public/browser/browser_thread.h"
 +#include "net/base/net_errors.h"
++#include "net/http/http_response_headers.h"
 +#include "services/network/public/cpp/url_loader_completion_status.h"
 +
 +namespace thoron_adblock {
@@ -7268,10 +8261,12 @@ index 0000000000000000000000000000000000000000..c082e4268f2a20d5893ac0c69e2b32de
 +}
 +
 +// On the UI thread, where the engine is: what to do with a redirect to `url`.
-+EngineService::Decision CheckOnUI(GURL url, RedirectWatcher::Context context) {
++EngineService::Decision CheckOnUI(GURL url,
++                                  std::string method,
++                                  RedirectWatcher::Context context) {
 +  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-+  EngineService::Decision decision =
-+      EngineService::Get().Check(url, context.source, context.destination);
++  EngineService::Decision decision = EngineService::Get().Check(
++      url, context.source, context.destination, method);
 +  if (decision.blocked && context.frame) {
 +    BlockedCount::Record(context.frame);
 +  }
@@ -7342,6 +8337,9 @@ index 0000000000000000000000000000000000000000..c082e4268f2a20d5893ac0c69e2b32de
 +    network::mojom::URLResponseHeadPtr head,
 +    mojo::ScopedDataPipeConsumerHandle body,
 +    std::optional<mojo_base::BigBuffer> cached_metadata) {
++  if (EndedByAnswer(head)) {
++    return;
++  }
 +  client_->OnReceiveResponse(std::move(head), std::move(body),
 +                             std::move(cached_metadata));
 +}
@@ -7349,11 +8347,17 @@ index 0000000000000000000000000000000000000000..c082e4268f2a20d5893ac0c69e2b32de
 +void RedirectWatcher::OnReceiveRedirect(
 +    const net::RedirectInfo& redirect_info,
 +    network::mojom::URLResponseHeadPtr head) {
++  // A redirect is an answer too.
++  if (EndedByAnswer(head)) {
++    return;
++  }
 +  // Nothing more from the network for this request until the engine has
 +  // answered, so the client hears everything in the order it happened.
 +  target_client_receiver_.Pause();
 +  content::GetUIThreadTaskRunner({})->PostTaskAndReplyWithResult(
-+      FROM_HERE, base::BindOnce(&CheckOnUI, redirect_info.new_url, context_),
++      FROM_HERE,
++      base::BindOnce(&CheckOnUI, redirect_info.new_url,
++                     redirect_info.new_method, context_),
 +      base::BindOnce(&RedirectWatcher::OnRedirectChecked,
 +                     weak_factory_.GetWeakPtr(), redirect_info,
 +                     std::move(head)));
@@ -7367,14 +8371,11 @@ index 0000000000000000000000000000000000000000..c082e4268f2a20d5893ac0c69e2b32de
 +    return;  // the request ended meanwhile
 +  }
 +  if (decision.blocked) {
-+    client_->OnComplete(
-+        network::URLLoaderCompletionStatus(net::ERR_BLOCKED_BY_CLIENT));
-+    // The network must not follow the redirect: both sides are closed.
-+    CloseLoader();
-+    CloseClient();
-+    DeleteIfDone();
++    EndBlocked();
 +    return;
 +  }
++  // From here on the answer is that of the new address.
++  context_.header_tests = std::move(decision.header_tests);
 +  // The network service only follows a redirect to another address of the
 +  // same origin, and to none that carries a user name or password.
 +  if (decision.clean_url.is_valid() && !decision.clean_url.has_username() &&
@@ -7445,6 +8446,33 @@ index 0000000000000000000000000000000000000000..c082e4268f2a20d5893ac0c69e2b32de
 +  DeleteIfDone();
 +}
 +
++void RedirectWatcher::EndBlocked() {
++  if (client_.is_bound()) {
++    client_->OnComplete(
++        network::URLLoaderCompletionStatus(net::ERR_BLOCKED_BY_CLIENT));
++  }
++  // Nothing more may come from the network or go to it: both sides are
++  // closed.
++  CloseLoader();
++  CloseClient();
++  DeleteIfDone();
++}
++
++bool RedirectWatcher::EndedByAnswer(
++    const network::mojom::URLResponseHeadPtr& head) {
++  if (!EngineService::HeaderTestsBlock(context_.header_tests,
++                                       head ? head->headers.get() : nullptr)) {
++    return false;
++  }
++  if (context_.frame) {
++    // The page's count is kept on the UI thread.
++    content::GetUIThreadTaskRunner({})->PostTask(
++        FROM_HERE, base::BindOnce(&BlockedCount::Record, context_.frame));
++  }
++  EndBlocked();
++  return true;
++}
++
 +void RedirectWatcher::CloseLoader() {
 +  loader_receiver_.reset();
 +  target_loader_.reset();
@@ -7465,10 +8493,10 @@ index 0000000000000000000000000000000000000000..c082e4268f2a20d5893ac0c69e2b32de
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/redirect_watcher.h b/components/thoron_adblock/redirect_watcher.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..6b959b5f9f74b8b1d8e635d29b6fdfee2676636a
+index 0000000000000000000000000000000000000000..af8939a512deafdce5745a0f4e2e14af88aa1f4b
 --- /dev/null
 +++ b/components/thoron_adblock/redirect_watcher.h
-@@ -0,0 +1,128 @@
+@@ -0,0 +1,141 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7506,6 +8534,9 @@ index 0000000000000000000000000000000000000000..6b959b5f9f74b8b1d8e635d29b6fdfee
 +//   the page asked for that address itself;
 +// - parameters to take out: the client is told the redirect leads to the
 +//   clean address, and the network follows it there.
++// It also looks at the answer when `$header` rules could apply to the request:
++// an answer with a header such a rule names ends the request the same way,
++// before the client has seen any of it.
 +// Everything else passes through untouched, both ways.
 +//
 +// Watchers live on one background sequence, so the browser's UI thread is not
@@ -7523,6 +8554,9 @@ index 0000000000000000000000000000000000000000..6b959b5f9f74b8b1d8e635d29b6fdfee
 +        network::mojom::RequestDestination::kEmpty;
 +    // The document whose page counts a blocked request (none for workers).
 +    content::GlobalRenderFrameHostId frame;
++    // What the answer is to be held against (EngineService::Decision's
++    // `header_tests`); set anew for each address the request is sent on to.
++    std::string header_tests;
 +  };
 +
 +  // Called on the UI thread with the four pipe ends of one request:
@@ -7584,7 +8618,14 @@ index 0000000000000000000000000000000000000000..6b959b5f9f74b8b1d8e635d29b6fdfee
 +  void CloseClient();
 +  void DeleteIfDone();
 +
-+  const Context context_;
++  // Ends the request as blocked: the client is told and both sides are
++  // closed. The watcher may be gone afterwards.
++  void EndBlocked();
++  // `$header`: ends the request when the answer `head` is one a rule names.
++  // True when it did; the watcher may be gone then.
++  bool EndedByAnswer(const network::mojom::URLResponseHeadPtr& head);
++
++  Context context_;
 +  // Set while a redirect to a cleaned address waits to be followed.
 +  std::optional<GURL> clean_redirect_;
 +  mojo::Receiver<network::mojom::URLLoader> loader_receiver_{this};
@@ -8213,7 +9254,7 @@ index 0000000000000000000000000000000000000000..6918512f49ca06d07e767dec3c953341
 +refresh();
 diff --git a/components/thoron_adblock/urlskip.rs b/components/thoron_adblock/urlskip.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..77c734fc59d4530b77fcba7b2ce91fdf1e749fbf
+index 0000000000000000000000000000000000000000..238932a1d83dba698aa99c8d1fb72fc3f2a21b0a
 --- /dev/null
 +++ b/components/thoron_adblock/urlskip.rs
 @@ -0,0 +1,524 @@
@@ -8485,7 +9526,7 @@ index 0000000000000000000000000000000000000000..77c734fc59d4530b77fcba7b2ce91fdf
 +}
 +
 +/// True when `host` is one of `hosts` or below one of them ("com" covers "shop.example.com").
-+fn host_is_in(host: &str, hosts: &[String]) -> bool {
++pub(crate) fn host_is_in(host: &str, hosts: &[String]) -> bool {
 +    hosts.iter().any(|h| host == h || (host.len() > h.len() && host.ends_with(h) && host[..host.len() - h.len()].ends_with('.')))
 +}
 +

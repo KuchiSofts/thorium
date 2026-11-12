@@ -530,7 +530,8 @@ smart. This replaces the hybrid of section 3 and decision 1 of section 11.
 | WebSocket connections | the browser is asked before each connection of a frame | done (P5.29, section 12.12) |
 | `$urlskip`: a navigation to a redirector goes straight to the destination | a module of the engine and the navigation interceptor (12.14) | done (P5.26, first part) |
 | `$permissions`: the lists switch browser features off for a document | a module of the engine and the document throttle (12.15) | done (P5.26, second part) |
-| `$replace`, `$header`, `$uritransform`, `:shadow()` | see 12.9 | P5.26 |
+| `$header`: a request ends when the server's answer gives it away; the request's real method | a module of the engine, the request watcher and the document throttle (12.16) | done (P5.26, third part) |
+| `$replace`, `$uritransform`, `:shadow()` | see 12.9 | P5.26 |
 | List updates | 4.6 | done |
 | Scriptlet and resource updates | 12.4 | P5.23 |
 | Per-site switch, blocked count | 4.7 | done |
@@ -1099,6 +1100,62 @@ allowed on the site, all of them are allowed.
 
 Security review. The header only narrows what a page may do, comes only from trusted lists, holds only
 `name=()` entries with names of lower-case letters, digits and `-`, and is at most 2,048 characters long.
+
+### 12.16 `$header` and the request method (P5.26, 2026-11-12)
+
+Some ad servers change their names and addresses all the time, but their answers give them away: a
+header that only their software sends (`popads-node`, `x-77-pop`), a value of a common header (`via`,
+`etag`, `link`) or a redirect to a known address. uBlock Origin's lists catch them with `$header`:
+`://www.*.css|$script,xhr,3p,to=com,header=popads-node` ends a script request from another site to a
+`.com` host when the answer carries that header. The bundled lists hold 52 such lines.
+
+How it is built:
+
+- adblock-rust does not know the option, so the rules are kept in a module of the engine (`header.rs`).
+  It works in two steps. When a request starts, a small engine of its own says which rules could apply
+  (address, who asks, type, method). adblock-rust names only one matching rule per question, except for
+  `$csp` rules, of which it names all, so each rule is given to it as a `$csp` rule whose value is the
+  rule's number. What those rules ask of the answer goes with the request as a few lines of text; for
+  nearly every request there are none.
+- When the answer arrives, its headers are tested against those lines. A redirect is an answer too. This
+  happens in the watcher that already sits on every request a page, a worker or a service worker makes
+  (12.10), before the page sees any of the answer, and for frames in the throttle on the frame's
+  navigation (12.9). A page's own request is never ended.
+- The value is read exactly as uBlock Origin reads it: `name` (the header is there), `name:text` (the
+  value holds the text, in any case; `*` and `?` are wildcards), `name:/re/` and `name:/re/i` (a regular
+  expression), and `~` for the opposite. Only the first header of a name counts. A rule's options are
+  found and split as uBlock Origin does it: the last `$` that an option follows, and a comma ends an
+  option only when another option follows, so a value may hold commas (`header=via:/, 1\.1 google$/`).
+- `to=` is checked by the module: adblock-rust reads the option and then leaves the whole rule out.
+  `strict1p` and `strict3p` (the very host of the document, or not), request types and `important` are
+  checked there too.
+- An exception rule of the lists for the request (`@@||site.example^`) spares it, except from a rule
+  marked `important`; an exception with `header=` counts only when the answer is as it says.
+- A rule can only end a request, like any blocking rule, so every list may bring such rules.
+- Requests of a type no rule is for (images, style sheets, fonts) are passed over at once. Measured with
+  the bundled lists on 400 kinds of requests: 5.9 microseconds a request against 4.5 without the rules,
+  and 30 of the 400 wait for their answer.
+- The rules are saved with the engine, in the section of rules every list may bring (layout 4).
+
+The request's real method now reaches the engine too. Before, every request was checked as a `GET`, so
+the lists' 58 rules with `method=` (a tracker that only receives `POST`, probes sent with `HEAD`) were
+never or wrongly applied.
+
+Coverage: 50 of the 52 lines. Left out: one rule that tests a header the browser sends
+(`requestheader=Cookie`; the cookies are added where this code does not see them), and one line that is
+an address with `&header=` in it, not a rule of this kind.
+
+Checked: 17 engine tests (the value syntax, the opposite, regular expressions and wildcards, splitting
+the options, `to=`, `strict1p`, exceptions and `important`, types passed over, saving, the method), and
+`tools/qa/adblock_header_check.py`, offline, with four real rules of the lists: a header by name, a header
+by value, a redirect to a known address, and a frame. Each has an answer with the header and one without:
+with native blocking on, only the first is stopped; with blocking off, and with ads allowed on the site,
+both load. `tools/qa/adblock_syntax_check.py` has a case for `method=` with a real rule: a `POST` to the
+tracker is stopped and a `GET` to the same address is not.
+
+Security review. Nothing new is sent anywhere; an answer can only end its own request. The values are
+read as bytes, the regular expressions use the `regex` crate (linear time, a size limit of 1 MB to
+prepare), at most 16 rules go with one request, and a value is at most 1,024 characters.
 
 ## 13. Credits
 
