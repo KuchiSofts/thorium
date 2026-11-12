@@ -105,6 +105,37 @@ class ArgumentsTests(unittest.TestCase):
         self.assertFalse([a for a in pr.launch_arguments(Path("b"), Path("c")) if a.startswith("--headless")])
         self.assertIn("--headless=new", pr.launch_arguments(Path("b"), Path("c"), headless=True))
 
+    def test_minimized_windows_are_minimized_once_each_as_they_appear(self):
+        class Browser:
+            def __init__(self):
+                self.calls, self.closed = [], False
+                self.pages = [[{"type": "page", "targetId": "a"}],
+                              [{"type": "page", "targetId": "a"}, {"type": "page", "targetId": "b"},
+                               {"type": "service_worker", "targetId": "c"}]]
+
+            def call(self, method, **params):
+                self.calls.append((method, params))
+                if method == "Target.getTargets":
+                    return {"targetInfos": self.pages.pop(0) if len(self.pages) > 1 else self.pages[0]}
+                if method == "Browser.getWindowForTarget":
+                    if params["targetId"] == "b":
+                        raise RuntimeError("no window yet")
+                    return {"windowId": 7}
+                return {}
+
+            def close(self):
+                self.closed = True
+
+        browser = Browser()
+        clock = iter(range(100))
+        count = pr.minimize_windows(9, seconds=3, connect=lambda port: browser, now=lambda: next(clock),
+                                    sleep=lambda s: None)
+        self.assertEqual(count, 1)
+        minimized = [p for m, p in browser.calls if m == "Browser.setWindowBounds"]
+        self.assertEqual(minimized, [{"windowId": 7, "bounds": {"windowState": "minimized"}}])
+        self.assertTrue(browser.closed)
+
+
 
 class RefusalTests(Scratch):
     def test_a_closed_profile_and_a_plain_work_folder_are_accepted(self):
@@ -193,6 +224,15 @@ class RunTests(Scratch):
         self.assertEqual(self.started, [pr.launch_arguments(self.browser, self.ud)])
         self.assertEqual(self.asked_port, 9222)
         self.assertFalse(proc.stopped)
+
+    def test_a_minimized_run_hides_the_windows_once_it_has_a_port(self):
+        seen = []
+        self.assertIsNone(self.run_with(self.Process(), hide=seen.append))
+        self.assertEqual(seen, [9222])
+        # a window that cannot be minimized is no reason to stop
+        def fails(port):
+            raise RuntimeError("no window")
+        self.assertIsNone(self.run_with(self.Process(), hide=fails))
 
     def test_a_stale_devtools_port_is_removed_first(self):
         (self.ud / "DevToolsActivePort").write_text("1\n", encoding="utf-8")

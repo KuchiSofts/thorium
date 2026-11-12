@@ -184,3 +184,4 @@ other/ks-native-adblock-hook.patch
 # 95 - Conditional / platform-specific overlays that are still active.
 [raspi] other/linux-widevine-cdm-locations.patch
 [raspi] other/raspi-netflix-chromeos-ua.patch
+other/ks-thoron-version.patch

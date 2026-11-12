@@ -25,6 +25,7 @@ $removeparam=mtm_source
 ||rec.example/api/rec$method=POST
 ||other.example/rec$method=get|post
 $csp=child-src 'none'; frame-src 'self' *; worker-src 'none',domain=file.example|other.example
+paper.example##[id^="widget_"].OUT[data-src]:has(:shadow(.ob > .items > a[data-adv-id][rel*="sponsored"]))
 ! thoron-list: ublock-privacy
 *$permissions=idle-detection=(),from=~localhost|~127.0.0.1|~[::1]|~local
 *$permissions=browsing-topics=(),from=~localhost|~127.0.0.1|~[::1]|~local
@@ -96,6 +97,23 @@ class CaseTests(unittest.TestCase):
     def test_method_takes_the_first_rule_for_post_alone(self):
         self.assertEqual(self.cases["method"], {"host": "rec.example", "path": "/api/rec", "method": "POST"})
 
+    def test_shadow_takes_a_rule_whose_page_can_be_built(self):
+        self.assertEqual(self.cases["shadow"], {
+            "host": "paper.example", "outer": '[id^="widget_"].OUT[data-src]',
+            "inner": '.ob > .items > a[data-adv-id][rel*="sponsored"]'})
+        self.assertNotIn("shadow", sc.cases("x.example##div:has(:shadow(a:has-text(x)))\n"))
+
+    def test_an_element_is_built_from_a_compound_selector(self):
+        self.assertEqual(sc.compound_html('[id^="widget_"].OUT[data-src]', 'data-check="w"'),
+                         '<div id="widget_1" class="OUT" data-src="1" data-check="w">')
+        self.assertEqual(sc.compound_html('a[data-adv-id][rel*="sponsored"]'), '<a data-adv-id="1" rel="sponsored">')
+        self.assertEqual(sc.compound_html("span#x.a.b"), '<span id="x" class="a b">')
+        for not_built in ["div > a", "a:not(.b)", "*", "[x~=y]", "a,b"]:
+            self.assertIsNone(sc.compound_html(not_built), not_built)
+        self.assertEqual(sc.chain_html(".ob > .items > a[rel*=\"x\"]"),
+                         '<div class="ob"><div class="items"><a rel="x"></a></div></div>')
+        self.assertIsNone(sc.chain_html(".ob .items"))
+
     def test_hosts_not_fit_for_a_report_are_skipped(self):
         self.assertNotIn("xxxtube.example", [c.get("host") for c in self.cases.values()])
         self.assertNotIn("has-text", sc.cases("xxxtube.example##.card:has-text(Advert)\n"))
@@ -110,8 +128,8 @@ class CaseTests(unittest.TestCase):
     def test_hosts_of_all_cases(self):
         self.assertEqual(sc.hosts(self.cases),
                          sorted(["blog.example", "files.example", "games.example", "news.example", "shop.example",
-                                 sc.PARAM_HOST, sc.PERMISSIONS_HOST, "rec.example", "video.example",
-                                 "wall.example"]))
+                                 "paper.example", sc.PARAM_HOST, sc.PERMISSIONS_HOST, "rec.example",
+                                 "video.example", "wall.example"]))
 
 
 class PageTests(unittest.TestCase):
@@ -139,6 +157,14 @@ class PageTests(unittest.TestCase):
         for path in ("/data.json?_hsenc=abc&keep=1", "/shape.gif?_hsenc=abc&keep=1", "/inner.html?_hsenc=abc&keep=1"):
             self.assertIn(path, html)
 
+    def test_the_shadow_page_has_an_open_a_closed_and_a_plain_widget(self):
+        html = sc.page_html("shadow", self.cases["shadow"])
+        self.assertIn("mode: 'open'", html)
+        self.assertIn("mode: 'closed'", html)
+        self.assertIn('<a data-adv-id=\\"1\\" rel=\\"sponsored\\"></a>', html)
+        self.assertEqual(html.count("attachShadow"), 1)
+        self.assertIn("marked(q('closed'))", html)
+
     def test_the_method_page_asks_both_ways(self):
         html = sc.page_html("method", self.cases["method"])
         self.assertIn("fetch('/api/rec', {method: 'POST'", html)
@@ -164,7 +190,8 @@ class PageTests(unittest.TestCase):
         self.assertNotIn(sc.PARAM_HOST, html)   # the removeparam page brings its own frame
         # the permissions rules leave pages on this PC alone, and the parent page is one
         self.assertNotIn(sc.PERMISSIONS_HOST, html)
-        self.assertEqual(html.count("<iframe"), 7)
+        self.assertIn('src="http://paper.example/shadow.html"', html)
+        self.assertEqual(html.count("<iframe"), 8)
         # a csp rule that goes by the page's site does not apply to a frame of another page
         by_domain = dict(self.cases, csp={"host": "file.example", "policy": "worker-src 'none'", "by_address": False})
         self.assertNotIn("file.example", sc.parent_html(by_domain))
@@ -186,6 +213,7 @@ class ProblemTests(unittest.TestCase):
                                                          "/inner.html": "keep=1", "/shape.gif": "_hsenc=abc&keep=1"}},
             "csp": {"worker": "refused", "violations": [{"directive": "worker-src", "policy": "worker-src 'none'"}]},
             "method": {"post": "blocked", "get": "loaded"},
+            "shadow": {"open": True, "closed": True, "plain": False},
             "permissions": {"known": FEATURES, "allowed": []},
             "permissions-kept": {"known": FEATURES, "allowed": ["browsing-topics"]},
         }[kind]
@@ -203,6 +231,7 @@ class ProblemTests(unittest.TestCase):
                                                            "/inner.html": dirty, "/shape.gif": dirty}},
             "csp": {"worker": "started", "violations": []},
             "method": {"post": "loaded", "get": "loaded"},
+            "shadow": {"open": False, "closed": False, "plain": False},
             "permissions": {"known": FEATURES, "allowed": FEATURES},
             "permissions-kept": {"known": FEATURES, "allowed": FEATURES},
         }[kind]
@@ -258,6 +287,13 @@ class ProblemTests(unittest.TestCase):
         found = sc.problems("native", "method", case, {"post": "loaded"})
         self.assertEqual(len(found), 2)
 
+    def test_a_closed_shadow_tree_counts_as_much_as_an_open_one(self):
+        case = self.cases["shadow"]
+        found = sc.problems("native", "shadow", case, {"open": True, "closed": False, "plain": False})
+        self.assertEqual(found, ["the widget whose shadow tree is closed is not marked"])
+        found = sc.problems("native", "shadow", case, {"open": True, "closed": True, "plain": True})
+        self.assertEqual(found, ["the widget without the sponsored link is marked"])
+
     def test_permissions_are_judged_feature_by_feature(self):
         case = self.cases["permissions"]
         found = sc.problems("native", "permissions", case, {"known": FEATURES, "allowed": ["idle-detection"]})
@@ -298,6 +334,13 @@ class ProblemTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_the_battery_hides_an_element_inside_a_shadow_tree(self):
+        shadow = [f for f in sc.RUNNER_FILTERS if any(t[0] == "shadow" for t in f["t"])]
+        self.assertEqual(len(shadow), 1)
+        self.assertEqual(shadow[0]["a"], ["mark", "m23", "display:none!important"])
+        self.assertIn("attachShadow", sc.RUNNER_HTML)
+        self.assertEqual(sc.RUNNER_STATE["shadow"], "none")
+
     def test_comment_lines_are_taken_out_as_the_engine_does(self):
         source = "// header\n(function(filters) {\n  // inside\n  return filters.length;  // kept\n})\n"
         self.assertEqual(sc.runner_code(source), "(function(filters) {\n  return filters.length;  // kept\n})")

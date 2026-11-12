@@ -610,8 +610,9 @@ usual way, and Chromium's own uses of the version (user agent, extension minimum
 unaffected. Using Chromium's always-zero MINOR field for rebuilds was rejected: `158.1.8127.30`
 would sort above the newer `158.0.8127.45`. The About page shows the Chromium version as well,
 computed back from the Thoron version (P2.5). `tools/release/version.py` writes the version into
-`chrome/VERSION` before a release build and refuses a release that is not higher than the previous
-one; the release script (P2.12) runs both.
+`chrome/VERSION` before a release build (`set` converts Chromium's own file, `rebuild` moves a
+converted one on to a later rebuild and never back) and refuses a release that is not higher than the
+previous one; the release script (P2.12) runs both.
 
 - Exact file formats (manifest schema, delta container) and their versioning.
 - UI wording, and the About page and installer screens.

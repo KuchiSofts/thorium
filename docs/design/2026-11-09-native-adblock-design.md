@@ -531,7 +531,10 @@ smart. This replaces the hybrid of section 3 and decision 1 of section 11.
 | `$urlskip`: a navigation to a redirector goes straight to the destination | a module of the engine and the navigation interceptor (12.14) | done (P5.26, first part) |
 | `$permissions`: the lists switch browser features off for a document | a module of the engine and the document throttle (12.15) | done (P5.26, second part) |
 | `$header`: a request ends when the server's answer gives it away; the request's real method | a module of the engine, the request watcher and the document throttle (12.16) | done (P5.26, third part) |
-| `$replace`, `$uritransform`, `:shadow()` | see 12.9 | P5.26 |
+| `$uritransform`: a request goes to the address a trusted rule makes of its own | a module of the engine, the navigation interceptor and the request proxy (12.17) | done (P5.26) |
+| `:shadow()`: hide rules look inside shadow trees, open or closed | the procedural runner (12.18) | done (P5.26) |
+| `$replace`, HTML filtering | rewrite a response's body, which uBlock Origin can do only in Firefox | left out (P5.26) |
+| Preloads announced by early hints | a throttle on the browser's own requests (12.19) | done (P5.28) |
 | List updates | 4.6 | done |
 | Scriptlet and resource updates | 12.4 | P5.23 |
 | Per-site switch, blocked count | 4.7 | done |
@@ -1156,6 +1159,100 @@ tracker is stopped and a `GET` to the same address is not.
 Security review. Nothing new is sent anywhere; an answer can only end its own request. The values are
 read as bytes, the regular expressions use the `regex` crate (linear time, a size limit of 1 MB to
 prepare), at most 16 rules go with one request, and a value is at most 1,024 characters.
+
+### 12.17 `$uritransform` (P5.26, 2026-11-12)
+
+A rule of uBlock Origin's own lists can make another address of a request's own, with a regular expression and
+a replacement: `||shop.example/dp/*/ref=$doc,uritransform=/\/ref=[^\/?#]+//` takes the tracking part out of a
+product page's address, `$uritransform=/adblock%3Dtrue/adblock%3Dfalse/` answers an anti-blocker's check. The
+bundled lists hold 16 such lines.
+
+- adblock-rust does not know the option, so the rules are kept in a module of the engine (`uritransform.rs`). A
+  small engine of their own says which rules match a request (each rule as a `$csp` rule whose value is its
+  number, as for `$header`, 12.16); exceptions (`@@...$uritransform`, with or without a value) in a second one.
+- The value is read as uBlock Origin reads it: `/pattern/replacement/flags`, "\/", "\$" and "\," unescaped,
+  an empty pattern standing for the rule's own regular expression, `$1`, `$&` and `$$` in the replacement as in
+  JavaScript, the flags `i` and `g`. The pattern is tried on the whole address; of the matching rules the first
+  that changes it is used.
+- Only rules of trusted lists count: a rule sends a request somewhere else.
+- A page or a frame goes to the new address by a redirect the browser sees (the navigation interceptor, 12.10),
+  before `$urlskip` and the removal of tracking parameters, as in uBlock Origin. Any other request is sent to
+  the new address without the page being told, so only to another address of the same origin.
+- Coverage: 16 of the 16 lines. Checked by 9 engine tests and
+  `tools/qa/adblock_uritransform_check.py`, offline, with two real rules (a page whose address is rewritten, a
+  script fetched from its rewritten address): with native blocking on only the new address is asked for; with
+  blocking off, and with ads allowed on the site, only the old one.
+
+### 12.18 `:shadow()` (P5.26, 2026-11-12)
+
+Some widgets keep their content in a shadow tree, which the page's own selectors and a user style sheet do not
+reach. `:shadow(selector)` looks inside: `[id^="outbrain_widget_"]:has(:shadow(a[rel*="sponsored"]))`.
+
+- The engine passes the operator to the procedural runner (12.9); the runner looks in the element's shadow tree,
+  open or closed. A closed one is reached through `thoronShadowRoot()`, which the browser gives only to the
+  runner's isolated world (what `chrome.dom.openOrClosedShadowRoot` is to an extension): the page's world never
+  sees it.
+- uBlock Origin finds elements in a shadow tree but its hiding style does not reach them. Thoron's runner gives
+  an element it marks inside a shadow tree the declarations of its mark in its own style while it is marked,
+  and gives the old style back when the mark goes.
+- Coverage: both lines of the bundled lists. Checked by two engine tests, a rule of the runner battery (an element
+  in an open shadow tree is hidden) and a case of `tools/qa/adblock_syntax_check.py` with the real rule: a widget
+  whose shadow tree holds the sponsored link is marked whether the tree is open or closed, one without it is not.
+
+### 12.19 Preloads announced by "103 Early Hints" (P5.28, 2026-11-12)
+
+While a server works on a page, it may send "103 Early Hints" with `Link: rel=preload` headers, and Chromium
+fetches those files at once, before the page arrives and outside the request proxy. They do pass Chromium's
+throttles for browser requests (`CreateURLLoaderThrottles`), so a throttle of the component
+(`subresource_loader_throttle.cc`) puts each to the engine like any request of the page: one the lists block is
+not made, a redirect is checked again, and an answer that gives an ad server away is ended (`$header`). It looks
+only at scripts, style sheets, fonts, images, tracks and media; documents, worker scripts and downloads are left
+to the pieces that handle them. No change to Chromium's navigation code was needed. Checked by
+`tools/qa/adblock_earlyhints_check.py`, offline (with Chromium's switch for early hints over HTTP/1.1, as the
+local server speaks it): with native blocking on the ad host is never asked and the plain host is; with
+blocking off, and with ads allowed on the site, both are.
+
+### 12.20 What was blocked on the page (P5.31, 2026-11-12)
+
+The bubble of the shield in the address bar lists the sites the page's blocked requests were for, the most
+first, with how many each (up to 8, then "and N more sites"). The counter keeps them in memory with the page, as
+it keeps the count: nothing is stored or sent.
+
+### 12.21 The shield in the toolbar and its menu (P5.31, P5.32, P5.33, 2026-11-12)
+
+The owner asked for the blocker to work like uBlock Origin from the toolbar: "1:1 same options", a smart
+menu, the count on the icon, and blocking of elements.
+
+- **The shield** (`thoron_adblock_button.cc`) sits in the toolbar where an ad blocker's icon sits, while
+  the blocker is on. Its badge shows what was blocked on the active tab's page ("12", "1k"), as uBlock
+  Origin's does; it is greyed out on a site where ads are allowed and on pages that are not web pages. It
+  follows the active tab and every blocked request (BlockedCount tells it).
+- **The menu** (`chrome://adblock-menu.top-chrome`, a top-chrome WebUI in a bubble, like Chromium's tab
+  search): the big switch for the site (the "Ads and trackers" site setting, which the blocker already
+  follows; the tab reloads), the counts (this page, the sites, the total so far), the tools (Block element,
+  Zapper, Logger, Settings) and the per-site switches: pop-ups and JavaScript (Chrome's own site settings),
+  large media (audio or video files larger than 50 KB are ended by their answer), no hiding (no hide
+  rules, no scriptlets) and remote fonts (no font is loaded). The three switches of the blocker are kept
+  in `<user data>/Thoron Adblock/site-switches.json`, by host, and count for the hosts below it too; the
+  total in `stats.json`, written at most every 30 seconds. Nothing leaves the computer.
+- **The element picker** (`picker.js`, P5.32) runs in the isolated world of the procedural runner: the page
+  cannot reach it. Hovering shows an element, a click picks it, and a panel offers rules for it, from the
+  element itself to the elements around it and the address of an image or frame; the rule can be edited,
+  previewed, and created (Enter or "Create"). The browser takes a rule only from a page it started a picker
+  in during the last ten minutes, once per opening, only one line of at most 2,000 characters, and only a
+  hide rule for that page's own site or a rule that blocks an address (`picker.cc`); it then adds it to "My
+  filters", where it is in use at once. **The zapper** removes elements until the page is loaded again.
+- **The dashboard** (`chrome://adblock`, P5.33) gets a top bar (Filter lists, My filters, Sites, Logger),
+  the total, a **Sites** section (the sites where ads are allowed, each removable, a box to allow a site;
+  the menu's switches by host, each removable) and a live **Logger**: every request blocked on the open
+  tabs of the profile, the newest first, per tab, with a filter (kept in memory with each page; nothing is
+  stored or sent).
+
+Checked by `tools/qa/adblock_menu_check.py`, offline, on a test page: the menu names the site and counts
+and lists the blocked ad host; each switch has its effect while on and none while off (the font is not
+asked for, the large sound fails, a generic hide rule hides nothing, the ad host is asked for); the picker,
+driven by mouse and Enter, puts a rule for the site into My filters and the element is hidden after a
+reload; the zapper removes one element and keeps the rest.
 
 ## 13. Credits
 
