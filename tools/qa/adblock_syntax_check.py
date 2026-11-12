@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 """Native ad blocking, the rest of the filter syntax, checked end to end and offline (ROADMAP P5.22):
-procedural hide rules, `$removeparam`, `$csp`, `$permissions` and `method=`.
+procedural hide rules (`:shadow()` among them), `$removeparam`, `$csp`, `$permissions` and `method=`.
 
 The check uses the browser's own bundled lists. For each kind of rule it takes the first real rule that is
 simple enough to build a page for, serves that page under the rule's site name from a local server
@@ -21,6 +21,9 @@ profiles:
                    when the site's own header keeps it
     permissions-kept   on a site with an exception for one of them, that one stays and the others are off
     method         a rule for requests sent with POST stops such a request and lets one with GET through
+    shadow         a widget whose shadow tree holds what the rule looks for is marked by the procedural runner,
+                   whether the tree is open or closed; one without it is not (judged by the runner's mark, as
+                   other rules of the lists hide such widgets by their class anyway)
 
 in four modes:
 
@@ -89,7 +92,12 @@ CSP_NOT = ("script-src", "default-src", "sandbox")
 # A value the style page starts from, other than the rule's.
 STYLE_START = {"display": ("inline", "block"), "overflow": ("hidden", "scroll"), "opacity": ("0.5", "0.25"),
                "visibility": ("hidden", "collapse"), "position": ("absolute", "relative")}
-IN_FRAMES = ("has-text", "upward", "remove", "remove-class", "remove-attr", "style")
+IN_FRAMES = ("has-text", "upward", "remove", "remove-class", "remove-attr", "style", "shadow")
+# host##outer:has(:shadow(inner)), with both parts made of compound selectors the page can be built from
+SHADOW_RE = re.compile(r"([a-z0-9.-]+)##(.+?):has\(:shadow\((.+)\)\)")
+_COMPOUND = re.compile(r"([a-z][a-z0-9]*)?((?:#[A-Za-z_][\w-]*|\.[A-Za-z_][\w-]*|"
+                       r"\[[a-z][a-z0-9-]*(?:[\^*]?=\"[^\"]*\")?\])*)")
+_PART = re.compile(r"#([A-Za-z_][\w-]*)|\.([A-Za-z_][\w-]*)|\[([a-z][a-z0-9-]*)(?:([\^*]?)=\"([^\"]*)\")?\]")
 GIF = bytes.fromhex("47494638396101000100800000000000ffffff21f90401000000002c00000000010001000002024401003b")
 
 
@@ -123,6 +131,46 @@ def element_html(selector: str, check: str, text: str = "", attrs: dict | None =
     if style:
         out += f' style="{style}"'
     return out + f">{text}" + (f"</{e['tag']}>" if close else "")
+
+
+def compound_html(compound: str, extra: str = "") -> str | None:
+    """The opening tag of an element that a compound selector (a tag, #id, .class, [name], [name="v"],
+    [name^="v"], [name*="v"]) describes, or None for any other selector."""
+    m = _COMPOUND.fullmatch(compound)
+    if not m or not compound or (m.group(1) and m.group(1) not in TAGS + ("ins", "iframe", "img")):
+        return None
+    element_id, classes, attrs = None, [], []
+    for part in _PART.finditer(m.group(2)):
+        if part.group(1):
+            element_id = part.group(1)
+        elif part.group(2):
+            classes.append(part.group(2))
+        else:
+            name, how, value = part.group(3), part.group(4), part.group(5)
+            value = "1" if value is None else value + ("1" if how == "^" else "")
+            if name == "id":
+                element_id = value
+            else:
+                attrs.append(f'{name}="{value}"')
+    out = [m.group(1) or "div"]
+    if element_id:
+        out.append(f'id="{element_id}"')
+    if classes:
+        out.append(f'class="{" ".join(classes)}"')
+    out += attrs
+    if extra:
+        out.append(extra)
+    return "<" + " ".join(out) + ">"
+
+
+def chain_html(chain: str) -> str | None:
+    """Elements nested as a chain of compound selectors joined by " > " describes them."""
+    parts = chain.split(" > ")
+    opened = [compound_html(part) for part in parts]
+    if any(tag is None for tag in opened):
+        return None
+    closing = "".join(f"</{tag[1:].split(' ')[0].rstrip('>')}>" for tag in reversed(opened))
+    return "".join(opened) + closing
 
 
 def _fit(host: str) -> bool:
@@ -169,6 +217,11 @@ def cases(lists_text: str) -> dict:
             out["method"] = {"host": m.group(1), "path": m.group(2), "method": "POST"}
     if csp := _csp_case(lines):
         out["csp"] = csp
+    for line in lines:
+        if (m := SHADOW_RE.fullmatch(line)) and _fit(m.group(1)) and compound_html(m.group(2)) \
+                and chain_html(m.group(3)):
+            out["shadow"] = {"host": m.group(1), "outer": m.group(2), "inner": m.group(3)}
+            break
     features = [m.group(1) for line in lines if (m := PERMISSIONS_RE.fullmatch(line))]
     if features:
         out["permissions"] = {"host": PERMISSIONS_HOST, "features": features}
@@ -231,6 +284,22 @@ def page_html(kind: str, case: dict) -> str:
                   "let worker = 'started';"
                   "try { new Worker('/worker.js'); } catch (e) { worker = 'refused'; }")
         report = "{worker, violations}"
+    elif kind == "shadow":
+        body = "<p>shadow check</p>"
+        inner = chain_html(case["inner"])
+        plain = chain_html(case["inner"].rsplit(" > ", 1)[0]) if " > " in case["inner"] else "<p>plain</p>"
+        script = ("const make = (check, options, content) => {"
+                  "const t = document.createElement('template');"
+                  f"t.innerHTML = {json.dumps(compound_html(case['outer'], 'data-check=CHECK'))}"
+                  ".replace('CHECK', JSON.stringify(check)) + '</div>';"
+                  "const host = t.content.firstElementChild; document.body.appendChild(host);"
+                  "host.attachShadow(options).innerHTML = content; };"
+                  f"make('open', {{mode: 'open'}}, {json.dumps(inner)});"
+                  f"make('closed', {{mode: 'closed'}}, {json.dumps(inner)});"
+                  f"make('plain', {{mode: 'open'}}, {json.dumps(plain)});")
+        # the runner marks what a rule finds with an attribute of 12 small letters
+        script += "const marked = (e) => !!e && e.getAttributeNames().some((n) => /^[a-z]{12}$/.test(n));"
+        report = "{open: marked(q('open')), closed: marked(q('closed')), plain: marked(q('plain'))}"
     elif kind == "method":
         body = "<p>method check</p>"
         path = case["path"]
@@ -343,6 +412,12 @@ def problems(mode: str, kind: str, case: dict, result: dict | None) -> list[str]
             out.append(f"nothing was refused under the rule's policy {case['policy']!r}: {result}")
         if not on and (result.get("violations") or result.get("worker") != "started"):
             out.append(f"the page is under a policy {off}: {result}")
+    elif kind == "shadow":
+        for which in ("open", "closed"):
+            if bool(result.get(which)) != on:
+                out.append(f"the widget whose shadow tree is {which} is " + ("not marked" if on else f"marked {off}"))
+        if result.get("plain"):
+            out.append("the widget without the sponsored link is marked")
     elif kind == "method":
         want = "blocked" if on else "loaded"
         if result.get("post") != want:
@@ -379,6 +454,8 @@ RUNNER_HTML = (
     '<ul id="ul1"><li id="l1" class="locked" disabled-x="1">one</li><li id="l2">two</li></ul>'
     '<div id="rm">remove me</div>'
     '<h2 id="h2a">Sponsored</h2><div id="sib1">after heading</div><h2 id="h2b">Other</h2><div id="sib2">after other</div>'
+    '<div id="sh-host"></div><script>document.getElementById("sh-host").attachShadow({mode: "open"}).innerHTML = '
+    "'<p id=\"sh-target\">in a shadow tree</p>';</script>"
     "</body></html>")
 
 
@@ -413,6 +490,8 @@ RUNNER_FILTERS = [
     _rule("m20", "#l2", ("watch-attr", "class"), ("spath", ".late")),
     _rule("m21", ".card", ("has", _inner("> .label", ("has-text", "News")))),
     _rule("m22", "#lab1", ("spath", " ~ p")),
+    # an element in a shadow tree: the document's style sheets do not reach it, the runner styles it
+    {"s": "#sh-host", "t": [["shadow", "p"]], "a": ["mark", "m23", "display:none!important"]},
     {"s": "#rm", "t": [], "a": ["remove"]},
     {"s": "#l1", "t": [], "a": ["remove-class", "locked"]},
     {"s": "#l1", "t": [], "a": ["remove-attr", "disabled-x"]},
@@ -422,11 +501,11 @@ RUNNER_EXPECT = {
     "m01": ["c1", "c3"], "m02": ["c2"], "m03": ["c1"], "m04": ["c3"], "m05": ["s1"], "m06": ["deep"],
     "m07": ["a1"], "m08": ["a1"], "m09": ["before1"], "m10": ["bg"], "m11": ["d1"], "m12": ["o-inner"],
     "m14": ["sib1"], "m15": ["l2"], "m16": [], "m17": ["l1", "l2"], "m18": ["bg"], "m19": [], "m20": [],
-    "m21": ["c2"], "m22": ["p1"],
+    "m21": ["c2"], "m22": ["p1"], "m23": [],
 }
 # "others" marks most of the page: what must and what must not carry the mark
 RUNNER_EXPECT_NOT_ONLY = {"m13": {"has": ["o-other", "list", "deep"], "not": ["o-keep", "o-inner", "o-wrap"]}}
-RUNNER_STATE = {"removed": True, "class": "", "attribute": False}
+RUNNER_STATE = {"removed": True, "class": "", "attribute": False, "shadow": "none"}
 # Then the page changes: an attribute that is watched, a new element, and text that no longer matches.
 RUNNER_CHANGE = ("document.getElementById('l2').className = 'late';"
                  "const c4 = document.createElement('div'); c4.className = 'card'; c4.id = 'c4';"
@@ -456,7 +535,9 @@ def _collect_expression() -> str:
     return ("JSON.stringify({marks: Object.fromEntries(" + json.dumps(marks) + ".map((m) => [m, "
             "Array.from(document.querySelectorAll('[' + m + ']')).map((e) => e.id || e.localName)])), "
             "state: {removed: !document.getElementById('rm'), class: document.getElementById('l1').className, "
-            "attribute: document.getElementById('l1').hasAttribute('disabled-x')}})")
+            "attribute: document.getElementById('l1').hasAttribute('disabled-x'), "
+            "shadow: getComputedStyle(document.getElementById('sh-host').shadowRoot"
+            ".getElementById('sh-target')).display}})")
 
 
 def _evaluate(ws: WebSocket, expression: str):
@@ -556,7 +637,8 @@ class PageServer:
         self._httpd.server_close()
 
 
-def _launch(browser: Path, profile: Path, port: int, names: list[str], native: bool) -> subprocess.Popen:
+def _launch(browser: Path, profile: Path, port: int, names: list[str], native: bool,
+            enable: tuple[str, ...] = ()) -> subprocess.Popen:
     # The test pages are plain http, and the browser would first try https for a top-level visit: both
     # features that do that are switched off.
     mapping = ", ".join(f"MAP {name} 127.0.0.1:{port}" for name in names)
@@ -565,8 +647,10 @@ def _launch(browser: Path, profile: Path, port: int, names: list[str], native: b
             "--disable-component-update", f"--disable-features={NO_HTTPS_FIRST}",
             f"--host-resolver-rules={mapping}, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
             "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0"]
-    if native:
-        args.append("--enable-features=ThoronNativeAdblock")
+    features = [*enable, *(["ThoronNativeAdblock"] if native else [])]
+    if features:
+        # one switch: of several, the browser reads only the last
+        args.append(f"--enable-features={','.join(features)}")
     return subprocess.Popen(args + ["about:blank"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             start_new_session=os.name != "nt")
 

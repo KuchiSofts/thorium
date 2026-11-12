@@ -22,7 +22,10 @@ other is built into the browser itself and is meant to replace the extension onc
 - **Switches off ad-tech features.** Browser features that were built for ad targeting, or that help to
   tell your browser from others (ad topics, ad auctions, idle detection and a few more), are off on every
   site.
-- **Cleans the page.** Leftover ad boxes are hidden, tracking parameters are removed from addresses, and
+- **Cleans addresses.** Tracking parts of addresses are taken out, also where a site writes them into
+  the path.
+- **Cleans the page.** Leftover ad boxes are hidden (also inside widgets that keep their content apart),
+  tracking parameters are removed from addresses, and
   small scripts from uBlock Origin defuse anti-blocker code. A blocked script that a page needs is answered
   with a harmless stand-in, so the page keeps working.
 - **Private.** What is blocked is counted in memory only. Nothing is stored or sent.
@@ -40,8 +43,20 @@ It is **off by default** until its last correctness checks are done.
 
 ### Use it
 
+- **The shield in the toolbar:** while the blocker is on, a shield sits next to the extensions button.
+  Its number is what was blocked on the page you look at. Click it for the menu:
+  - the big **power button** switches blocking off or on for this site (the page reloads);
+  - the counts: blocked on this page, sites blocked on this page, blocked so far;
+  - **Block element:** click the thing you want gone, choose or edit the rule, press Enter or
+    Create. The rule goes into My filters and works at once;
+  - **Zapper:** click things to remove them until the page reloads; Esc stops;
+  - **Logger:** every blocked request of your open tabs;
+  - **Settings:** the full page, `chrome://adblock`;
+  - switches for this site: pop-ups, large media (sound and video over 50 KB), no hiding, remote
+    fonts, JavaScript. A blue switch means it is on.
+
 - **See what happened:** when something was blocked, an icon appears in the address bar. Click it to see
-  how many ads and trackers were blocked on the page.
+  how many ads and trackers were blocked on the page, and from which sites.
 - **Allow a site:** tick "Always allow ads and trackers on this site" in that bubble, or click the icon
   left of the address, open "Site settings" and set "Ads and trackers" to Allow. Reload the page.
 - **Allow everywhere or manage allowed sites:** Settings, "Privacy and security", "Site settings",

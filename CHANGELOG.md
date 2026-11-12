@@ -20,6 +20,15 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** a link to a tracking redirector goes straight to its destination (`$urlskip`, 240 list rules).
 - **Ad blocking:** switches off the browser features the lists name for ad targeting and fingerprinting (`$permissions`).
 - **Ad blocking:** stops a request when the server's answer gives an ad server away (`$header`, 50 list rules).
+- **Ad blocking:** rewrites tracking addresses that uBlock Origin's lists name (`$uritransform`).
+- **Ad blocking:** hides ads inside page widgets' shadow trees, open or closed (`:shadow()`).
+- **Ad blocking:** blocks files a server asks the browser to preload with "103 Early Hints".
+- **Ad blocking:** the shield's bubble lists the sites blocked on the page.
+- **Ad blocking:** a shield in the toolbar shows what was blocked on the page and opens a uBlock-style menu.
+- **Ad blocking:** per-site switches in the menu: pop-ups, large media, no hiding, remote fonts, JavaScript.
+- **Ad blocking:** element picker and zapper: pick an element, make a rule for it, or remove it for now.
+- **Ad blocking:** `chrome://adblock` lists allowed sites and switches, and has a live logger of blocked requests.
+- **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.
 - **Ad blocking:** every change on that page is in use at once and survives a restart and a browser update.
@@ -48,6 +57,8 @@ Explanations live in the design docs under `docs/design/`.
 - **Release tools:** `changelog.py` writes release notes from git and local files and credits upstream authors.
 - **Release tools:** `package_audit.py` rejects a package with Widevine, Thorium-named files or upstream-only extras.
 - **Release tools:** `version.py` sets build numbers: Chromium's version with the last part as `patch x 100 + rebuild`.
+- **Release tools:** `version.py rebuild` moves a build tree to the next rebuild of the same Chromium, never back.
+- **Release tools:** `version.py thoron` sets Thoron's own version; `check --new-thoron` refuses one not higher.
 - **QA tools:** `profile_check.py` and `profile_rehearsal.py` verify on a copy that an update keeps a profile 1:1.
 - **QA tools:** `bench.py` measures start-up time, memory and idle CPU offline on throwaway profiles.
 - **QA tools:** `adblock_proof.py`, `adblock_breakage.py` and `mv2_check.py` compare blocking with uBlock Origin.
@@ -55,6 +66,9 @@ Explanations live in the design docs under `docs/design/`.
 - **QA tools:** `adblock_settings_check.py` works the settings page like a person, offline, in 14 steps.
 - **QA tools:** `adblock_urlskip_check.py` checks `$urlskip` offline with real rules of the lists.
 - **QA tools:** `adblock_header_check.py` checks `$header` offline with real rules of the lists.
+- **QA tools:** `adblock_uritransform_check.py` and `adblock_earlyhints_check.py` check those offline.
+- **QA tools:** `profile_rehearsal.py --minimized` keeps the rehearsal copy out of the way.
+- **QA tools:** `adblock_menu_check.py` drives the menu, its switches, the picker and the zapper offline.
 - **QA tools:** `fuzz_lists` feeds changed filter list lines to the engine to check that list reading survives any text.
 - **Docs:** README, `ROADMAP.md`, `SECURITY.md` and `CONTRIBUTING.md` describe Thoron; designs live in `docs/design/`.
 - **Docs:** build guides cover Windows 11 and Linux with measured build times; `win_env.ps1` prepares a build window.

@@ -22,7 +22,9 @@ The real folder is only read. The new build never sees it: it only ever gets the
 
 Tabs and tab groups are checked only with a window (the default) and for a profile that is set to
 continue where it left off: any other profile opens a new tab page at a start, so its earlier tabs are
-not expected back. With --headless they are not checked either. In both cases the tool says so. A build
+not expected back. With --headless they are not checked either. In both cases the tool says so. With
+--minimized the copy's windows are minimized as soon as they appear: the copy looks just like the
+person's own browser, and one closed by mistake fails the rehearsal. A build
 that does not close when asked is stopped by force and does not count as a pass.
 
 It refuses to start while the browser of that profile is running or when the profile was written a
@@ -34,6 +36,7 @@ choice of a private local folder stays yours), or when the drive has too little 
 Exit status: 0 the new build kept everything, 1 it did not (or did not run cleanly), 2 refused.
 """
 import argparse
+import functools
 import dataclasses
 import json
 import os
@@ -164,6 +167,36 @@ def ask_to_close(port: int) -> None:
         ws.close()
 
 
+def _browser_socket(port: int) -> WebSocket:
+    version = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=30).read())
+    return WebSocket(version["webSocketDebuggerUrl"])
+
+
+def minimize_windows(port: int, seconds: float = 15, *, connect=_browser_socket, now=time.monotonic,
+                     sleep=time.sleep) -> int:
+    """Minimizes each window of the browser on the copy once, as it appears (a restore opens them one by
+    one), for `seconds`. Returns how many it minimized."""
+    done: set = set()
+    deadline = now() + seconds
+    ws = connect(port)
+    try:
+        while now() < deadline:
+            for target in ws.call("Target.getTargets")["targetInfos"]:
+                if target.get("type") != "page":
+                    continue
+                try:
+                    window = ws.call("Browser.getWindowForTarget", targetId=target["targetId"])["windowId"]
+                except (RuntimeError, KeyError):
+                    continue                # not in a window (yet)
+                if window not in done:
+                    ws.call("Browser.setWindowBounds", windowId=window, bounds={"windowState": "minimized"})
+                    done.add(window)
+            sleep(0.25)
+    finally:
+        ws.close()
+    return len(done)
+
+
 def stop_tree(proc) -> None:
     """By force. Only ever for the browser this tool started itself, on its own copy."""
     if os.name == "nt":
@@ -177,7 +210,8 @@ def stop_tree(proc) -> None:
 
 
 def run(browser: Path, copy: Path, seconds: int, headless: bool = False, close_timeout: int = CLOSE_TIMEOUT, *,
-        start=None, port_of=devtools_port, ask_to_close=ask_to_close, sleep=time.sleep, stop=stop_tree) -> str | None:
+        start=None, port_of=devtools_port, ask_to_close=ask_to_close, sleep=time.sleep, stop=stop_tree,
+        hide=None) -> str | None:
     """Open the copy with the new build, let it work, ask it to close. Returns what went wrong, or None."""
     (copy / "DevToolsActivePort").unlink(missing_ok=True)       # left by the browser the copy came from
     start = start or (lambda args: subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
@@ -187,6 +221,11 @@ def run(browser: Path, copy: Path, seconds: int, headless: bool = False, close_t
     except RuntimeError as exc:
         stop(proc)
         return f"the new build did not start on the copy: {exc}"
+    if hide:
+        try:
+            hide(port)
+        except (OSError, ValueError, KeyError, RuntimeError):
+            pass                            # a window that stays in view is no reason to stop
     sleep(seconds)
     if proc.poll() is not None:
         return f"the new build ended by itself within {seconds} s (exit code {proc.returncode})"
@@ -267,7 +306,7 @@ def _delete(root: Path) -> str | None:
 
 
 def rehearse(browser: Path, user_data: Path, work: Path, seconds: int = 60, headless: bool = False,
-             close_timeout: int = CLOSE_TIMEOUT, runner=None, say=lambda text: None) -> Result:
+             close_timeout: int = CLOSE_TIMEOUT, runner=None, say=lambda text: None, minimized: bool = False) -> Result:
     """Steps 1 to 5 of the module text. Raises Refused before anything is copied or started."""
     why = refusal(browser, user_data, work)
     if why:
@@ -282,7 +321,8 @@ def rehearse(browser: Path, user_data: Path, work: Path, seconds: int = 60, head
         except OSError as exc:              # shutil.Error too: some files could not be copied
             result = Result([_not_copied(exc)], [], {})
         else:
-            result = _on_copy(Path(browser), copy, seconds, headless, close_timeout, runner or run, say)
+            default = functools.partial(run, hide=minimize_windows) if minimized else run
+            result = _on_copy(Path(browser), copy, seconds, headless, close_timeout, runner or default, say)
     finally:
         left = _delete(root)
         if left and result is not None:
@@ -300,11 +340,13 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--seconds", type=int, default=60, help="how long the new build runs on the copy")
     parser.add_argument("--close-timeout", type=int, default=CLOSE_TIMEOUT)
     parser.add_argument("--headless", action="store_true", help="no window; tabs and tab groups are not checked")
+    parser.add_argument("--minimized", action="store_true", help="the copy's windows are minimized as they appear")
     parser.add_argument("--before-out", type=Path, help="keep the snapshot from before (counts only) in this file")
     a = parser.parse_args(argv)
     say = lambda text: print(f"profile rehearsal: {text}", flush=True)
     try:
-        result = rehearse(a.browser, a.user_data, a.work, a.seconds, a.headless, a.close_timeout, say=say)
+        result = rehearse(a.browser, a.user_data, a.work, a.seconds, a.headless, a.close_timeout, say=say,
+                          minimized=a.minimized)
     except Refused as exc:
         say(f"refused: {exc}")
         return 2
