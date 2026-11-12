@@ -1418,6 +1418,32 @@ reload; the zapper removes one element and keeps the rest.
 - **Checked** by the menu check: with each switch on, the script or the frame of another site on the test
   page is never asked for; off again, it is. The options check reads the two defaults back.
 
+### 12.31 "My rules": uBlock Origin's dynamic filtering (P5.44, 2026-11-12)
+
+- **What.** A section "My rules" on `chrome://adblock` takes rules as uBlock Origin writes them:
+  `source destination type action`. `source` is the page's site or `*`, `destination` a host or `*` (a
+  host covers the hosts under it), `type` one of `*`, `3p`, `1p-script`, `3p-script`, `3p-frame`, `image`,
+  `inline-script` (with a named destination only `*`), `action` one of `block`, `allow`, `noop`. `block`
+  blocks whatever the lists say, `allow` lets through whatever they say, `noop` leaves it to them.
+- **Precedence, as in uBlock Origin.** A named destination first (its own host before the broader ones);
+  then, for any destination, the request's party and type: a third-party script `3p-script`, a frame
+  `3p-frame`, then `3p`; a first-party script `1p-script`; then `image` for an image; then `*`. At each of
+  these the page's own host is asked before the hosts above it and `*`. `<site> * inline-script block` adds
+  the policy uBlock Origin adds, `script-src 'unsafe-eval' * blob: data:`, so no script written in the page
+  runs. The rules apply to subresources and frames, never to a page's own navigation (strict blocking does).
+  In uBlock Origin the menu's switches for third-party scripts and frames are rules too, so a rule that
+  allows a host on a site beats them; here the switches are their own layer, and an `allow` skips them.
+- **How.** `dynamic.rs` reads the text (at most 20,000 rules; a line that is not a rule is named on the
+  page and left out); the browser keeps it in `<store>/my-rules.txt` (at most 1 MB, UTF-8 only) and asks it
+  before the lists for every request the blocker sees. A backup holds the rules too. Eight engine tests
+  cover reading and precedence.
+- **Checked** by `tools/qa/adblock_rules_check.py`: without rules the lists decide; with
+  `* * 3p-script block`, `<page> <ad host> * allow` and `<page> * inline-script block`, the other site's
+  script is not asked for, the ad image is (the rule beats EasyList), the page's script does not run, and a
+  line that is not a rule is named; `<page> * 3p-script noop` gives the other site's script back to the
+  lists; with the setting that blocks third-party scripts on every site turned on, `<page> <other host> *
+  allow` still lets that script through.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

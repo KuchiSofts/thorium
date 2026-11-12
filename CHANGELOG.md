@@ -41,6 +41,7 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** "Block element..." in the page's right-click menu opens the picker on what was clicked.
 - **Ad blocking:** the logger also shows requests let through, and makes Block and Allow rules from them.
 - **Ad blocking:** switches for third-party scripts and frames, per site or for every site ("medium mode").
+- **Ad blocking:** "My rules": uBlock Origin's dynamic filtering rules (block, allow, noop by site and host).
 - **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.

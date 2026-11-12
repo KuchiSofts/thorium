@@ -81,6 +81,10 @@ Open `chrome://adblock`.
   (no hiding, no large media, no remote fonts, no JavaScript, no third-party scripts or frames: uBlock
   Origin's "medium mode"), which the menu's switches change for one
   site; and ignoring hide rules written for every site.
+- **My rules:** uBlock Origin's dynamic filtering, one rule per line: `* * 3p-script block` blocks
+  scripts from other sites everywhere, `example.com * 3p-script noop` gives them back to the lists on
+  example.com, `example.com cdn.example.net * allow` lets a host through on a site (also when the menu's
+  switches block other sites' scripts or frames). The most specific rule decides.
 - **Backup:** "Back up to file" saves your lists, own rules, allowed sites, switches and settings in a
   file; "Restore from file" brings them back, on this or another computer; "Reset to default settings"
   starts over (back up first).
