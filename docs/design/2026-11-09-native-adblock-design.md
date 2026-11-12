@@ -1357,6 +1357,24 @@ reload; the zapper removes one element and keeps the rest.
 - Checked by `tools/qa/adblock_menu_check.py`: the share reads as a percentage, and the domains connected
   are at least one and fewer than all (the ad's domain is never reached).
 
+### 12.27 Back up, restore, reset (P5.40, 2026-11-12)
+
+- **What.** As in uBlock Origin's Settings: "Back up to file" saves a JSON file (`format`
+  `thoron-adblock-backup`, `version` 1) with the built-in lists that are off, the lists the person added
+  (their addresses), their own rules, the allowed sites (as the site settings write them), the menu's
+  switches by host, and the Settings. "Restore from file" makes everything as the file has it;
+  "Reset to default settings" does the same with the defaults, after the person confirms it.
+- **How.** The page makes the file from what it already asks the browser for (nothing new is read), and
+  the browser saves it like any download: nothing leaves the computer. A restore reads the file in the
+  page (at most 4 MB, the format and version checked, every part type checked, only known setting names,
+  added lists only with `https://`), then makes each change through the page's usual messages, so every
+  check those messages do still applies (an added list is downloaded and checked like any; own rules at
+  most 1 MB). Two messages are new: one allows a site by the pattern the site settings wrote (never every
+  site at once), one sets a host's switches (only known names, at most 16).
+- **Checked** by `tools/qa/adblock_backup_check.py`: settings, own rules, an allowed site, switches and a
+  list switched off are all in the saved file; after a reset each is at its default; after restoring the
+  file each is as it was.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
