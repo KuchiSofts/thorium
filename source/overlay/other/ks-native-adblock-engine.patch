@@ -429,10 +429,10 @@ index 0000000000000000000000000000000000000000..f5da75eee11cccbbb2094285afb8a11e
 +fs.writeFileSync(outArg, JSON.stringify(resources) + '\n');
 diff --git a/components/thoron_adblock/blocked_count.cc b/components/thoron_adblock/blocked_count.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..6cab804c104ae0d52a28dc23fb223f668cc79a66
+index 0000000000000000000000000000000000000000..b2f5c10cdc9955b5bf671627a781a4740bfefd80
 --- /dev/null
 +++ b/components/thoron_adblock/blocked_count.cc
-@@ -0,0 +1,159 @@
+@@ -0,0 +1,184 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -474,6 +474,18 @@ index 0000000000000000000000000000000000000000..6cab804c104ae0d52a28dc23fb223f66
 +
 +namespace {
 +
++base::TimeTicks& LastLoggerAsk() {
++  static base::TimeTicks last;
++  return last;
++}
++
++// The logger asks every two seconds while its page is open, and about once a
++// minute while that page is in a tab behind others (Chromium slows its timers).
++bool LoggerOpen() {
++  return !LastLoggerAsk().is_null() &&
++         base::TimeTicks::Now() - LastLoggerAsk() < base::Seconds(90);
++}
++
 +// The domain of `url` as the menu counts it: the name its site registered, or
 +// the host when there is none (an IP address, "localhost").
 +std::string DomainOf(const GURL& url) {
@@ -494,6 +506,14 @@ index 0000000000000000000000000000000000000000..6cab804c104ae0d52a28dc23fb223f66
 +  BlockedCount* count =
 +      GetOrCreateForPage(rfh->GetOutermostMainFrame()->GetPage());
 +  ++count->requests_;
++  if (LoggerOpen()) {
++    count->recent_.push_back({base::Time::Now(),
++                              url.possibly_invalid_spec().substr(0, kMaxUrlLength),
++                              /*blocked=*/false});
++    if (count->recent_.size() > kMaxRecent) {
++      count->recent_.pop_front();
++    }
++  }
 +  const std::string domain = DomainOf(url);
 +  if (count->domains_.size() < kMaxHosts) {
 +    count->domains_.insert(domain);
@@ -501,6 +521,11 @@ index 0000000000000000000000000000000000000000..6cab804c104ae0d52a28dc23fb223f66
 +  if (count->connected_.size() < kMaxHosts) {
 +    count->connected_.insert(domain);
 +  }
++}
++
++// static
++void BlockedCount::LoggerAsked() {
++  LastLoggerAsk() = base::TimeTicks::Now();
 +}
 +
 +// static
@@ -594,10 +619,10 @@ index 0000000000000000000000000000000000000000..6cab804c104ae0d52a28dc23fb223f66
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/blocked_count.h b/components/thoron_adblock/blocked_count.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..db60365c544da4d94ed81a0dcef1325c480a3714
+index 0000000000000000000000000000000000000000..426b44438c123c215c66a3fb31e0ec1e6fe62087
 --- /dev/null
 +++ b/components/thoron_adblock/blocked_count.h
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,95 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -657,7 +682,12 @@ index 0000000000000000000000000000000000000000..db60365c544da4d94ed81a0dcef1325c
 +  struct Entry {
 +    base::Time time;
 +    std::string url;
++    // false: the request was let through (kept only while the logger is open)
++    bool blocked = true;
 +  };
++  // The logger asks every few seconds while it is open; only then are the
++  // requests let through kept as well, as in uBlock Origin's logger.
++  static void LoggerAsked();
 +  static std::vector<Entry> Recent(content::Page& page);
 +
 +  // How many requests were blocked since counting started, on every page
@@ -1744,10 +1774,10 @@ index 0000000000000000000000000000000000000000..bc172c09dcfab5376a6cb3a397be1df8
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_H_
 diff --git a/components/thoron_adblock/document_request_interceptor.cc b/components/thoron_adblock/document_request_interceptor.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..ffddfd1c314046acd38a9e2633056fdb05c24f21
+index 0000000000000000000000000000000000000000..f1c85f2d92e7ba46d2ddd2cc18963769e5116b20
 --- /dev/null
 +++ b/components/thoron_adblock/document_request_interceptor.cc
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,197 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1845,9 +1875,18 @@ index 0000000000000000000000000000000000000000..ffddfd1c314046acd38a9e2633056fdb
 +      clean = EngineService::Get().CleanUrl(url, url, /*main_frame=*/true);
 +    }
 +  } else {
-+    const EngineService::Decision decision = EngineService::Get().Check(
++    EngineService::Decision decision = EngineService::Get().Check(
 +        url, document->SourceFor(url), tentative_resource_request.destination,
 +        tentative_resource_request.method);
++    // uBlock Origin's "medium mode": no frame from another site than the
++    // page's.
++    const GURL site = document->SiteFor(url);
++    if (!decision.blocked &&
++        ProxyingURLLoaderFactory::IsThirdParty(url, site) &&
++        EngineService::Get().SiteSwitch(site, "3p-frame")) {
++      decision.blocked = true;
++      decision.stand_in.clear();
++    }
 +    if (decision.blocked) {
 +      if (document->frame) {
 +        BlockedCount::Record(document->frame, url);
@@ -3455,10 +3494,10 @@ index 0000000000000000000000000000000000000000..ed67bfcf044d144278258384cbe99530
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..49fe97228095de0d64c385398d3014feb31194d7
+index 0000000000000000000000000000000000000000..b5e137c2bfc81e72cf4e0cb227d4e9fd17b3fdcb
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,881 @@
+@@ -0,0 +1,883 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3606,11 +3645,13 @@ index 0000000000000000000000000000000000000000..49fe97228095de0d64c385398d3014fe
 +    {"badge", true},           {"block-csp-reports", false},
 +    {"ignore-generic", false}, {"default-media", false},
 +    {"default-cosmetic", false}, {"default-fonts", false},
++    {"default-3p-script", false}, {"default-3p-frame", false},
 +};
 +
 +// The switches that can be on for every site.
 +bool HasDefault(std::string_view name) {
-+  return name == "media" || name == "cosmetic" || name == "fonts";
++  return name == "media" || name == "cosmetic" || name == "fonts" ||
++         name == "3p-script" || name == "3p-frame";
 +}
 +constexpr size_t kMaxSwitchHosts = 10000;
 +constexpr base::TimeDelta kStatsSaveDelay = base::Seconds(30);
@@ -4342,10 +4383,10 @@ index 0000000000000000000000000000000000000000..49fe97228095de0d64c385398d3014fe
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..0316d7bdf8878b701f3e144715036afa8159dd8c
+index 0000000000000000000000000000000000000000..6ee78f1080a7c1ae2ba581e39718b87d8bd9a33a
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,287 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4539,7 +4580,9 @@ index 0000000000000000000000000000000000000000..0316d7bdf8878b701f3e144715036afa
 +
 +  // The menu's switches for a site, by name: "popups" (no window the site
 +  // opens), "media" (no audio or video file larger than 50 KB), "cosmetic"
-+  // (nothing hidden on the site, no scriptlets), "fonts" (no fonts loaded). A
++  // (nothing hidden on the site, no scriptlets), "fonts" (no fonts loaded),
++  // "3p-script" and "3p-frame" (no script, no frame from another site:
++  // uBlock Origin's "medium mode"). A
 +  // switch set for a host counts for the hosts below it too. "media",
 +  // "cosmetic" and "fonts" can be on for every site (the options "default-"
 +  // and the name); a site is then kept out by "-" and the name. Kept in
@@ -8679,10 +8722,10 @@ index 0000000000000000000000000000000000000000..bb5e6c8789e8a4e07c5d7069027b5132
 +}
 diff --git a/components/thoron_adblock/popup_page.html b/components/thoron_adblock/popup_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..4f5bbdc10b60b6b1db49d8f4c71528188f9882fd
+index 0000000000000000000000000000000000000000..8fe038c56f58d78aaa9d3379c707b9e0dcf2d628
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.html
-@@ -0,0 +1,148 @@
+@@ -0,0 +1,156 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file. -->
@@ -8821,6 +8864,14 @@ index 0000000000000000000000000000000000000000..4f5bbdc10b60b6b1db49d8f4c7152818
 +    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
 +      <path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/>
 +    </svg>JavaScript</button>
++  <button class="switch" data-switch="3p-script" aria-pressed="false" title="Block scripts from other sites on this site">
++    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
++      <path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m4 20 16-16"/>
++    </svg>3rd-party scripts</button>
++  <button class="switch" data-switch="3p-frame" aria-pressed="false" title="Block frames from other sites on this site">
++    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
++      <rect x="3" y="4" width="18" height="16" rx="2"/><rect x="7" y="8" width="10" height="8" rx="1"/><path d="m4 20 16-16"/>
++    </svg>3rd-party frames</button>
 +</div>
 +
 +<details id="sites-box">
@@ -9831,10 +9882,10 @@ index 0000000000000000000000000000000000000000..e8ba37d6d7127e3a48dab3fa94c3d34f
 +}
 diff --git a/components/thoron_adblock/proxying_url_loader_factory.cc b/components/thoron_adblock/proxying_url_loader_factory.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..53f3d010c224673e2684c9b6bdd80fc1c484bbde
+index 0000000000000000000000000000000000000000..407f2a6b57190fa0f2ab23a47c93ae6392c48fff
 --- /dev/null
 +++ b/components/thoron_adblock/proxying_url_loader_factory.cc
-@@ -0,0 +1,292 @@
+@@ -0,0 +1,310 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -9862,6 +9913,7 @@ index 0000000000000000000000000000000000000000..53f3d010c224673e2684c9b6bdd80fc1
 +#include "mojo/public/cpp/system/data_pipe.h"
 +#include "net/base/data_url.h"
 +#include "net/base/net_errors.h"
++#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 +#include "net/http/http_response_headers.h"
 +#include "services/network/public/cpp/parsed_headers.h"
 +#include "services/network/public/cpp/resource_request.h"
@@ -9962,6 +10014,15 @@ index 0000000000000000000000000000000000000000..53f3d010c224673e2684c9b6bdd80fc1
 +}
 +
 +// static
++bool ProxyingURLLoaderFactory::IsThirdParty(const GURL& url,
++                                            const GURL& top_site) {
++  return url.has_host() && top_site.has_host() &&
++         !net::registry_controlled_domains::SameDomainOrHost(
++             url, top_site,
++             net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
++}
++
++// static
 +bool ProxyingURLLoaderFactory::AdsAllowedOn(
 +    const HostContentSettingsMap* settings,
 +    const GURL& top_site) {
@@ -10059,6 +10120,14 @@ index 0000000000000000000000000000000000000000..53f3d010c224673e2684c9b6bdd80fc1
 +    decision.blocked = true;
 +    decision.stand_in.clear();
 +  }
++  // uBlock Origin's "medium mode": no script from another site than the
++  // page's.
++  if (!decision.blocked && request.destination == Destination::kScript &&
++      IsThirdParty(request.url, top_site_) &&
++      EngineService::Get().SiteSwitch(top_site_, "3p-script")) {
++    decision.blocked = true;
++    decision.stand_in.clear();
++  }
 +  constexpr int64_t kLargeMedia = 50 * 1024;
 +  const int64_t max_media =
 +      (request.destination == Destination::kAudio ||
@@ -10129,10 +10198,10 @@ index 0000000000000000000000000000000000000000..53f3d010c224673e2684c9b6bdd80fc1
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/proxying_url_loader_factory.h b/components/thoron_adblock/proxying_url_loader_factory.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..9f8bcd7906233a6946c08a19c4e028201be32382
+index 0000000000000000000000000000000000000000..4cf9c9c9848d152e8bd11c15821c7042f9f11c0a
 --- /dev/null
 +++ b/components/thoron_adblock/proxying_url_loader_factory.h
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,116 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -10198,6 +10267,10 @@ index 0000000000000000000000000000000000000000..9f8bcd7906233a6946c08a19c4e02820
 +  // uBlock Origin hides the placeholders of blocked elements).
 +  static network::URLLoaderCompletionStatus BlockedStatus(
 +      network::mojom::RequestDestination destination);
++
++  // True when `url` is on another site than `top_site` (their registered
++  // names differ, or their hosts when there is none).
++  static bool IsThirdParty(const GURL& url, const GURL& top_site);
 +
 +  static bool AdsAllowedOn(const HostContentSettingsMap* settings,
 +                           const GURL& top_site);
@@ -11443,10 +11516,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..e2e3b7245012620af66cc05fecbb1f3e0642e0a3
+index 0000000000000000000000000000000000000000..374b4413b5e770f56d3e85675ac01b679af7061d
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,240 @@
+@@ -0,0 +1,254 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -11542,6 +11615,10 @@ index 0000000000000000000000000000000000000000..e2e3b7245012620af66cc05fecbb1f3e
 +  #log td { padding: 4px 8px; border-top: 1px solid var(--line); vertical-align: top; }
 +  #log td.time { white-space: nowrap; color: var(--soft); }
 +  #log td.url { overflow-wrap: anywhere; font-family: ui-monospace, Consolas, monospace; }
++  #log td.kind { white-space: nowrap; font-weight: 600; }
++  #log tr.blocked td.kind { color: #d93025; }
++  #log tr.allowed td.kind { color: var(--soft); }
++  #log td.act button { padding: 2px 10px; font-size: 12px; }
 +  select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: Canvas;
 +           color: inherit; max-inline-size: 100%; }
 +</style>
@@ -11597,6 +11674,10 @@ index 0000000000000000000000000000000000000000..e2e3b7245012620af66cc05fecbb1f3e
 +      <span>Block remote fonts</span></label>
 +    <label class="option"><input type="checkbox" data-setting="javascript">
 +      <span>Disable JavaScript</span></label>
++    <label class="option"><input type="checkbox" data-setting="default-3p-script">
++      <span>Block third-party scripts (uBlock Origin's "medium mode", with the next one)</span></label>
++    <label class="option"><input type="checkbox" data-setting="default-3p-frame">
++      <span>Block third-party frames</span></label>
 +    <h3>Filtering</h3>
 +    <label class="option"><input type="checkbox" data-setting="ignore-generic">
 +      <span>Ignore generic cosmetic filters (hide rules written for every site)</span></label>
@@ -11672,10 +11753,16 @@ index 0000000000000000000000000000000000000000..e2e3b7245012620af66cc05fecbb1f3e
 +
 +  <section id="logger">
 +    <h2>Logger</h2>
-+    <p>Every request that was blocked on the open tabs, the newest first. It is kept only while the page is
-+      open: nothing is stored or sent.</p>
++    <p>The requests of the open tabs, the newest first: every blocked one, and while this page is open also
++      those let through. It is kept only in memory: nothing is stored or sent. "Block" adds a rule for a host
++      to My filters; "Allow" lets a blocked host through on that site.</p>
 +    <div class="row">
 +      <select id="log-tab" aria-label="Tab"></select>
++      <select id="log-kind" aria-label="Show">
++        <option value="">All</option>
++        <option value="blocked">Blocked</option>
++        <option value="allowed">Let through</option>
++      </select>
 +      <input id="log-filter" type="text" aria-label="Show only addresses with" placeholder="Filter">
 +      <span id="log-count"></span>
 +    </div>
@@ -11689,10 +11776,10 @@ index 0000000000000000000000000000000000000000..e2e3b7245012620af66cc05fecbb1f3e
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..2d05261a8518ffaa35baaabf55c4f54a2e25fe2e
+index 0000000000000000000000000000000000000000..73512dbfde9d636f18ecc6152470f72631e439d9
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,579 @@
+@@ -0,0 +1,607 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -11887,7 +11974,9 @@ index 0000000000000000000000000000000000000000..2d05261a8518ffaa35baaabf55c4f54a
 +                      fonts: 'no remote fonts', javascript: 'no JavaScript',
 +                      // kept out of a default that is on for every site (Settings)
 +                      '-media': 'large media allowed', '-cosmetic': 'hiding allowed',
-+                      '-fonts': 'remote fonts allowed'};
++                      '-fonts': 'remote fonts allowed', '3p-script': 'no third-party scripts',
++                      '3p-frame': 'no third-party frames', '-3p-script': 'third-party scripts allowed',
++                      '-3p-frame': 'third-party frames allowed'};
 +
 +// --- Settings ---
 +async function showSettings() {
@@ -11906,7 +11995,8 @@ index 0000000000000000000000000000000000000000..2d05261a8518ffaa35baaabf55c4f54a
 +const BACKUP_FORMAT = 'thoron-adblock-backup';
 +const SETTING_DEFAULTS = {badge: true, prefetch: false, 'hyperlink-auditing': false, webrtc: false,
 +                          'block-csp-reports': false, 'default-cosmetic': false, 'default-media': false,
-+                          'default-fonts': false, javascript: false, 'ignore-generic': false};
++                          'default-fonts': false, javascript: false, 'ignore-generic': false,
++                          'default-3p-script': false, 'default-3p-frame': false};
 +
 +async function makeBackup() {
 +  const [state, sites, settings] = await Promise.all(
@@ -12151,18 +12241,44 @@ index 0000000000000000000000000000000000000000..2d05261a8518ffaa35baaabf55c4f54a
 +    return option;
 +  }));
 +  if (!log.length) {
-+    select.append(make('option', '', 'No tab has blocked requests'));
++    select.append(make('option', '', 'No tab has requests to show yet'));
 +  }
 +  if (chosen && Number(chosen) < log.length) {
 +    select.value = chosen;
 +  }
 +  const tab = log[Number(select.value)] || {entries: []};
 +  const filter = $('log-filter').value.trim().toLowerCase();
-+  const entries = tab.entries.filter((e) => !filter || e.url.toLowerCase().includes(filter));
++  const kind = $('log-kind').value;
++  const entries = tab.entries.filter((e) => (!filter || e.url.toLowerCase().includes(filter)) &&
++                                            (!kind || (kind === 'blocked') === (e.blocked !== false)));
 +  $('log-count').textContent = `${entries.length} shown`;
++  let site = '';
++  try {
++    site = new URL(tab.url).hostname;
++  } catch {
++    site = '';
++  }
 +  $('log-rows').replaceChildren(...entries.map((e) => {
-+    const row = make('tr');
-+    row.append(make('td', 'time', new Date(e.time).toLocaleTimeString()), make('td', 'url', e.url));
++    const blocked = e.blocked !== false;
++    const row = make('tr', blocked ? 'blocked' : 'allowed');
++    let host = '';
++    try {
++      host = new URL(e.url).hostname;
++    } catch {
++      host = '';
++    }
++    const act = make('td', 'act');
++    if (host) {
++      // as uBlock Origin's logger: a rule for the host, everywhere; or the host allowed on this tab's site
++      const rule = blocked ? `@@||${host}^${site ? `$domain=${site}` : ''}` : `||${host}^`;
++      const button = make('button', '', blocked ? 'Allow' : 'Block');
++      button.type = 'button';
++      button.title = rule;
++      button.addEventListener('click', () => change('addFilter', [rule], `${rule} was added to My filters.`));
++      act.append(button);
++    }
++    row.append(make('td', 'time', new Date(e.time).toLocaleTimeString()),
++               make('td', 'kind', blocked ? 'blocked' : 'let through'), make('td', 'url', e.url), act);
 +    return row;
 +  }));
 +}
@@ -12177,12 +12293,11 @@ index 0000000000000000000000000000000000000000..2d05261a8518ffaa35baaabf55c4f54a
 +}
 +
 +$('log-tab').addEventListener('change', showLog);
++$('log-kind').addEventListener('change', showLog);
 +$('log-filter').addEventListener('input', showLog);
-+setInterval(() => {
-+  if (!document.hidden) {
-+    refreshLog();
-+  }
-+}, 2000);
++// Also while this tab is in the background: the browser keeps the requests let through only while the
++// logger asks (a background tab's timers may run only once a minute).
++setInterval(refreshLog, 2000);
 +
 +function show(state) {
 +  showLists(state.lists);
