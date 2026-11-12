@@ -41,6 +41,7 @@ same files uBlock Origin uses, from the same hosts, each with one fallback:
 | EasyList, EasyPrivacy | `ublockorigin.github.io` (`ublockorigin.pages.dev`) |
 | uBlock filters, privacy, badware, quick fixes, unbreak | `ublockorigin.github.io` (`ublockorigin.pages.dev`) |
 | URLhaus malware list | `malware-filter.gitlab.io` (`curbengh.github.io`) |
+| A list a person added on `chrome://adblock` | the host of the address that person gave (HTTPS only) |
 
 Each request is a plain HTTPS GET through the browser's own network context: no profile, no cookies
 or other credentials, not stored in the HTTP cache, no identifiers. A redirect away from HTTPS is

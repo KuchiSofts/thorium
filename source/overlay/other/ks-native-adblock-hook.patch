@@ -36,6 +36,8 @@ Nothing here happens unless the ThoronNativeAdblock feature is on.
   frame is put to the engine; a blocked one is dropped, any other goes on as before (to an extension
   that asked for it, or straight to the network).
 - chrome://flags has a switch for it ("Built-in ad blocking", #thoron-native-adblock).
+- chrome://adblock is its settings page: the filter lists on and off, lists a
+  person adds by address, and their own rules.
 - The installer ships the saved engine, the filter lists and the resources file.
 
 Origin: Thoron
@@ -55,7 +57,7 @@ index 24f8cbe6bd907ca32b08e8e904d0cfc21ea61b96..dafe1ec125f1b19f03f98c84224221c3
      "//components/tracing:tracing_config",
      "//components/tracing:tracing_metrics",
 diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
-index cf314780497655d91f67ab18ba0eb2d6f487284e..5bfec3e7be9795d1ac2bd7d2f00f3f0aeadd32c9 100644
+index cf314780497655d91f67ab18ba0eb2d6f487284e..970a02a1af2b433d565b5eb7e27d35569fe12839 100644
 --- a/chrome/browser/about_flags.cc
 +++ b/chrome/browser/about_flags.cc
 @@ -195,6 +195,7 @@
@@ -75,7 +77,7 @@ index cf314780497655d91f67ab18ba0eb2d6f487284e..5bfec3e7be9795d1ac2bd7d2f00f3f0a
 +     "Blocks ads and trackers inside the browser itself, with the same filter "
 +     "lists as uBlock Origin; it is faster and lighter than an extension. If "
 +     "uBlock Origin is on as well, both do the same work: turn one of them "
-+     "off.",
++     "off. Its lists and your own rules are on chrome://adblock.",
 +     kOsDesktop,
 +     FEATURE_VALUE_TYPE(thoron_adblock::kThoronNativeAdblock)},
      {switches::kEnableBenchmarking, flag_descriptions::kEnableBenchmarkingName,
@@ -690,3 +692,330 @@ index 792412915da65daf1ba2ab756c0292cc42eb865f..812d74d47da946c8783d8b1888d03e69
  }
  
  void ChromeContentRendererClient::RunScriptsAtDocumentEnd(
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+index 2e86cbe5385850937a25695dbee994c8fe846f4d..f2e05f6b1e0432045ea8229cdf8fa6a84963326a 100644
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -39,10 +39,13 @@ source_set("configs") {
+     "chrome_untrusted_web_ui_configs.cc",
+     "chrome_web_ui_configs.cc",
+     "thorium_easter_eggs.h",
++    "thoron_adblock_ui.cc",
++    "thoron_adblock_ui.h",
+   ]
+ 
+   deps = [
+     ":gcm_internals_ui",
++    "//components/thoron_adblock",
+     ":net_export_ui",
+     ":ntp_tiles_internals_ui",
+     ":signin_internals_ui",
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+index aee2aaf3e11b078a7bf6cce51a44e22942a8246c..ec31980386ea7f26c577dce3d4d9c2d592371244 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -57,6 +57,7 @@
+ #include "chrome/browser/ui/webui/suggest_internals/suggest_internals_ui.h"
+ #include "chrome/browser/ui/webui/sync_internals/sync_internals_ui.h"
+ #include "chrome/browser/ui/webui/thorium_easter_eggs.h"
++#include "chrome/browser/ui/webui/thoron_adblock_ui.h"
+ #include "chrome/browser/ui/webui/translate_internals/translate_internals_ui.h"
+ #include "chrome/browser/ui/webui/usb_internals/usb_internals_ui.h"
+ #include "chrome/browser/ui/webui/version/version_ui.h"
+@@ -332,6 +333,7 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<SuggestInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SyncInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<ThoriumAuthorsUIConfig>());
++  map.AddWebUIConfig(std::make_unique<ThoronAdblockUIConfig>());
+   map.AddWebUIConfig(std::make_unique<TranslateInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<UsbInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<user_actions_ui::UserActionsUIConfig>());
+diff --git a/chrome/common/webui_url_constants.cc b/chrome/common/webui_url_constants.cc
+index a1a37ae476db8cfafbe6947ba77064b3f4eb25cf..eac99c995ef10b4ebc27306a5028e090a8dadf1b 100644
+--- a/chrome/common/webui_url_constants.cc
++++ b/chrome/common/webui_url_constants.cc
+@@ -122,6 +122,9 @@ base::span<const base::cstring_view> ChromeURLHosts() {
+       kChromeUIAboutHost,
+       kChromeUIAccessibilityHost,
+       kChromeUIActorInternalsHost,
++      // Thoron: the settings page of the built-in ad blocking
++      // (kThoronAdblockHost in chrome/browser/ui/webui/thoron_adblock_ui.h).
++      "adblock",
+       kChromeUIAuthorsHost,
+ #if !BUILDFLAG(IS_ANDROID)
+       kChromeUIAppServiceInternalsHost,
+diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..6ddc34b463e9f015044ea6ec006b4e4e3ce1413b
+--- /dev/null
++++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
+@@ -0,0 +1,222 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/thoron_adblock_ui.h"
++
++#include <memory>
++#include <string>
++#include <utility>
++
++#include "base/feature_list.h"
++#include "base/functional/bind.h"
++#include "base/memory/ref_counted_memory.h"
++#include "base/memory/weak_ptr.h"
++#include "base/path_service.h"
++#include "base/values.h"
++#include "chrome/browser/browser_process.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/common/chrome_paths.h"
++#include "components/thoron_adblock/engine.rs.h"
++#include "components/thoron_adblock/engine_service.h"
++#include "components/thoron_adblock/features.h"
++#include "content/public/browser/url_data_source.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_message_handler.h"
++#include "content/public/common/url_constants.h"
++#include "services/network/public/cpp/shared_url_loader_factory.h"
++#include "url/gurl.h"
++
++namespace {
++
++constexpr char kScriptPath[] = "/adblock.js";
++// What the page may send: an address, and rules of at most the size the store
++// accepts (it checks again).
++constexpr size_t kMaxUrlLength = 2048;
++constexpr size_t kMaxRulesLength = 1024 * 1024;
++
++// Serves the page and its script. Both are part of the engine library
++// (components/thoron_adblock/settings_page.html and .js). The default security
++// policy of a data source stays in force: script only from this page and from
++// chrome://resources, and no markup made from text.
++class ThoronAdblockDataSource : public content::URLDataSource {
++ public:
++  ThoronAdblockDataSource() = default;
++  ThoronAdblockDataSource(const ThoronAdblockDataSource&) = delete;
++  ThoronAdblockDataSource& operator=(const ThoronAdblockDataSource&) = delete;
++
++  // content::URLDataSource:
++  std::string GetSource() override { return kThoronAdblockHost; }
++
++  std::string GetMimeType(const GURL& url) override {
++    return url.path() == kScriptPath ? "text/javascript" : "text/html";
++  }
++
++  // A module script is only run when it comes with its type.
++  bool ShouldServeMimeTypeAsContentTypeHeader() override { return true; }
++
++  void StartDataRequest(const GURL& url,
++                        const content::WebContents::Getter& wc_getter,
++                        GotDataCallback callback) override {
++    const std::string path(url.path());
++    if (path == kScriptPath) {
++      std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(
++          std::string(thoron_adblock::settings_page_js())));
++    } else if (path.empty() || path == "/") {
++      std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(
++          std::string(thoron_adblock::settings_page_html())));
++    } else {
++      std::move(callback).Run(nullptr);
++    }
++  }
++};
++
++// Takes what the page asks for (settings_page.js) to the engine service and
++// brings the answer back. Every message starts with the id of its answer.
++class ThoronAdblockHandler : public content::WebUIMessageHandler {
++ public:
++  ThoronAdblockHandler() = default;
++  ThoronAdblockHandler(const ThoronAdblockHandler&) = delete;
++  ThoronAdblockHandler& operator=(const ThoronAdblockHandler&) = delete;
++  ~ThoronAdblockHandler() override = default;
++
++  // content::WebUIMessageHandler:
++  void RegisterMessages() override {
++    Register("getState", &ThoronAdblockHandler::GetState);
++    Register("setListEnabled", &ThoronAdblockHandler::SetListEnabled);
++    Register("addList", &ThoronAdblockHandler::AddList);
++    Register("removeList", &ThoronAdblockHandler::RemoveList);
++    Register("setMyFilters", &ThoronAdblockHandler::SetMyFilters);
++    Register("updateNow", &ThoronAdblockHandler::UpdateNow);
++  }
++
++  void OnJavascriptDisallowed() override { weak_factory_.InvalidateWeakPtrs(); }
++
++ private:
++  using Method = void (ThoronAdblockHandler::*)(const base::ListValue&);
++
++  void Register(std::string_view message, Method method) {
++    web_ui()->RegisterMessageCallback(
++        message, base::BindRepeating(method, base::Unretained(this)));
++  }
++
++  // The service, set up the way the request hook sets it up, for a page that
++  // is opened before any other page was loaded.
++  static thoron_adblock::EngineService& Service() {
++    thoron_adblock::EngineService& service =
++        thoron_adblock::EngineService::Get();
++    if (!service.is_configured()) {
++      service.Configure(
++          base::PathService::CheckedGet(chrome::DIR_USER_DATA),
++          base::BindRepeating(
++              []() -> scoped_refptr<network::SharedURLLoaderFactory> {
++                return g_browser_process
++                           ? g_browser_process->shared_url_loader_factory()
++                           : nullptr;
++              }));
++    }
++    return service;
++  }
++
++  // The id of the answer, when the message has the shape `count` arguments
++  // after it give; else nothing, and the message is dropped.
++  const std::string* AnswerId(const base::ListValue& args, size_t count) {
++    AllowJavascript();
++    return args.size() == count + 1 ? args[0].GetIfString() : nullptr;
++  }
++
++  thoron_adblock::EngineService::Changed Changed(const std::string& id) {
++    return base::BindOnce(&ThoronAdblockHandler::Answer,
++                          weak_factory_.GetWeakPtr(), id);
++  }
++
++  void Answer(const std::string& id, std::string error) {
++    if (IsJavascriptAllowed()) {
++      ResolveJavascriptCallback(base::Value(id), base::Value(std::move(error)));
++    }
++  }
++
++  void AnswerState(const std::string& id, base::DictValue state) {
++    if (IsJavascriptAllowed()) {
++      ResolveJavascriptCallback(base::Value(id), state);
++    }
++  }
++
++  void GetState(const base::ListValue& args) {
++    if (const std::string* id = AnswerId(args, 0)) {
++      Service().DescribeSettings(
++          base::BindOnce(&ThoronAdblockHandler::AnswerState,
++                         weak_factory_.GetWeakPtr(), *id));
++    }
++  }
++
++  void SetListEnabled(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 2);
++    if (!id || !args[1].is_string() || !args[2].is_bool()) {
++      return;
++    }
++    Service().SetListEnabled(args[1].GetString(), args[2].GetBool(),
++                             Changed(*id));
++  }
++
++  void AddList(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 1);
++    if (!id || !args[1].is_string()) {
++      return;
++    }
++    const std::string& address = args[1].GetString();
++    const GURL url(address);
++    if (address.size() > kMaxUrlLength || !url.is_valid()) {
++      Answer(*id, "This is not an address.");
++      return;
++    }
++    Service().AddList(url, Changed(*id));
++  }
++
++  void RemoveList(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 1);
++    if (!id || !args[1].is_string()) {
++      return;
++    }
++    Service().RemoveList(args[1].GetString(), Changed(*id));
++  }
++
++  void SetMyFilters(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 1);
++    if (!id || !args[1].is_string()) {
++      return;
++    }
++    if (args[1].GetString().size() > kMaxRulesLength) {
++      Answer(*id, "Your filters are larger than 1 MB.");
++      return;
++    }
++    Service().SetMyFilters(args[1].GetString(), Changed(*id));
++  }
++
++  void UpdateNow(const base::ListValue& args) {
++    if (const std::string* id = AnswerId(args, 0)) {
++      Service().UpdateNow(Changed(*id));
++    }
++  }
++
++  base::WeakPtrFactory<ThoronAdblockHandler> weak_factory_{this};
++};
++
++}  // namespace
++
++ThoronAdblockUIConfig::ThoronAdblockUIConfig()
++    : DefaultWebUIConfig(content::kChromeUIScheme,
++                         kThoronAdblockHost) {}
++
++bool ThoronAdblockUIConfig::IsWebUIEnabled(
++    content::BrowserContext* browser_context) {
++  return base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock);
++}
++
++ThoronAdblockUI::ThoronAdblockUI(content::WebUI* web_ui)
++    : content::WebUIController(web_ui) {
++  content::URLDataSource::Add(Profile::FromWebUI(web_ui),
++                              std::make_unique<ThoronAdblockDataSource>());
++  web_ui->AddMessageHandler(std::make_unique<ThoronAdblockHandler>());
++}
++
++ThoronAdblockUI::~ThoronAdblockUI() = default;
+diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.h b/chrome/browser/ui/webui/thoron_adblock_ui.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..d0fafbafa75adc4e08b11c75f203035cf2f5670a
+--- /dev/null
++++ b/chrome/browser/ui/webui/thoron_adblock_ui.h
+@@ -0,0 +1,41 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_UI_H_
++
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/webui_config.h"
++
++namespace content {
++class BrowserContext;
++class WebUI;
++}  // namespace content
++
++// The page is chrome://adblock. The host is also in the list of hosts the
++// address bar suggests (chrome/common/webui_url_constants.cc).
++inline constexpr char kThoronAdblockHost[] = "adblock";
++
++class ThoronAdblockUI;
++
++// chrome://adblock, the settings page of Thoron's built-in ad blocking: the
++// filter lists (on and off), lists a person adds, and their own rules. The page
++// exists only while the ThoronNativeAdblock feature is on.
++class ThoronAdblockUIConfig
++    : public content::DefaultWebUIConfig<ThoronAdblockUI> {
++ public:
++  ThoronAdblockUIConfig();
++
++  // content::WebUIConfig:
++  bool IsWebUIEnabled(content::BrowserContext* browser_context) override;
++};
++
++class ThoronAdblockUI : public content::WebUIController {
++ public:
++  explicit ThoronAdblockUI(content::WebUI* web_ui);
++  ThoronAdblockUI(const ThoronAdblockUI&) = delete;
++  ThoronAdblockUI& operator=(const ThoronAdblockUI&) = delete;
++  ~ThoronAdblockUI() override;
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_UI_H_

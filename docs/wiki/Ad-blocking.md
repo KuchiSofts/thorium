@@ -40,11 +40,26 @@ It is **off by default** until its last correctness checks are done.
 - **Allow everywhere or manage allowed sites:** Settings, "Privacy and security", "Site settings",
   "Additional content settings", "Ads and trackers".
 
+### Lists and your own rules
+
+Open `chrome://adblock`.
+
+- **Filter lists:** every list has a checkbox. A list that is switched off is neither used nor downloaded.
+  "Update now" looks for newer lists at once.
+- **Add a list:** paste its address (it must start with `https://`) and press Add. The list is checked
+  first; something that is not a filter list is refused, and the page says why. Remove takes it out again.
+- **My filters:** write your own rules, one per line, and press Save. For example `||ads.example.com^`
+  blocks a host, `example.com##.banner` hides something on a site, and `@@||example.com^` allows a site.
+
+Every change is in use at once, and stays after a restart and after an update of the browser. What you
+choose stays on your computer. A list you add is fetched from its address every few days, without cookies.
+
+Rules of a list you add, and your own rules, block and hide like any other. They cannot use the powerful
+scripts that only uBlock Origin's own lists may use.
+
 ### What it cannot do yet
 
-- **Your own filters and lists.** You cannot yet add a list, switch a list off or write your own rules.
-  This is planned as a page in Settings (ROADMAP P5.30). Until then, uBlock Origin does this.
-- **Pick an element on a page to hide it.** Planned after that.
+- **Pick an element on a page to hide it.** Planned next.
 - **A few rare kinds of rules** in the lists are not applied yet (ROADMAP P5.26).
 
 ## uBlock Origin

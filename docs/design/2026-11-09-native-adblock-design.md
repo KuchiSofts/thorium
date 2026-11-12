@@ -300,7 +300,8 @@ the previous engine and stays up (8 scenarios pass). Not done: a fuzz run of the
   profiles.
 - The native engine's state is only "on/off" and the per-site switches, stored in the profile and
   covered by the profile check and backups like everything else.
-- A setting "Advanced: also use custom filter lists" can come later; not in the first version.
+- Which lists are on, the lists a person added and their own rules are kept for the whole browser, next
+  to the lists, and edited on `chrome://adblock` (section 12.13).
 
 ## 8. Security
 
@@ -531,7 +532,8 @@ smart. This replaces the hybrid of section 3 and decision 1 of section 11.
 | List updates | 4.6 | done |
 | Scriptlet and resource updates | 12.4 | P5.23 |
 | Per-site switch, blocked count | 4.7 | done |
-| Element picker, custom filters | 12.6 | later |
+| Lists on and off, added lists, own rules | a settings page, `chrome://adblock` (12.13) | done (P5.30) |
+| Element picker | 12.6 | later |
 
 ### 12.2 Resources: scriptlets and stand-ins
 
@@ -955,6 +957,60 @@ Checked (2026-11-11):
 - Real sites (`docs/perf/2026-11-11-native-adblock-breakage-p529.md`): 96 of the 99 could be compared;
   only the two known flags (vk.com, applovin.com). No site shows less than 94 % of the text it shows
   with uBlock Origin.
+
+### 12.13 The settings page (P5.30, 2026-11-12)
+
+The owner asked that people can add and edit, as they can in uBlock Origin. `chrome://adblock` is the
+blocker's settings page:
+
+- **Filter lists:** the eight built-in lists with their names, rule counts and a checkbox each. A list that
+  is switched off is neither used nor downloaded. "Update now" looks for newer lists at once.
+- **Add a list:** by its address. The list is downloaded the way every list is (HTTPS only, redirects
+  included, no cookies, no cache, 20 MB at most) and passes the checks of an updated list before it is
+  used; a web page or a list with a rule that allows every request is refused, with the reason in plain
+  words. Up to 30 lists.
+- **My filters:** the person's own rules in the syntax of the lists, up to 1 MB.
+- **On, off and allowed sites** stay where they are: the page links to the "Ads and trackers" site setting.
+
+Where it is kept. For the whole browser, like the lists themselves, in the store folder next to them
+(`settings.json`, `my-filters.txt`, a stored copy of each added list), never in a profile. What is
+chosen here stays on the PC; an added list is fetched from the address the person gave, at most every 4
+days.
+
+How it is built in. The engine is built from the lists the settings name: the built-in ones that are on,
+then the added lists, then the person's rules, each under its own id. Every change builds the engine anew
+on the background sequence, saves it, and puts it to use at once, without a restart. A saved engine is
+only loaded for the settings it was built for (a fingerprint in the state file); after an update of the
+browser the engine is built again from the shipped lists, the stored added lists and the person's rules.
+
+Trust. As for every list, the id decides, never the content: only ids that start with `ublock-` may use
+the trusted scriptlets. An added list gets the id `custom-` plus a hash of its address, worked out by the
+browser every time, and the person's rules get `my-filters`; nothing in a file can give either the id of
+a trusted list. A list or rules that hold a list marker line are refused. A `$csp` rule can only add to a
+page's policy, never loosen it (section 12.9).
+
+No crash at every start. Reading a list runs the parser inside the browser, and text a person supplies is
+the least predictable there is. Before the lists of changed settings are read, the state file records
+which settings are being read. If the browser stops while reading them, the next start finds the record,
+does not read them again, uses the engine saved before, and the page says that the last change is not in
+use. The next change is read normally.
+
+The page itself. Plain HTML and one module script, kept next to the engine and compiled into it, served
+by a data source with Chromium's default policy for such pages: script only from the page itself and from
+the browser's own resources, and no markup made from text (the page is built with DOM calls). Its
+messages are checked for shape and size before anything is done. The page exists only while the
+`ThoronNativeAdblock` feature is on.
+
+Checked with `tools/qa/adblock_settings_check.py`, offline, in 14 steps that work the page like a person:
+own rules block; a rule that allows everything is refused and the box keeps the text; an added list
+blocks, shows its title, and its rule that asks for trust is not carried out; a web page and an address
+that is not secure are refused; a list switched off stops blocking and blocks again when switched on, with
+its updated copy; every choice survives a restart and an update of the browser; a removed list stops
+blocking; after an interruption the settings are not read again and the page says so. Two engine tests
+cover the trust of added lists and own rules and that the page holds no inline script.
+
+Still to do: a link to the page from Settings (today: the flag's text and the address bar), translations,
+and the element picker (12.6).
 
 ## 13. Credits
 
