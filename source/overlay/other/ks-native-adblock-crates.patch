@@ -3,7 +3,9 @@ Thoron: vendor adblock-rust and the crates it needs (native ad blocking).
 Adds adblock 0.13.3 (MPL-2.0) and its dependencies to Chromium's Rust crates: Cargo.toml, the
 pinned and checksummed Cargo.lock, gnrt_config.toml entries and two crate patches (the MIT text that
 seahash does not ship; FlatBuffers never enabling nightly-only features). regex and aho-corasick are
-allowed outside tests: memory-safe Rust with linear-time matching. The crate sources and their
+allowed outside tests: memory-safe Rust with linear-time matching. regex is also named as a direct
+dependency, so that the engine's own code may use it (the expressions of `$urlskip` rules). The crate
+sources and their
 BUILD.gn files are produced by tools/build/rust_crates.py in the Thoron repository (gnrt vendor and gen).
 
 Origin: Thoron
@@ -11,7 +13,7 @@ Author: KuchiSofts
 License: BSD-3-Clause
 
 diff --git a/third_party/rust/chromium_crates_io/Cargo.lock b/third_party/rust/chromium_crates_io/Cargo.lock
-index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f2939079f4db54 100644
+index 8ffa69240c99221246258731d2782a8f210d2d63..a04a39011729eb22fb8497e37d87702043f56a34 100644
 --- a/third_party/rust/chromium_crates_io/Cargo.lock
 +++ b/third_party/rust/chromium_crates_io/Cargo.lock
 @@ -2,6 +2,39 @@
@@ -84,7 +86,15 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
   "antlr4rust",
   "anyhow",
   "base64",
-@@ -344,7 +386,7 @@ name = "cobs"
+@@ -279,6 +321,7 @@ dependencies = [
+  "qr_code",
+  "quote",
+  "read-fonts",
++ "regex",
+  "rustc-demangle-capi",
+  "rustfft",
+  "serde",
+@@ -344,7 +387,7 @@ name = "cobs"
  version = "0.3.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  dependencies = [
@@ -93,7 +103,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  ]
  
  [[package]]
-@@ -659,6 +701,15 @@ dependencies = [
+@@ -659,6 +702,15 @@ dependencies = [
   "writeable",
  ]
  
@@ -109,7 +119,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  [[package]]
  name = "flate2"
  version = "1.1.10"
-@@ -682,6 +733,14 @@ dependencies = [
+@@ -682,6 +734,14 @@ dependencies = [
   "bytemuck",
  ]
  
@@ -124,7 +134,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  [[package]]
  name = "fs2"
  version = "0.4.3"
-@@ -730,7 +789,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -730,7 +790,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  [[package]]
  name = "harfrust"
  version = "0.14.0"
@@ -132,7 +142,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  dependencies = [
   "bitflags",
   "bytemuck",
-@@ -1207,6 +1265,25 @@ name = "icu_time_data"
+@@ -1207,6 +1266,25 @@ name = "icu_time_data"
  version = "2.4.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  
@@ -158,7 +168,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  [[package]]
  name = "image"
  version = "0.25.10"
-@@ -1286,7 +1363,7 @@ dependencies = [
+@@ -1286,7 +1364,7 @@ dependencies = [
   "jxl_transforms",
   "num-derive",
   "num-traits",
@@ -167,7 +177,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  ]
  
  [[package]]
-@@ -1755,6 +1832,11 @@ dependencies = [
+@@ -1755,6 +1833,11 @@ dependencies = [
   "windows-link",
  ]
  
@@ -179,7 +189,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  [[package]]
  name = "pin-project-lite"
  version = "0.2.17"
-@@ -1798,6 +1880,11 @@ dependencies = [
+@@ -1798,6 +1881,11 @@ dependencies = [
   "zerovec",
  ]
  
@@ -191,7 +201,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  [[package]]
  name = "primal-check"
  version = "0.3.4"
-@@ -1835,6 +1922,19 @@ dependencies = [
+@@ -1835,6 +1923,19 @@ dependencies = [
   "syn 2.0.119",
  ]
  
@@ -211,7 +221,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  [[package]]
  name = "pxfm"
  version = "0.1.30"
-@@ -1953,6 +2053,19 @@ dependencies = [
+@@ -1953,6 +2054,19 @@ dependencies = [
   "rustc-demangle",
  ]
  
@@ -231,7 +241,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  [[package]]
  name = "rustfft"
  version = "6.4.1"
-@@ -1994,6 +2107,16 @@ name = "scratch"
+@@ -1994,6 +2108,16 @@ name = "scratch"
  version = "1.0.9"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  
@@ -248,7 +258,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  [[package]]
  name = "serde"
  version = "1.0.229"
-@@ -2141,7 +2264,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -2141,7 +2265,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  dependencies = [
   "hashbrown",
   "skrifa",
@@ -257,7 +267,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
   "write-fonts",
  ]
  
-@@ -2429,12 +2552,30 @@ dependencies = [
+@@ -2429,12 +2553,30 @@ dependencies = [
   "winapi-util",
  ]
  
@@ -289,7 +299,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  ]
  
  [[package]]
-@@ -2578,6 +2719,17 @@ name = "unty"
+@@ -2578,6 +2720,17 @@ name = "unty"
  version = "0.0.4"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  
@@ -308,7 +318,7 @@ index 8ffa69240c99221246258731d2782a8f210d2d63..04fad0ae5d1bb28e46fe19c193f29390
  name = "utf16_iter"
  version = "1.0.5"
 diff --git a/third_party/rust/chromium_crates_io/Cargo.toml b/third_party/rust/chromium_crates_io/Cargo.toml
-index 42902d62b6d2305ecf799950961de8449402ff42..94615df060930210cc576f2ef2cbe8b706f3da00 100644
+index 42902d62b6d2305ecf799950961de8449402ff42..cae4f4d9b6a2025f1887a80ddf807c3394fb1358 100644
 --- a/third_party/rust/chromium_crates_io/Cargo.toml
 +++ b/third_party/rust/chromium_crates_io/Cargo.toml
 @@ -16,6 +16,7 @@ version = "0.1.0"
@@ -319,7 +329,15 @@ index 42902d62b6d2305ecf799950961de8449402ff42..94615df060930210cc576f2ef2cbe8b7
  antlr4rust = "0.5.2"
  anyhow = "1.0.98"
  base64 = "0.22"
-@@ -219,3 +220,6 @@ features = ["std"]
+@@ -43,6 +44,7 @@ proc-macro2 = "1"
+ prost = "0.14.1"
+ qr_code = "2"
+ quote = "1"
++regex = "1"
+ rustc-demangle-capi = "0.1"
+ serde = "1.0.219"
+ serde_json = "1.0.149"
+@@ -219,3 +221,6 @@ features = ["std"]
  [dependencies.zune-jpeg]
  version = "=0.5.16-rc2"
  features = ["arith"]
@@ -327,7 +345,7 @@ index 42902d62b6d2305ecf799950961de8449402ff42..94615df060930210cc576f2ef2cbe8b7
 +[patch.crates-io]
 +harfrust = { path = "vendor/harfrust-v0_14" }
 diff --git a/third_party/rust/chromium_crates_io/gnrt_config.toml b/third_party/rust/chromium_crates_io/gnrt_config.toml
-index 836ffbe1524ec8f6bb44d6e5898b4ef296e00430..6e625c7a414cb53d0d5a6cca8339d2365ab94a79 100644
+index 836ffbe1524ec8f6bb44d6e5898b4ef296e00430..45bd3bcc1172a953faa47635afab9f5ed62f5365 100644
 --- a/third_party/rust/chromium_crates_io/gnrt_config.toml
 +++ b/third_party/rust/chromium_crates_io/gnrt_config.toml
 @@ -121,6 +121,12 @@ removed_librs_template = "removed_lib.rs.hbs"
@@ -432,18 +450,20 @@ index 836ffbe1524ec8f6bb44d6e5898b4ef296e00430..6e625c7a414cb53d0d5a6cca8339d236
  [crate.pxfm]
  extra_kv = { allow_unsafe = true }
  
-@@ -853,7 +890,10 @@ extra_kv = { allow_unsafe = true }
+@@ -853,8 +890,11 @@ extra_kv = { allow_unsafe = true }
  extra_kv = { allow_unsafe = false }
  
  [crate.regex]
 -group = 'test'
-+# Thoron: allowed outside tests for the native ad-blocking engine (adblock-rust needs it). The crate is
+-allow_first_party_usage = false
++# Thoron: allowed outside tests for the native ad-blocking engine (adblock-rust needs it, and the
++# engine's own code uses it for the regular expressions of `$urlskip` rules). The crate is
 +# memory-safe Rust with guaranteed linear-time matching, so untrusted filter lists cannot cause
 +# catastrophic backtracking (design: docs/design/2026-11-09-native-adblock-design.md in Thoron).
 +group = 'safe'
- allow_first_party_usage = false
  extra_kv = { allow_unsafe = true }
  
+ [crate.regex-automata.extra_kv]
 @@ -876,6 +916,12 @@ allow_unsafe = false
  extra_kv = { allow_unsafe = true }
  shipped = false

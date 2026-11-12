@@ -15,6 +15,8 @@ other is built into the browser itself and is meant to replace the extension onc
   identifiers. A list that looks wrong is refused and the previous one stays.
 - **Blocks before the request leaves.** A request for an ad or a tracker is stopped inside the browser.
   This covers pages, frames, redirects, web workers and WebSocket connections.
+- **Skips tracking detours.** A link that leads to a tracker first, which then sends you on, goes straight
+  to the real page.
 - **Cleans the page.** Leftover ad boxes are hidden, tracking parameters are removed from addresses, and
   small scripts from uBlock Origin defuse anti-blocker code. A blocked script that a page needs is answered
   with a harmless stand-in, so the page keeps working.
