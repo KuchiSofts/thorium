@@ -10,6 +10,7 @@ an ad host EasyList blocks, an element a generic EasyList hide rule hides, a web
 the large-media limit, an element to pick and one to zap. Steps:
 
     menu      the menu names the page's site, counts the blocked image, lists the ad host
+    collapse  a blocked 300x250 ad image and ad frame take up no space on the page
     fonts     with "Remote fonts" on, the font is never asked for; off again, it is
     media     with "Large media" on, the sound fails to load; off again, it loads
     cosmetic  with "No hiding" on, the generic hide rule hides nothing; off again, it hides
@@ -84,6 +85,8 @@ def page_html(host: str, generic: str) -> str:
             '<div id="zap-me">Zap me</div><p id="keep">Stays</p>'
             f'<div class="{generic}" id="generic">generic ad</div>'
             f'<img id="ad" src="http://{host}/banner.gif" width="1" height="1" alt="">'
+            f'<img id="ad-box" src="http://{host}/box.gif" width="300" height="250" alt="">'
+            f'<iframe id="ad-frame" src="http://{host}/frame.html" width="300" height="250"></iframe>'
             '<audio id="sound" src="/sound.wav" preload="auto"></audio>'
             '<script>window.report = {sound: "waiting"};'
             "const s = document.getElementById('sound');"
@@ -101,6 +104,11 @@ def menu_problems(menu: dict, host: str) -> list[str]:
     if not any(site == host for site, _ in menu.get("sites") or []):
         out.append(f"the menu does not list {host}")
     return out
+
+
+def collapse_problems(seen: dict) -> list[str]:
+    return [f"the blocked {what} still takes {seen.get(key)} px" for what, key in
+            (("ad image", "box"), ("ad frame", "frame")) if seen.get(key) != 0]
 
 
 def switch_problems(name: str, on: bool, seen: dict) -> list[str]:
@@ -197,7 +205,9 @@ READ_PAGE = """JSON.stringify({sound: window.report && window.report.sound,
     return !e ? 'gone' : getComputedStyle(e).display === 'none' ? 'hidden' : 'shown'; })(),
   promo: (() => { const e = document.getElementById('pick-target');
     return !e ? 'gone' : getComputedStyle(e).display === 'none' ? 'hidden' : 'shown'; })(),
-  zapped: !document.getElementById('zap-me'), kept: !!document.getElementById('keep')})"""
+  zapped: !document.getElementById('zap-me'), kept: !!document.getElementById('keep'),
+  box: Math.round(document.getElementById('ad-box').getBoundingClientRect().width),
+  frame: Math.round(document.getElementById('ad-frame').getBoundingClientRect().width)})"""
 
 
 class Run:
@@ -275,6 +285,10 @@ def run(browser: Path, work: Path, host: str, generic: str) -> list[str]:
             found = menu_problems(menu, host)
             print(f"{'PASS' if not found else 'FAIL'}  menu: {menu}")
             problems += [f"menu: {p}" for p in found]
+            seen = r.read_page()
+            found = collapse_problems(seen)
+            print(f"{'PASS' if not found else 'FAIL'}  collapse: image {seen.get('box')} px, frame {seen.get('frame')} px")
+            problems += [f"collapse: {p}" for p in found]
             for name, selector in (("fonts", "[data-switch=fonts]"), ("media", "[data-switch=media]"),
                                    ("cosmetic", "[data-switch=cosmetic]"), ("power", "#power")):
                 for on in (True, False):

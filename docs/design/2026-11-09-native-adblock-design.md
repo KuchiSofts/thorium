@@ -1254,6 +1254,20 @@ asked for, the large sound fails, a generic hide rule hides nothing, the ad host
 driven by mouse and Enter, puts a rule for the site into My filters and the element is hidden after a
 reload; the zapper removes one element and keeps the rest.
 
+### 12.22 More lists, and no empty boxes (P5.34, P5.35, 2026-11-12)
+
+- **More lists.** `chrome://adblock` offers the 62 lists uBlock Origin offers besides its defaults (its
+  `assets.json`): cookie notices and other annoyances, more privacy, phishing, and the lists for regions and
+  languages, grouped as uBlock Origin groups them, each with a checkbox. A list switched on is added like any
+  list a person adds (12.13): fetched over HTTPS without cookies, checked, in use at once, and without trust
+  (the few trusted scriptlets of uBlock Origin's own optional lists are left out, as for any added list).
+- **No empty boxes.** A blocked image, frame or embedded object used to leave an empty box (a broken image,
+  an error page in a frame). The blocker now ends such a request with Chromium's flag for it
+  (`should_collapse_initiator`, which Chromium's own ad filter uses), so the element is collapsed and the page
+  closes up, as uBlock Origin's "hide placeholders of blocked elements" does. It applies to the request
+  proxy, to redirects and to frames. Checked by `tools/qa/adblock_menu_check.py`: a blocked 300x250 ad image
+  and ad frame take up no space.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

@@ -28,6 +28,8 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** per-site switches in the menu: pop-ups, large media, no hiding, remote fonts, JavaScript.
 - **Ad blocking:** element picker and zapper: pick an element, make a rule for it, or remove it for now.
 - **Ad blocking:** `chrome://adblock` lists allowed sites and switches, and has a live logger of blocked requests.
+- **Ad blocking:** `chrome://adblock` offers uBlock Origin's 62 optional lists: cookie notices, annoyances, regions.
+- **Ad blocking:** blocked images and frames leave no empty boxes on the page.
 - **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.
