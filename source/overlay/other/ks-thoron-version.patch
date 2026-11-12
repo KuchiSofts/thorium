@@ -1,0 +1,201 @@
+Thoron: its own version ("0.1.1") wherever a person sees a version.
+
+chrome/VERSION carries THORON_VERSION next to the build number (tools/release/version.py in the Thoron
+repository). The About page, chrome://version, chrome://flags, the Windows list of apps (DisplayVersion) and
+the product version of the files show it. The four-part build number stays as it is everywhere else:
+websites, extensions, the installer and the updater compare that one.
+
+Origin: Thoron
+Author: KuchiSofts
+License: BSD-3-Clause
+
+diff --git a/chrome/common/chrome_version.h.in b/chrome/common/chrome_version.h.in
+index a385930efb10fd3d37d3d3a85e1be3351e54a008..75858df1b8c913336d1f822ee73588ee15048e34 100644
+--- a/chrome/common/chrome_version.h.in
++++ b/chrome/common/chrome_version.h.in
+@@ -15,6 +15,8 @@
+ #define CHROME_VERSION_PATCH @PATCH@
+ // Thoron: the rebuild number from tools/release/version.py; left unsubstituted when unset.
+ #define THORON_REBUILD_STRING "@THORON_REBUILD@"
++// Thoron: its own version, the one people see ("0.1.1"); left unsubstituted when unset.
++#define THORON_VERSION_STRING "@THORON_VERSION@"
+ 
+ // Branding Information
+ 
+diff --git a/chrome/browser/ui/webui/version/version_ui.h b/chrome/browser/ui/webui/version/version_ui.h
+index 03d6d4b6edfb438d9dcf3fc46b566a7266ed0d53..5961154cb77ec04c47005a910a03193787e155a6 100644
+--- a/chrome/browser/ui/webui/version/version_ui.h
++++ b/chrome/browser/ui/webui/version/version_ui.h
+@@ -51,6 +51,14 @@ class VersionUI : public content::WebUIController {
+   // Returns a localized version string suitable for displaying in UI.
+   static std::u16string GetAnnotatedVersionStringForUi();
+ #endif  // !BUILDFLAG(IS_ANDROID)
++
++  // Thoron's own version ("0.1.1"), the one people see. The four-part number
++  // stays the browser's build number: websites, extensions, the installer and
++  // the updater compare that one. Empty in a build without a Thoron version.
++  static std::string ThoronVersion();
++
++  // The version people see: Thoron's own, else the four-part number.
++  static std::string VersionForPeople();
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_WEBUI_VERSION_VERSION_UI_H_
+diff --git a/chrome/browser/ui/webui/version/version_ui.cc b/chrome/browser/ui/webui/version/version_ui.cc
+index 284f1816cff528fe3126494f3b86ab3fbfaa7c46..a7fe748bb7b4e8795ffc81bf69cff549e048d1bb 100644
+--- a/chrome/browser/ui/webui/version/version_ui.cc
++++ b/chrome/browser/ui/webui/version/version_ui.cc
+@@ -14,15 +14,19 @@
+ #include "base/debug/debugging_buildflags.h"
+ #include "base/i18n/message_formatter.h"
+ #include "base/memory/ref_counted_memory.h"
++#include "base/strings/strcat.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_util.h"
++#include "base/strings/stringprintf.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/time/time.h"
++#include "base/version.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/browser_process_impl.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/webui/version/version_handler.h"
+ #include "chrome/common/channel_info.h"
++#include "chrome/common/chrome_version.h"
+ #include "chrome/common/url_constants.h"
+ #include "chrome/grit/branded_strings.h"
+ #include "chrome/grit/generated_resources.h"
+@@ -73,6 +77,20 @@ using content::WebUIDataSource;
+ 
+ namespace {
+ 
++// Thoron: the Chromium version a build is based on. Its last number is the
++// Chromium patch x 100 + the rebuild when chrome/VERSION carries
++// THORON_REBUILD (tools/release/version.py in the Thoron repository).
++std::string ThoronChromiumBase() {
++  const std::string_view rebuild = THORON_REBUILD_STRING;
++  const base::Version& version = version_info::GetVersion();
++  if (rebuild.empty() || rebuild.front() == '@' || !version.IsValid() ||
++      version.components().size() != 4) {
++    return std::string(version_info::GetVersionNumber());
++  }
++  const auto& c = version.components();
++  return base::StringPrintf("%u.%u.%u.%u", c[0], c[1], c[2], c[3] / 100);
++}
++
+ void CreateAndAddVersionUIDataSource(Profile* profile) {
+   WebUIDataSource* html_source =
+       WebUIDataSource::CreateAndAdd(profile, chrome::kChromeUIVersionHost);
+@@ -248,9 +266,15 @@ void VersionUI::AddVersionDetailStrings(content::WebUIDataSource* html_source) {
+   html_source->AddLocalizedString(version_ui::kVersionProcessorVariation,
+                                   VersionProcessorVariation());
+ 
+-  // Data strings.
+-  html_source->AddString(version_ui::kVersion,
+-                         version_info::GetVersionNumber());
++  // Data strings. Thoron: its own version first, then the Chromium version it
++  // is based on and the build number.
++  const std::string thoron = ThoronVersion();
++  html_source->AddString(
++      version_ui::kVersion,
++      thoron.empty()
++          ? std::string(version_info::GetVersionNumber())
++          : base::StrCat({thoron, " (based on Chromium ", ThoronChromiumBase(),
++                          ", build ", version_info::GetVersionNumber(), ")"}));
+   html_source->AddString(version_ui::kVersionSuffix,
+                          GetVersionInformationalSuffix());
+ 
+@@ -337,12 +361,28 @@ void VersionUI::AddVersionDetailStrings(content::WebUIDataSource* html_source) {
+                          version_info::GetSanitizerList());
+ }
+ 
++// static
++std::string VersionUI::ThoronVersion() {
++  const std::string_view version = THORON_VERSION_STRING;
++  if (version.empty() || version.front() == '@') {
++    return std::string();
++  }
++  return std::string(version);
++}
++
++// static
++std::string VersionUI::VersionForPeople() {
++  const std::string thoron = ThoronVersion();
++  return thoron.empty() ? std::string(version_info::GetVersionNumber())
++                        : thoron;
++}
++
+ #if !BUILDFLAG(IS_ANDROID)
+ // static
+ std::u16string VersionUI::GetAnnotatedVersionStringForUi() {
+   return l10n_util::GetStringFUTF16(
+       IDS_SETTINGS_ABOUT_PAGE_BROWSER_VERSION,
+-      base::UTF8ToUTF16(version_info::GetVersionNumber()),
++      base::UTF8ToUTF16(VersionForPeople()),
+       base::UTF8ToUTF16(GetVersionInformationalSuffix()),
+       l10n_util::GetStringUTF16(version_info::IsOfficialBuild()
+                                     ? IDS_VERSION_UI_OFFICIAL
+diff --git a/chrome/browser/ui/webui/flags/flags_ui.cc b/chrome/browser/ui/webui/flags/flags_ui.cc
+index a7ddfcbc8e90786a6b43d9360b48a4ab7994d562..915329e87f4a9176fbad4259f4660969e310efa4 100644
+--- a/chrome/browser/ui/webui/flags/flags_ui.cc
++++ b/chrome/browser/ui/webui/flags/flags_ui.cc
+@@ -19,6 +19,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/webui/flags/flags_ui_handler.h"
++#include "chrome/browser/ui/webui/version/version_ui.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/grit/components_scaled_resources.h"
+ #include "components/grit/flags_ui_resources.h"
+@@ -70,7 +71,8 @@ namespace {
+ content::WebUIDataSource* CreateAndAddFlagsUIHTMLSource(Profile* profile) {
+   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
+       profile, chrome::kChromeUIFlagsHost);
+-  source->AddString(flags_ui::kVersion, version_info::GetVersionNumber());
++  // Thoron: the version people see.
++  source->AddString(flags_ui::kVersion, VersionUI::VersionForPeople());
+   source->AddBoolean(
+       flags_ui::kImportExportEnabled,
+       base::FeatureList::IsEnabled(features::kImportExportFlags));
+diff --git a/chrome/installer/setup/install_worker.cc b/chrome/installer/setup/install_worker.cc
+index c1344a4fc3bafc1a1fa7159cf2f634a5d30d8275..63754184d8fa2ef4d79262f8b929c5e2224f1ab0 100644
+--- a/chrome/installer/setup/install_worker.cc
++++ b/chrome/installer/setup/install_worker.cc
+@@ -35,6 +35,7 @@
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/version.h"
++#include "chrome/common/chrome_version.h"
+ #include "base/version_info/channel.h"
+ #include "base/win/registry.h"
+ #include "base/win/security_util.h"
+@@ -760,9 +761,15 @@ void AddUninstallShortcutWorkItems(const InstallParams& install_params,
+     install_list->AddSetRegValueWorkItem(
+         reg_root, uninstall_reg, KEY_WOW64_32KEY, L"Version",
+         ASCIIToWide(new_version.GetString()), true);
++    // Thoron: Windows lists the app with its own version ("0.1.1"); "Version"
++    // above stays the build number.
++    const std::string thoron_version(THORON_VERSION_STRING);
+     install_list->AddSetRegValueWorkItem(
+         reg_root, uninstall_reg, KEY_WOW64_32KEY, L"DisplayVersion",
+-        ASCIIToWide(new_version.GetString()), true);
++        ASCIIToWide(thoron_version.empty() || thoron_version.front() == '@'
++                        ? new_version.GetString()
++                        : thoron_version),
++        true);
+     // TODO(wfh): Ensure that this value is preserved in the 64-bit hive when
+     // 64-bit installs place the uninstall information into the 64-bit registry.
+     install_list->AddSetRegValueWorkItem(reg_root, uninstall_reg,
+diff --git a/chrome/app/chrome_version.rc.version b/chrome/app/chrome_version.rc.version
+index 15f2fec0c8e6429655e25e311536172c1f413ecb..772c509ddc847430ad77387e357e404c75f40512 100644
+--- a/chrome/app/chrome_version.rc.version
++++ b/chrome/app/chrome_version.rc.version
+@@ -33,7 +33,7 @@ BEGIN
+             VALUE "LegalCopyright", "@COPYRIGHT@"
+             VALUE "OriginalFilename", "@ORIGINAL_FILENAME@"
+             VALUE "ProductName", "@PRODUCT_FULLNAME@"
+-            VALUE "ProductVersion", "@MAJOR@.@MINOR@.@BUILD@.@PATCH@"
++            VALUE "ProductVersion", "@THORON_VERSION@"
+             VALUE "CompanyShortName", "@COMPANY_SHORTNAME@"
+             VALUE "ProductShortName", "@PRODUCT_SHORTNAME@"
+             VALUE "LastChange", "@LASTCHANGE@"

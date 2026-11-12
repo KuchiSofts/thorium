@@ -2,7 +2,7 @@
   "repository": "https://github.com/gz83/thorium",
   "commit": "efc0fffc256e7402ad4c3dc38ae1e5754221c03d",
   "chromium": "158.0.8127.30",
-  "tree": "8dd806a857c9bda02d2fdbcf26352b6da7b65745",
+  "tree": "9bd3343417d285005b3befe9020d09c9b4e12c57",
   "executable": [],
   "withheld": {
     "other/disable-encryption.patch": "ad9afe0a55bf563f906291ac0f277c71f69a61d3",
@@ -13,6 +13,6 @@
     "other/thorium-build-config-and-simd.patch": "9f4402144aea034a58e16210e13f313a54cdb6fe",
     "other/thorium-default-api-keys.patch": "2bd71f444e72568758920206982bf237c83a3294"
   },
-  "changed": 158,
+  "changed": 159,
   "removed": 8
 }
