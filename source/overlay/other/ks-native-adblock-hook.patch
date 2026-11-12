@@ -1666,10 +1666,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..92b58d44b3b47c57627892fd2eeeec11b663817e
+index 0000000000000000000000000000000000000000..f931ef85eba84c557cf051252798bf75938985d8
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,496 @@
+@@ -0,0 +1,519 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1782,6 +1782,8 @@ index 0000000000000000000000000000000000000000..92b58d44b3b47c57627892fd2eeeec11
 +    Register("allowPattern", &ThoronAdblockHandler::AllowPattern);
 +    Register("setHostSwitches", &ThoronAdblockHandler::SetHostSwitches);
 +    Register("addFilter", &ThoronAdblockHandler::AddFilter);
++    Register("getMyRules", &ThoronAdblockHandler::GetMyRules);
++    Register("setMyRules", &ThoronAdblockHandler::SetMyRules);
 +    Register("setSetting", &ThoronAdblockHandler::SetSetting);
 +  }
 +
@@ -1893,6 +1895,27 @@ index 0000000000000000000000000000000000000000..92b58d44b3b47c57627892fd2eeeec11
 +        ContentSettingsPattern::Wildcard(), ContentSettingsType::ADS,
 +        CONTENT_SETTING_ALLOW);
 +    Answer(*id, std::string());
++  }
++
++  // "My rules": the text, and replacing it; the answer lists the lines that
++  // are not rules.
++  void GetMyRules(const base::ListValue& args) {
++    if (const std::string* id = AnswerId(args, 0)) {
++      ResolveJavascriptCallback(base::Value(*id),
++                                base::Value(Service().my_rules()));
++    }
++  }
++
++  void SetMyRules(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 1);
++    if (!id || !args[1].is_string()) {
++      return;
++    }
++    base::ListValue problems;
++    for (std::string& line : Service().SetMyRules(args[1].GetString())) {
++      problems.Append(std::move(line));
++    }
++    ResolveJavascriptCallback(base::Value(*id), problems);
 +  }
 +
 +  // One rule the logger made (its "Block" and "Allow" buttons), added to the

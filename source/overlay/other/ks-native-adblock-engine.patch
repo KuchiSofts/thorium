@@ -78,10 +78,10 @@ index 0f7d54fe9798d8726656c6cd8f30ea2194b8c4e1..908235300b443a23bea4c2a9b39d0715
        "//sandbox:sandbox_unittests",
 diff --git a/components/thoron_adblock/BUILD.gn b/components/thoron_adblock/BUILD.gn
 new file mode 100644
-index 0000000000000000000000000000000000000000..341e7b3818455e477b359e3f1b5a813b92b576b0
+index 0000000000000000000000000000000000000000..2782f3f774df521a36bf22c4ab24b242abe87ddf
 --- /dev/null
 +++ b/components/thoron_adblock/BUILD.gn
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,245 @@
 +# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
 +
@@ -96,6 +96,7 @@ index 0000000000000000000000000000000000000000..341e7b3818455e477b359e3f1b5a813b
 +  sources = [
 +    crate_root,
 +    "cosmetics.rs",
++    "dynamic.rs",
 +    "engine_core.rs",
 +    "procedural.rs",
 +    "header.rs",
@@ -1774,10 +1775,10 @@ index 0000000000000000000000000000000000000000..bc172c09dcfab5376a6cb3a397be1df8
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_H_
 diff --git a/components/thoron_adblock/document_request_interceptor.cc b/components/thoron_adblock/document_request_interceptor.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..f1c85f2d92e7ba46d2ddd2cc18963769e5116b20
+index 0000000000000000000000000000000000000000..450dbd5a08dbc0954648caeb4c6a3c8fb711cb16
 --- /dev/null
 +++ b/components/thoron_adblock/document_request_interceptor.cc
-@@ -0,0 +1,197 @@
+@@ -0,0 +1,209 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1875,13 +1876,25 @@ index 0000000000000000000000000000000000000000..f1c85f2d92e7ba46d2ddd2cc18963769
 +      clean = EngineService::Get().CleanUrl(url, url, /*main_frame=*/true);
 +    }
 +  } else {
-+    EngineService::Decision decision = EngineService::Get().Check(
-+        url, document->SourceFor(url), tentative_resource_request.destination,
-+        tentative_resource_request.method);
++    const GURL site = document->SiteFor(url);
++    // "My rules" first (block, allow), as for every other request
++    const int dynamic = EngineService::Get().DynamicVerdict(
++        site, url, tentative_resource_request.destination);
++    EngineService::Decision decision =
++        dynamic == 2
++            ? EngineService::Decision()
++            : EngineService::Get().Check(
++                  url, document->SourceFor(url),
++                  tentative_resource_request.destination,
++                  tentative_resource_request.method);
++    if (dynamic == 1) {
++      decision.blocked = true;
++      decision.stand_in.clear();
++    }
 +    // uBlock Origin's "medium mode": no frame from another site than the
 +    // page's.
-+    const GURL site = document->SiteFor(url);
-+    if (!decision.blocked &&
++    // (an allow rule of "My rules" beats it, as in uBlock Origin)
++    if (!decision.blocked && dynamic != 2 &&
 +        ProxyingURLLoaderFactory::IsThirdParty(url, site) &&
 +        EngineService::Get().SiteSwitch(site, "3p-frame")) {
 +      decision.blocked = true;
@@ -2079,12 +2092,305 @@ index 0000000000000000000000000000000000000000..43051154413e4f2354bc088827e16717
 +}  // namespace thoron_adblock
 +
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_INTERCEPTOR_H_
+diff --git a/components/thoron_adblock/dynamic.rs b/components/thoron_adblock/dynamic.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..fa236b68a0b05e87e8e086fb5162a229aa8ae0e6
+--- /dev/null
++++ b/components/thoron_adblock/dynamic.rs
+@@ -0,0 +1,287 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++//! "My rules": uBlock Origin's dynamic filtering. A rule is four words,
++//!
++//!     source destination type action
++//!
++//! `source` is the site of the page (`*` for every site), `destination` the host a request goes to (`*`
++//! for any), `type` one of `*`, `3p`, `1p-script`, `3p-script`, `3p-frame`, `image`, `inline-script` (with
++//! a named destination only `*`), and `action` `block`, `allow` or `noop`. A host covers the hosts under
++//! it. As in uBlock Origin, the most specific rule decides: a named destination before any destination,
++//! then (for any destination) the type of the request before the party and before every type, and for each
++//! of these the most specific source. `block` blocks the request whatever the filter lists say, `allow`
++//! lets it through whatever they say, `noop` leaves it to the lists; with no rule the lists decide too.
++
++use std::collections::HashMap;
++
++/// What a rule does, as uBlock Origin numbers it; 0: no rule.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum Action {
++    None = 0,
++    Block = 1,
++    Allow = 2,
++    Noop = 3,
++}
++
++/// The types a rule may name, in the order of the slots of a cell.
++const TYPES: [&str; 7] = ["*", "3p", "1p-script", "3p-script", "3p-frame", "image", "inline-script"];
++
++/// The most rules kept; more are left out (a list of thousands would be a mistake, not a choice).
++const MAX_RULES: usize = 20_000;
++
++fn slot(name: &str) -> Option<usize> {
++    TYPES.iter().position(|t| *t == name)
++}
++
++/// A host name as a rule writes it: `*`, or lower-case letters, digits, "-", "_" and "." (an IP address
++/// too), not starting or ending with a dot.
++fn valid_host(host: &str) -> bool {
++    host == "*"
++        || (!host.is_empty()
++            && host.len() <= 253
++            && !host.starts_with('.')
++            && !host.ends_with('.')
++            && !host.contains("..")
++            && host.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"-_.".contains(&b)))
++}
++
++/// The next broader name: "a.b.example" -> "b.example" -> "example" -> "*" -> none.
++fn broader(host: &str) -> Option<&str> {
++    if host == "*" {
++        return None;
++    }
++    Some(host.split_once('.').map_or("*", |(_, rest)| rest))
++}
++
++/// The rules of "My rules".
++#[derive(Default)]
++pub struct DynamicRules {
++    /// (source, destination) -> the action of each type slot.
++    cells: HashMap<(String, String), [Action; TYPES.len()]>,
++    count: usize,
++}
++
++/// One line read as a rule: (source, destination, type slot, action). `None` for a comment, a blank
++/// line, or a line that is not a rule.
++fn parse_line(line: &str) -> Option<(String, String, usize, Action)> {
++    let line = line.trim();
++    if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
++        return None;
++    }
++    let words: Vec<&str> = line.split_whitespace().collect();
++    let &[source, destination, kind, action] = words.as_slice() else { return None };
++    let (source, destination) = (source.to_ascii_lowercase(), destination.to_ascii_lowercase());
++    if !valid_host(&source) || !valid_host(&destination) {
++        return None;
++    }
++    let kind = slot(kind)?;
++    // with a named destination only every type, as uBlock Origin has it
++    if destination != "*" && kind != 0 {
++        return None;
++    }
++    let action = match action {
++        "block" => Action::Block,
++        "allow" => Action::Allow,
++        "noop" => Action::Noop,
++        _ => return None,
++    };
++    Some((source, destination, kind, action))
++}
++
++impl DynamicRules {
++    /// From the text of "My rules"; lines that are not rules are skipped (`problems` counts them).
++    pub fn from_text(text: &str) -> DynamicRules {
++        let mut rules = DynamicRules::default();
++        for line in text.lines() {
++            if rules.count >= MAX_RULES {
++                break;
++            }
++            if let Some((source, destination, kind, action)) = parse_line(line) {
++                let cell = rules.cells.entry((source, destination)).or_insert([Action::None; TYPES.len()]);
++                if cell[kind] == Action::None {
++                    rules.count += 1;
++                }
++                cell[kind] = action;
++            }
++        }
++        rules
++    }
++
++    /// How many rules were read.
++    pub fn len(&self) -> usize {
++        self.count
++    }
++
++    /// The lines of `text` that are neither rules nor comments nor blank: what the page points out.
++    pub fn problems(text: &str) -> Vec<String> {
++        text.lines()
++            .filter(|l| {
++                let t = l.trim();
++                !t.is_empty() && !t.starts_with('#') && !t.starts_with('!') && parse_line(t).is_none()
++            })
++            .map(|l| l.trim().chars().take(200).collect())
++            .collect()
++    }
++
++    fn cell(&self, source: &str, destination: &str, kind: usize) -> Action {
++        self.cells.get(&(source.to_string(), destination.to_string())).map_or(Action::None, |c| c[kind])
++    }
++
++    /// The source `source` or the first broader one that has a rule for (destination, type).
++    fn by_source(&self, source: &str, destination: &str, kind: usize) -> Action {
++        let mut z = Some(source);
++        while let Some(s) = z {
++            let found = self.cell(s, destination, kind);
++            if found != Action::None {
++                return found;
++            }
++            z = broader(s);
++        }
++        Action::None
++    }
++
++    /// What the rules say about a request from a page on `source` (its host) to `destination` (the
++    /// request's host). `request_type` is the blocker's name for it ("script", "subdocument", "image",
++    /// "object"...); `third_party` whether the two are different sites.
++    pub fn evaluate(&self, source: &str, destination: &str, request_type: &str, third_party: bool) -> Action {
++        if self.cells.is_empty() || destination.is_empty() {
++            return Action::None;
++        }
++        let source = if source.is_empty() { "*" } else { source };
++        // a named destination, any type
++        let mut d = Some(destination);
++        while let Some(host) = d {
++            if host == "*" {
++                break;
++            }
++            let found = self.by_source(source, host, 0);
++            if found != Action::None {
++                return found;
++            }
++            d = broader(host);
++        }
++        // any destination: the party and the type of the request
++        let mut asked: Vec<usize> = Vec::new();
++        if third_party {
++            match request_type {
++                "script" => asked.push(3),
++                "subdocument" | "object" => asked.push(4),
++                _ => {}
++            }
++            asked.push(1);
++        } else if request_type == "script" {
++            asked.push(2);
++        }
++        if request_type == "image" {
++            asked.push(5);
++        }
++        asked.push(0);
++        for kind in asked {
++            let found = self.by_source(source, "*", kind);
++            if found != Action::None {
++                return found;
++            }
++        }
++        Action::None
++    }
++
++    /// True when inline scripts are blocked on a page of `source` (`* * inline-script block`).
++    pub fn blocks_inline_scripts(&self, source: &str) -> bool {
++        !self.cells.is_empty() && self.by_source(if source.is_empty() { "*" } else { source }, "*", 6) == Action::Block
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    const MINE: &str = "\
++# my rules
++* * 3p-script block
++* * 3p-frame block
++news.example * 3p-script noop
++news.example cdn.example * allow
++* ads.example * block
++shop.example * 3p block
++shop.example pay.example * allow
++* * image allow
++quiet.example * inline-script block
++* tracker.example * noop
++this is not a rule
++* other.example image block
++";
++
++    fn rules() -> DynamicRules {
++        DynamicRules::from_text(MINE)
++    }
++
++    #[test]
++    fn rules_are_read_and_bad_lines_are_named() {
++        assert_eq!(rules().len(), 10);
++        assert_eq!(DynamicRules::problems(MINE), vec!["this is not a rule", "* other.example image block"]);
++    }
++
++    #[test]
++    fn a_named_destination_comes_first() {
++        let r = rules();
++        assert_eq!(r.evaluate("blog.example", "ads.example", "image", true), Action::Block);
++        assert_eq!(r.evaluate("blog.example", "x.ads.example", "script", true), Action::Block);
++        // the source's own rule for the destination before the general type rule
++        assert_eq!(r.evaluate("news.example", "cdn.example", "script", true), Action::Allow);
++        assert_eq!(r.evaluate("www.news.example", "img.cdn.example", "script", true), Action::Allow);
++    }
++
++    #[test]
++    fn third_party_scripts_and_frames_and_their_exceptions() {
++        let r = rules();
++        assert_eq!(r.evaluate("blog.example", "lib.example", "script", true), Action::Block);
++        assert_eq!(r.evaluate("blog.example", "lib.example", "subdocument", true), Action::Block);
++        assert_eq!(r.evaluate("blog.example", "blog.example", "script", false), Action::None);
++        assert_eq!(r.evaluate("news.example", "lib.example", "script", true), Action::Noop);
++        // a noop for a destination stops the rules, the lists decide
++        assert_eq!(r.evaluate("blog.example", "tracker.example", "script", true), Action::Noop);
++    }
++
++    #[test]
++    fn party_type_and_every_type() {
++        let r = rules();
++        // shop.example: every third-party request blocked, except its payment host
++        assert_eq!(r.evaluate("shop.example", "fonts.example", "font", true), Action::Block);
++        assert_eq!(r.evaluate("shop.example", "pay.example", "script", true), Action::Allow);
++        assert_eq!(r.evaluate("shop.example", "shop.example", "font", false), Action::None);
++        // images: as in uBlock Origin, the third-party rule of the source comes before the rule for images
++        assert_eq!(r.evaluate("shop.example", "img.example", "image", true), Action::Block);
++        assert_eq!(r.evaluate("blog.example", "img.example", "image", true), Action::Allow);
++    }
++
++    #[test]
++    fn inline_scripts() {
++        let r = rules();
++        assert!(r.blocks_inline_scripts("quiet.example"));
++        assert!(r.blocks_inline_scripts("www.quiet.example"));
++        assert!(!r.blocks_inline_scripts("blog.example"));
++    }
++
++    #[test]
++    fn no_rules_say_nothing() {
++        let r = DynamicRules::from_text("");
++        assert_eq!(r.evaluate("blog.example", "ads.example", "script", true), Action::None);
++        assert!(!r.blocks_inline_scripts("blog.example"));
++        assert_eq!(rules().evaluate("blog.example", "", "script", true), Action::None);
++    }
++
++    #[test]
++    fn hosts_are_checked_and_written_in_lower_case() {
++        let r = DynamicRules::from_text("* ADS.Example * block\n* bad..host * block\n* x * maybe\n");
++        assert_eq!(r.len(), 1);
++        assert_eq!(r.evaluate("a.example", "ads.example", "script", true), Action::Block);
++    }
++
++    #[test]
++    fn the_last_rule_for_a_cell_wins() {
++        let r = DynamicRules::from_text("* * 3p-script block\n* * 3p-script allow\n");
++        assert_eq!(r.len(), 1);
++        assert_eq!(r.evaluate("a.example", "b.example", "script", true), Action::Allow);
++    }
++}
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..aee5c80101022d61a29364ce9bf863c6221d0079
+index 0000000000000000000000000000000000000000..602eef2c62ec9f502de7be86c1170cc020f17865
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,1006 @@
+@@ -0,0 +1,1044 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2095,6 +2401,7 @@ index 0000000000000000000000000000000000000000..aee5c80101022d61a29364ce9bf863c6
 +//! policy a document gets on top of its own.
 +
 +mod cosmetics;
++mod dynamic;
 +mod engine_core;
 +mod header;
 +mod permissions;
@@ -2201,6 +2508,17 @@ index 0000000000000000000000000000000000000000..aee5c80101022d61a29364ce9bf863c6
 +        /// pages (`$doc`, `$all`) or one that names its whole host matches it.
 +        fn blocks_page(self: &Engine, url: &str) -> bool;
 +
++        /// "My rules" (uBlock Origin's dynamic filtering, dynamic.rs), read from their text.
++        type DynamicRules;
++        fn dynamic_rules_from_text(text: &str) -> Box<DynamicRules>;
++        /// The lines of the text that are not rules (for the page to point out).
++        fn dynamic_rules_problems(text: &str) -> Vec<String>;
++        fn rule_count(self: &DynamicRules) -> usize;
++        /// 0: no rule, 1: block, 2: allow, 3: noop (the lists decide).
++        fn verdict(self: &DynamicRules, source: &str, destination: &str, request_type: &str, third_party: bool)
++            -> u8;
++        fn inline_scripts_blocked(self: &DynamicRules, source: &str) -> bool;
++
 +        /// `RequestDecision::clean_url` on its own, also for a request that would be blocked: a
 +        /// page's own navigation is never blocked, but its address is still cleaned.
 +        fn clean_url(self: &Engine, url: &str, source_url: &str, request_type: &str) -> String;
@@ -2259,13 +2577,39 @@ index 0000000000000000000000000000000000000000..aee5c80101022d61a29364ce9bf863c6
 +    }
 +}
 +
++#[cfg(test)]
 +use cosmetics::safe_selector;
++#[cfg(test)]
 +use engine_core::safe_policy;
 +use ffi::{DocumentResources, RequestDecision};
 +
 +/// The engine the browser holds: the filters of the lists, or nothing when a saved engine could
 +/// not be loaded. What it answers is worked out in engine_core.rs and cosmetics.rs.
 +pub struct Engine(Option<engine_core::Filters>);
++
++use dynamic::DynamicRules;
++
++fn dynamic_rules_from_text(text: &str) -> Box<DynamicRules> {
++    Box::new(DynamicRules::from_text(text))
++}
++
++fn dynamic_rules_problems(text: &str) -> Vec<String> {
++    DynamicRules::problems(text)
++}
++
++impl DynamicRules {
++    fn rule_count(&self) -> usize {
++        self.len()
++    }
++
++    fn verdict(&self, source: &str, destination: &str, request_type: &str, third_party: bool) -> u8 {
++        self.evaluate(source, destination, request_type, third_party) as u8
++    }
++
++    fn inline_scripts_blocked(&self, source: &str) -> bool {
++        self.blocks_inline_scripts(source)
++    }
++}
 +
 +fn engine_from_rules(rules: &str) -> Box<Engine> {
 +    Box::new(Engine(Some(engine_core::build(rules))))
@@ -3494,10 +3838,10 @@ index 0000000000000000000000000000000000000000..ed67bfcf044d144278258384cbe99530
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..b5e137c2bfc81e72cf4e0cb227d4e9fd17b3fdcb
+index 0000000000000000000000000000000000000000..099065085cc27f43df6b8e5825f90b87dbcbacd9
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,883 @@
+@@ -0,0 +1,958 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3513,6 +3857,7 @@ index 0000000000000000000000000000000000000000..b5e137c2bfc81e72cf4e0cb227d4e9fd
 +#include "base/json/json_writer.h"
 +#include "base/task/sequenced_task_runner.h"
 +#include "base/values.h"
++#include "components/thoron_adblock/proxying_url_loader_factory.h"
 +#include "base/functional/bind.h"
 +#include "base/path_service.h"
 +#include "base/strings/strcat.h"
@@ -3635,6 +3980,9 @@ index 0000000000000000000000000000000000000000..b5e137c2bfc81e72cf4e0cb227d4e9fd
 +    FILE_PATH_LITERAL("stats.json");
 +constexpr base::FilePath::CharType kOptionsFile[] =
 +    FILE_PATH_LITERAL("options.json");
++constexpr base::FilePath::CharType kMyRulesFile[] =
++    FILE_PATH_LITERAL("my-rules.txt");
++constexpr size_t kMaxMyRulesBytes = 1024 * 1024;
 +
 +// The options and what they are when the person never changed them.
 +struct OptionDefault {
@@ -3699,6 +4047,12 @@ index 0000000000000000000000000000000000000000..b5e137c2bfc81e72cf4e0cb227d4e9fd
 +    }
 +  }
 +  text.clear();
++  if (base::ReadFileToStringWithMaxSize(dir.Append(kMyRulesFile), &text,
++                                        kMaxMyRulesBytes) &&
++      base::IsStringUTF8(text)) {
++    out.my_rules = text;
++  }
++  text.clear();
 +  if (base::ReadFileToStringWithMaxSize(dir.Append(kOptionsFile), &text, 4096)) {
 +    std::optional<base::Value> value = base::JSONReader::Read(text, base::JSON_PARSE_RFC);
 +    if (value && value->is_dict()) {
@@ -3730,6 +4084,12 @@ index 0000000000000000000000000000000000000000..b5e137c2bfc81e72cf4e0cb227d4e9fd
 +  }
 +  for (const auto& [name, on] : state.options) {
 +    options_.emplace(name, on);
++  }
++  // rules set before the file was read win
++  if (!my_rules_ && !state.my_rules.empty()) {
++    my_rules_text_ = std::move(state.my_rules);
++    my_rules_ = dynamic_rules_from_text(
++        rust::Str(my_rules_text_.data(), my_rules_text_.size()));
 +  }
 +  total_blocked_ += state.total;
 +}
@@ -3764,6 +4124,56 @@ index 0000000000000000000000000000000000000000..b5e137c2bfc81e72cf4e0cb227d4e9fd
 +  }
 +  options_[std::string(name)] = on;
 +  SaveOptions();
++}
++
++std::vector<std::string> EngineService::SetMyRules(std::string text) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  std::vector<std::string> problems;
++  if (text.size() > kMaxMyRulesBytes) {
++    problems.push_back("Your rules are larger than 1 MB: nothing was saved.");
++    return problems;
++  }
++  if (!base::IsStringUTF8(text)) {
++    problems.push_back("Your rules are not plain text: nothing was saved.");
++    return problems;
++  }
++  for (const rust::String& line :
++       dynamic_rules_problems(rust::Str(text.data(), text.size()))) {
++    problems.emplace_back(line);
++  }
++  my_rules_text_ = std::move(text);
++  my_rules_ = dynamic_rules_from_text(
++      rust::Str(my_rules_text_.data(), my_rules_text_.size()));
++  EnsureStarted();
++  if (!store_dir_.empty()) {
++    file_runner_->PostTask(
++        FROM_HERE,
++        base::BindOnce(
++            [](base::FilePath path, std::string body) {
++              base::ImportantFileWriter::WriteFileAtomically(path, body);
++            },
++            store_dir_.Append(kMyRulesFile), my_rules_text_));
++  }
++  return problems;
++}
++
++int EngineService::DynamicVerdict(
++    const GURL& top_site,
++    const GURL& url,
++    network::mojom::RequestDestination destination) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!my_rules_ || (*my_rules_)->rule_count() == 0 || !url.has_host()) {
++    return 0;
++  }
++  const std::string source = top_site.has_host() ? std::string(top_site.host())
++                                                 : std::string("*");
++  const std::string destination_host(url.host());
++  const std::string_view type = RequestType(destination);
++  const bool third_party = ProxyingURLLoaderFactory::IsThirdParty(url, top_site);
++  return (*my_rules_)->verdict(
++      rust::Str(source.data(), source.size()),
++      rust::Str(destination_host.data(), destination_host.size()),
++      rust::Str(type.data(), type.size()), third_party);
 +}
 +
 +void EngineService::SaveOptions() {
@@ -4156,9 +4566,18 @@ index 0000000000000000000000000000000000000000..b5e137c2bfc81e72cf4e0cb227d4e9fd
 +  }
 +  const std::string& u = url.spec();
 +  const std::string& s = source.spec();
-+  return std::string((*engine_)->document_policy(
++  std::string policy((*engine_)->document_policy(
 +      rust::Str(u.data(), u.size()), rust::Str(s.data(), s.size()),
 +      main_frame));
++  // "My rules": `<site> * inline-script block`, as uBlock Origin enforces it
++  // (scripts from any address, none written in the page)
++  const std::string site(source.host());
++  if (my_rules_ && (*my_rules_)->inline_scripts_blocked(
++                       rust::Str(site.data(), site.size()))) {
++    policy += policy.empty() ? "" : ", ";
++    policy += "script-src 'unsafe-eval' * blob: data:";
++  }
++  return policy;
 +}
 +
 +std::string EngineService::DocumentPermissions(const GURL& url,
@@ -4383,10 +4802,10 @@ index 0000000000000000000000000000000000000000..b5e137c2bfc81e72cf4e0cb227d4e9fd
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..6ee78f1080a7c1ae2ba581e39718b87d8bd9a33a
+index 0000000000000000000000000000000000000000..f0eeba8355b4b018e36f5645adbe7434a97aa427
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,301 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4602,6 +5021,17 @@ index 0000000000000000000000000000000000000000..6ee78f1080a7c1ae2ba581e39718b87d
 +  void SetHostSwitches(const std::string& host,
 +                       const std::vector<std::string>& names);
 +
++  // "My rules", uBlock Origin's dynamic filtering (dynamic.rs): the text, and
++  // replacing it (kept in <store>/my-rules.txt, at most 1 MB; the lines that
++  // are not rules come back).
++  const std::string& my_rules() const { return my_rules_text_; }
++  std::vector<std::string> SetMyRules(std::string text);
++  // What they say about a request from a page of `top_site` to `url`: 0 no
++  // rule, 1 block, 2 allow (the lists are not asked), 3 noop (they are).
++  int DynamicVerdict(const GURL& top_site,
++                     const GURL& url,
++                     network::mojom::RequestDestination destination) const;
++
 +  // The settings of chrome://adblock, as in uBlock Origin, by name: "badge"
 +  // (the shield shows what was blocked; on unless switched off),
 +  // "block-csp-reports" (reports a page's security policy asks for are not
@@ -4638,6 +5068,7 @@ index 0000000000000000000000000000000000000000..6ee78f1080a7c1ae2ba581e39718b87d
 +    ~SavedState();
 +    std::map<std::string, std::set<std::string>> switches;
 +    std::map<std::string, bool> options;
++    std::string my_rules;
 +    int64_t total = 0;
 +  };
 +  static SavedState ReadSavedState(base::FilePath dir);
@@ -4655,6 +5086,8 @@ index 0000000000000000000000000000000000000000..6ee78f1080a7c1ae2ba581e39718b87d
 +  std::map<std::string, std::set<std::string>> site_switches_;
 +  // The options changed from their defaults (KnownOption).
 +  std::map<std::string, bool> options_;
++  std::string my_rules_text_;
++  std::optional<rust::Box<DynamicRules>> my_rules_;
 +  int64_t total_blocked_ = 0;
 +  bool stats_save_pending_ = false;
 +
@@ -9882,10 +10315,10 @@ index 0000000000000000000000000000000000000000..e8ba37d6d7127e3a48dab3fa94c3d34f
 +}
 diff --git a/components/thoron_adblock/proxying_url_loader_factory.cc b/components/thoron_adblock/proxying_url_loader_factory.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..407f2a6b57190fa0f2ab23a47c93ae6392c48fff
+index 0000000000000000000000000000000000000000..106833f32f65da1600b3129a4a6dd1c991c1bac3
 --- /dev/null
 +++ b/components/thoron_adblock/proxying_url_loader_factory.cc
-@@ -0,0 +1,310 @@
+@@ -0,0 +1,322 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -10109,9 +10542,19 @@ index 0000000000000000000000000000000000000000..407f2a6b57190fa0f2ab23a47c93ae63
 +  const GURL source = request.request_initiator
 +                          ? request.request_initiator->GetURL()
 +                          : GURL();
++  // "My rules" first: block and allow decide on their own, noop leaves it
++  // to the lists (as uBlock Origin's dynamic filtering)
++  const int dynamic = EngineService::Get().DynamicVerdict(
++      top_site_, request.url, request.destination);
 +  EngineService::Decision decision =
-+      EngineService::Get().Check(request.url, source, request.destination,
-+                                 request.method);
++      dynamic == 2 ? EngineService::Decision()
++                   : EngineService::Get().Check(request.url, source,
++                                                request.destination,
++                                                request.method);
++  if (dynamic == 1) {
++    decision.blocked = true;
++    decision.stand_in.clear();
++  }
 +  // The menu's switches for the page's site: no fonts at all, and no audio or
 +  // video file larger than kLargeMedia (judged by its answer, below).
 +  using Destination = network::mojom::RequestDestination;
@@ -10122,7 +10565,9 @@ index 0000000000000000000000000000000000000000..407f2a6b57190fa0f2ab23a47c93ae63
 +  }
 +  // uBlock Origin's "medium mode": no script from another site than the
 +  // page's.
-+  if (!decision.blocked && request.destination == Destination::kScript &&
++  // an allow rule of "My rules" beats the switch, as in uBlock Origin
++  if (!decision.blocked && dynamic != 2 &&
++      request.destination == Destination::kScript &&
 +      IsThirdParty(request.url, top_site_) &&
 +      EngineService::Get().SiteSwitch(top_site_, "3p-script")) {
 +    decision.blocked = true;
@@ -11516,10 +11961,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..374b4413b5e770f56d3e85675ac01b679af7061d
+index 0000000000000000000000000000000000000000..10c879fb3a803fc626cc7795189931f3b01ad6c2
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,254 @@
+@@ -0,0 +1,272 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -11631,6 +12076,7 @@ index 0000000000000000000000000000000000000000..374b4413b5e770f56d3e85675ac01b67
 +    <a href="#lists-section">Filter lists</a>
 +    <a href="#more-lists">More lists</a>
 +    <a href="#mine">My filters</a>
++    <a href="#rules">My rules</a>
 +    <a href="#sites">Sites</a>
 +    <a href="#logger">Logger</a>
 +  </nav>
@@ -11737,6 +12183,23 @@ index 0000000000000000000000000000000000000000..374b4413b5e770f56d3e85675ac01b67
 +    </div>
 +  </section>
 +
++  <section id="rules">
++    <h2>My rules</h2>
++    <p>uBlock Origin's dynamic filtering: one rule per line, <code>source destination type action</code>.
++      <code>* * 3p-script block</code> blocks scripts from other sites everywhere,
++      <code>example.com * 3p-script noop</code> leaves them to the lists on example.com,
++      <code>* ads.example.com * block</code> blocks a host, <code>example.com cdn.example.net * allow</code>
++      lets a host through on a site whatever the lists say. Types: <code>*</code>, <code>3p</code>,
++      <code>1p-script</code>, <code>3p-script</code>, <code>3p-frame</code>, <code>image</code>,
++      <code>inline-script</code>; actions: <code>block</code>, <code>allow</code>, <code>noop</code>. The most
++      specific rule decides.</p>
++    <textarea id="my-rules" rows="10" spellcheck="false" aria-label="My rules"></textarea>
++    <div class="row">
++      <button id="save-rules" class="main" type="button">Save</button>
++      <span id="rules-note"></span>
++    </div>
++  </section>
++
 +  <section id="sites">
 +    <h2>Sites</h2>
 +    <p>Ads and trackers are allowed on these sites: nothing is blocked or hidden there.</p>
@@ -11776,10 +12239,10 @@ index 0000000000000000000000000000000000000000..374b4413b5e770f56d3e85675ac01b67
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..73512dbfde9d636f18ecc6152470f72631e439d9
+index 0000000000000000000000000000000000000000..1c69ac257a55ba9d49c039f20b6a61c74e1863c4
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,607 @@
+@@ -0,0 +1,634 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -11991,6 +12454,27 @@ index 0000000000000000000000000000000000000000..73512dbfde9d636f18ecc6152470f726
 +  }
 +}
 +
++// --- My rules (uBlock Origin's dynamic filtering) ---
++async function showMyRules() {
++  try {
++    $('my-rules').value = await sendWithPromise('getMyRules');
++  } catch {
++    // the page was closed meanwhile
++  }
++}
++
++$('save-rules').addEventListener('click', async () => {
++  const problems = await sendWithPromise('setMyRules', $('my-rules').value);
++  const rules = $('my-rules').value.split('\n').filter((l) => l.trim() && !/^\s*[#!]/.test(l)).length -
++                problems.length;
++  $('rules-note').textContent = `${rules} ${rules === 1 ? 'rule' : 'rules'} in use`;
++  if (problems.length) {
++    say(`These lines are not rules and are not used: ${problems.join(' | ')}`, true);
++  } else {
++    say('Your rules are saved and in use.');
++  }
++});
++
 +// --- Backup, restore, reset (as uBlock Origin's) ---
 +const BACKUP_FORMAT = 'thoron-adblock-backup';
 +const SETTING_DEFAULTS = {badge: true, prefetch: false, 'hyperlink-auditing': false, webrtc: false,
@@ -12014,6 +12498,7 @@ index 0000000000000000000000000000000000000000..73512dbfde9d636f18ecc6152470f726
 +      added: state.lists.filter((l) => !l.builtin).map((l) => l.url),
 +    },
 +    myFilters: state.myFilters,
++    myRules: await sendWithPromise('getMyRules'),
 +    allowed: sites.allowed,
 +    switches,
 +    settings: Object.fromEntries(Object.keys(SETTING_DEFAULTS).map((name) => [name, !!settings[name]])),
@@ -12042,6 +12527,7 @@ index 0000000000000000000000000000000000000000..73512dbfde9d636f18ecc6152470f726
 +    disabled: new Set(strings(data.lists && data.lists.disabled)),
 +    added: strings(data.lists && data.lists.added).filter((url) => url.startsWith('https://')),
 +    myFilters: typeof data.myFilters === 'string' ? data.myFilters : '',
++    myRules: typeof data.myRules === 'string' ? data.myRules : '',
 +    allowed: strings(data.allowed),
 +    switches,
 +    settings,
@@ -12076,6 +12562,9 @@ index 0000000000000000000000000000000000000000..73512dbfde9d636f18ecc6152470f726
 +  }
 +  if (state.myFilters !== wanted.myFilters) {
 +    await step('setMyFilters', wanted.myFilters);
++  }
++  if ((await sendWithPromise('getMyRules')) !== wanted.myRules) {
++    await sendWithPromise('setMyRules', wanted.myRules);
 +  }
 +  const sites = await sendWithPromise('getSites');
 +  for (const pattern of sites.allowed) {
@@ -12152,7 +12641,7 @@ index 0000000000000000000000000000000000000000..73512dbfde9d636f18ecc6152470f726
 +    return;
 +  }
 +  say('Resetting...');
-+  const defaults = {disabled: new Set(), added: [], myFilters: '', allowed: [], switches: {},
++  const defaults = {disabled: new Set(), added: [], myFilters: '', myRules: '', allowed: [], switches: {},
 +                    settings: SETTING_DEFAULTS};
 +  await finish(await apply(defaults), 'Ad blocking is back to its defaults.');
 +});
@@ -12385,6 +12874,7 @@ index 0000000000000000000000000000000000000000..73512dbfde9d636f18ecc6152470f726
 +
 +refresh();
 +showSettings();
++showMyRules();
 +refreshSites();
 +refreshLog();
 diff --git a/components/thoron_adblock/subresource_loader_throttle.cc b/components/thoron_adblock/subresource_loader_throttle.cc
