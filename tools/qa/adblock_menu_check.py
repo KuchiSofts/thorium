@@ -9,7 +9,8 @@ of its own (host-resolver rules; every other name fails, so nothing leaves the P
 an ad host EasyList blocks, an element a generic EasyList hide rule hides, a web font, a WAV sound larger than
 the large-media limit, an element to pick and one to zap. Steps:
 
-    menu      the menu names the page's site, counts the blocked image, lists the ad host
+    menu      the menu names the page's site, counts the blocked image, lists the ad host, shows the share
+              blocked and the domains connected out of all
     collapse  a blocked 300x250 ad image and ad frame take up no space on the page
     fonts     with "Remote fonts" on, the font is never asked for; off again, it is
     media     with "Large media" on, the sound fails to load; off again, it loads
@@ -103,6 +104,13 @@ def menu_problems(menu: dict, host: str) -> list[str]:
         out.append("the menu counts nothing blocked on the page")
     if not any(site == host for site, _ in menu.get("sites") or []):
         out.append(f"the menu does not list {host}")
+    # as uBlock Origin's: the share blocked, and domains reached out of all the page asked (the page's own
+    # domain is reached, the ad's is not)
+    if not str(menu.get("share", "")).endswith("%)"):
+        out.append(f"the menu shows no share blocked ({menu.get('share')!r})")
+    connected, _, domains = str(menu.get("domains", "")).partition(" of ")
+    if not (connected.isdigit() and domains.isdigit() and 1 <= int(connected) < int(domains)):
+        out.append(f"the menu's domains connected read {menu.get('domains')!r}")
     return out
 
 
@@ -198,6 +206,8 @@ def _eval(ws: WebSocket, expression: str):
 READ_MENU = """JSON.stringify({site: document.getElementById('site').textContent,
   power: document.getElementById('power').getAttribute('aria-pressed'),
   pageCount: Number(document.getElementById('page-count').textContent.replace(/\\D/g, '')),
+  share: document.getElementById('page-share').textContent,
+  domains: document.getElementById('domains').textContent,
   sites: Array.from(document.querySelectorAll('#sites li')).map((li) =>
     [li.querySelector('.host').textContent, Number(li.querySelector('.n').textContent.replace(/\\D/g, ''))])})"""
 READ_PAGE = """JSON.stringify({sound: window.report && window.report.sound,

@@ -46,7 +46,8 @@ It is **off by default** until its last correctness checks are done.
 - **The shield in the toolbar:** while the blocker is on, a shield sits next to the extensions button.
   Its number is what was blocked on the page you look at. Click it for the menu:
   - the big **power button** switches blocking off or on for this site (the page reloads);
-  - the counts: blocked on this page, sites blocked on this page, blocked so far;
+  - the counts: blocked on this page (and its share of the page's requests), domains connected out of
+    all the page asked, blocked so far;
   - **Block element:** click the thing you want gone, choose or edit the rule, press Enter or
     Create. The rule goes into My filters and works at once;
   - **Zapper:** click things to remove them until the page reloads; Esc stops;
@@ -71,6 +72,11 @@ It is **off by default** until its last correctness checks are done.
 ### Lists and your own rules
 
 Open `chrome://adblock`.
+
+- **Settings:** as in uBlock Origin. Show the count on the shield; privacy options (no pre-fetching, no
+  hyperlink auditing, WebRTC without local IP addresses, no CSP reports); what every site gets by default
+  (no hiding, no large media, no remote fonts, no JavaScript), which the menu's switches change for one
+  site; and ignoring hide rules written for every site.
 
 - **More lists:** cookie notices, annoyances, more privacy and lists for your region or language, as
   uBlock Origin offers them. Tick a list to add it; untick it to remove it.

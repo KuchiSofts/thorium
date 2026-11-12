@@ -921,10 +921,10 @@ index a1a37ae476db8cfafbe6947ba77064b3f4eb25cf..eac99c995ef10b4ebc27306a5028e090
        kChromeUIAppServiceInternalsHost,
 diff --git a/chrome/browser/ui/views/toolbar/thoron_adblock_button.cc b/chrome/browser/ui/views/toolbar/thoron_adblock_button.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..caa4d7ce7230cb940d5da30facf0e1de19bc28d6
+index 0000000000000000000000000000000000000000..a31a90935ed3cc0fef6e649777d81cbe68c29477
 --- /dev/null
 +++ b/chrome/browser/ui/views/toolbar/thoron_adblock_button.cc
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,176 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -946,6 +946,7 @@ index 0000000000000000000000000000000000000000..caa4d7ce7230cb940d5da30facf0e1de
 +#include "components/content_settings/core/browser/host_content_settings_map.h"
 +#include "components/strings/grit/components_strings.h"
 +#include "components/thoron_adblock/blocked_count.h"
++#include "components/thoron_adblock/engine_service.h"
 +#include "components/vector_icons/vector_icons.h"
 +#include "content/public/browser/page.h"
 +#include "content/public/browser/render_frame_host.h"
@@ -1044,7 +1045,9 @@ index 0000000000000000000000000000000000000000..caa4d7ce7230cb940d5da30facf0e1de
 +          },
 +          base::Unretained(this)));
 +  source->SetIcon(gfx::Image(shield));
-+  const std::string text = off ? std::string() : BadgeText(count);
++  // the setting of chrome://adblock, as in uBlock Origin
++  const bool badge = thoron_adblock::EngineService::Get().Option("badge");
++  const std::string text = off || !badge ? std::string() : BadgeText(count);
 +  if (!text.empty()) {
 +    source->SetBadge(std::make_unique<IconWithBadgeImageSource::Badge>(
 +        text, kBadgeText, kBadgeBackground));
@@ -1171,10 +1174,10 @@ index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d
 +#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_THORON_ADBLOCK_BUTTON_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..f80e9adcf1b20575ec0b9b4526a5b6d32e33f226
+index 0000000000000000000000000000000000000000..92e0b6f811ac5e0004343872bc0afcc5772c7cf9
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
-@@ -0,0 +1,294 @@
+@@ -0,0 +1,300 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1340,6 +1343,12 @@ index 0000000000000000000000000000000000000000..f80e9adcf1b20575ec0b9b4526a5b6d3
 +      }
 +    }
 +    state.Set("pageCount", page_count);
++    const thoron_adblock::BlockedCount::Summary summary =
++        tab ? thoron_adblock::BlockedCount::Totals(tab->GetPrimaryPage())
++            : thoron_adblock::BlockedCount::Summary();
++    state.Set("requests", summary.requests);
++    state.Set("domains", summary.domains);
++    state.Set("connected", summary.connected);
 +    state.Set("sites", std::move(sites));
 +    state.Set("totalCount", static_cast<double>(
 +                                thoron_adblock::BlockedCount::Total()));
@@ -1528,10 +1537,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..6e974b0f52c54050742ed2e30060139482842892
+index 0000000000000000000000000000000000000000..cd446b132bc23d66c6bfee21c8d385c5298fff47
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,355 @@
+@@ -0,0 +1,431 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1559,7 +1568,11 @@ index 0000000000000000000000000000000000000000..6e974b0f52c54050742ed2e300601394
 +#include "components/thoron_adblock/blocked_count.h"
 +#include "content/public/browser/page.h"
 +#include "content/public/browser/web_contents.h"
++#include "chrome/browser/preloading/preloading_prefs.h"
 +#include "chrome/common/chrome_paths.h"
++#include "chrome/common/pref_names.h"
++#include "components/prefs/pref_service.h"
++#include "third_party/blink/public/common/peerconnection/webrtc_ip_handling_policy.h"
 +#include "components/thoron_adblock/engine.rs.h"
 +#include "components/thoron_adblock/engine_service.h"
 +#include "components/thoron_adblock/features.h"
@@ -1636,6 +1649,8 @@ index 0000000000000000000000000000000000000000..6e974b0f52c54050742ed2e300601394
 +    Register("forgetSite", &ThoronAdblockHandler::ForgetSite);
 +    Register("clearSwitches", &ThoronAdblockHandler::ClearSwitches);
 +    Register("getLog", &ThoronAdblockHandler::GetLog);
++    Register("getSettings", &ThoronAdblockHandler::GetSettings);
++    Register("setSetting", &ThoronAdblockHandler::SetSetting);
 +  }
 +
 +  void OnJavascriptDisallowed() override { weak_factory_.InvalidateWeakPtrs(); }
@@ -1769,6 +1784,76 @@ index 0000000000000000000000000000000000000000..6e974b0f52c54050742ed2e300601394
 +      return;
 +    }
 +    Service().ClearSiteSwitches(args[1].GetString());
++    Answer(*id, std::string());
++  }
++
++  // The Settings section: the blocker's options, and the browser settings
++  // uBlock Origin offers there (each "true" means the protective choice).
++  void GetSettings(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 0);
++    if (!id) {
++      return;
++    }
++    PrefService* prefs = Profile::FromWebUI(web_ui())->GetPrefs();
++    base::DictValue settings;
++    for (const char* name : {"badge", "block-csp-reports", "ignore-generic",
++                             "default-media", "default-cosmetic",
++                             "default-fonts"}) {
++      settings.Set(name, Service().Option(name));
++    }
++    settings.Set("javascript", SiteSettings()->GetDefaultContentSetting(
++                                   ContentSettingsType::JAVASCRIPT) ==
++                                   CONTENT_SETTING_BLOCK);
++    settings.Set("prefetch",
++                 prefs->GetInteger(prefs::kNetworkPredictionOptions) ==
++                     static_cast<int>(
++                         prefetch::NetworkPredictionOptions::kDisabled));
++    settings.Set("hyperlink-auditing",
++                 !prefs->GetBoolean(prefs::kEnableHyperlinkAuditing));
++    // the policies that keep local addresses out (the browser's default here
++    // offers both public and private ones)
++    const std::string& webrtc = prefs->GetString(prefs::kWebRTCIPHandlingPolicy);
++    settings.Set("webrtc",
++                 webrtc == blink::kWebRTCIPHandlingDefaultPublicInterfaceOnly ||
++                     webrtc == blink::kWebRTCIPHandlingDisableNonProxiedUdp);
++    ResolveJavascriptCallback(base::Value(*id), settings);
++  }
++
++  void SetSetting(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 2);
++    if (!id || !args[1].is_string() || !args[2].is_bool()) {
++      return;
++    }
++    const std::string& name = args[1].GetString();
++    const bool on = args[2].GetBool();
++    PrefService* prefs = Profile::FromWebUI(web_ui())->GetPrefs();
++    if (thoron_adblock::EngineService::KnownOption(name)) {
++      Service().SetOption(name, on);
++    } else if (name == "javascript") {
++      SiteSettings()->SetDefaultContentSetting(
++          ContentSettingsType::JAVASCRIPT,
++          on ? CONTENT_SETTING_BLOCK : CONTENT_SETTING_DEFAULT);
++    } else if (name == "prefetch" || name == "hyperlink-auditing" ||
++               name == "webrtc") {
++      // on: the protective value; off: the browser's own default again
++      const char* pref = name == "prefetch" ? prefs::kNetworkPredictionOptions
++                         : name == "webrtc" ? prefs::kWebRTCIPHandlingPolicy
++                                            : prefs::kEnableHyperlinkAuditing;
++      if (!on) {
++        prefs->ClearPref(pref);
++      } else if (name == "prefetch") {
++        prefs->SetInteger(pref, static_cast<int>(
++                                    prefetch::NetworkPredictionOptions::kDisabled));
++      } else if (name == "webrtc") {
++        prefs->SetString(pref,
++                         blink::kWebRTCIPHandlingDefaultPublicInterfaceOnly);
++      } else {
++        prefs->SetBoolean(pref, false);
++      }
++    } else {
++      Answer(*id, "This is not a setting.");
++      return;
++    }
 +    Answer(*id, std::string());
 +  }
 +

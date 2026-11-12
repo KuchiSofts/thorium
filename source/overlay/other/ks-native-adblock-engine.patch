@@ -429,10 +429,10 @@ index 0000000000000000000000000000000000000000..f5da75eee11cccbbb2094285afb8a11e
 +fs.writeFileSync(outArg, JSON.stringify(resources) + '\n');
 diff --git a/components/thoron_adblock/blocked_count.cc b/components/thoron_adblock/blocked_count.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..a08b7f746a8b3a5f6d517615d9cd9a0b2aeb20d8
+index 0000000000000000000000000000000000000000..6cab804c104ae0d52a28dc23fb223f668cc79a66
 --- /dev/null
 +++ b/components/thoron_adblock/blocked_count.cc
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,159 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -447,6 +447,7 @@ index 0000000000000000000000000000000000000000..a08b7f746a8b3a5f6d517615d9cd9a0b
 +#include "components/content_settings/core/common/content_settings_types.h"
 +#include "content/public/browser/page.h"
 +#include "content/public/browser/render_frame_host.h"
++#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 +
 +namespace thoron_adblock {
 +
@@ -471,6 +472,47 @@ index 0000000000000000000000000000000000000000..a08b7f746a8b3a5f6d517615d9cd9a0b
 +
 +BlockedCount::~BlockedCount() = default;
 +
++namespace {
++
++// The domain of `url` as the menu counts it: the name its site registered, or
++// the host when there is none (an IP address, "localhost").
++std::string DomainOf(const GURL& url) {
++  std::string domain = net::registry_controlled_domains::GetDomainAndRegistry(
++      url, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
++  return domain.empty() ? std::string(url.host()) : domain;
++}
++
++}  // namespace
++
++// static
++void BlockedCount::Allowed(content::GlobalRenderFrameHostId frame,
++                           const GURL& url) {
++  content::RenderFrameHost* rfh = content::RenderFrameHost::FromID(frame);
++  if (!rfh || !url.has_host()) {
++    return;
++  }
++  BlockedCount* count =
++      GetOrCreateForPage(rfh->GetOutermostMainFrame()->GetPage());
++  ++count->requests_;
++  const std::string domain = DomainOf(url);
++  if (count->domains_.size() < kMaxHosts) {
++    count->domains_.insert(domain);
++  }
++  if (count->connected_.size() < kMaxHosts) {
++    count->connected_.insert(domain);
++  }
++}
++
++// static
++BlockedCount::Summary BlockedCount::Totals(content::Page& page) {
++  BlockedCount* count = GetForPage(page);
++  if (!count) {
++    return {};
++  }
++  return {count->requests_, static_cast<int>(count->domains_.size()),
++          static_cast<int>(count->connected_.size())};
++}
++
 +// static
 +void BlockedCount::Record(content::GlobalRenderFrameHostId frame,
 +                          const GURL& url) {
@@ -481,6 +523,10 @@ index 0000000000000000000000000000000000000000..a08b7f746a8b3a5f6d517615d9cd9a0b
 +  content::Page& page = rfh->GetOutermostMainFrame()->GetPage();
 +  BlockedCount* count = GetOrCreateForPage(page);
 +  ++count->count_;
++  ++count->requests_;
++  if (url.has_host() && count->domains_.size() < kMaxHosts) {
++    count->domains_.insert(DomainOf(url));
++  }
 +  count->recent_.push_back(
 +      {base::Time::Now(), url.possibly_invalid_spec().substr(0, kMaxUrlLength)});
 +  if (count->recent_.size() > kMaxRecent) {
@@ -548,10 +594,10 @@ index 0000000000000000000000000000000000000000..a08b7f746a8b3a5f6d517615d9cd9a0b
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/blocked_count.h b/components/thoron_adblock/blocked_count.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..0d65002a3f5318dae006238f9f71279d54591dae
+index 0000000000000000000000000000000000000000..db60365c544da4d94ed81a0dcef1325c480a3714
 --- /dev/null
 +++ b/components/thoron_adblock/blocked_count.h
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,90 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -560,6 +606,7 @@ index 0000000000000000000000000000000000000000..0d65002a3f5318dae006238f9f71279d
 +
 +#include <deque>
 +#include <map>
++#include <set>
 +#include <string>
 +#include <utility>
 +#include <vector>
@@ -594,6 +641,18 @@ index 0000000000000000000000000000000000000000..0d65002a3f5318dae006238f9f71279d
 +  // most first, then by name.
 +  static std::vector<std::pair<std::string, int>> Hosts(content::Page& page);
 +
++  // Counts one request of the document in `frame` that was let through, to
++  // `url`: what the menu weighs the blocked ones against.
++  static void Allowed(content::GlobalRenderFrameHostId frame, const GURL& url);
++  // For the menu, as uBlock Origin's: every request the blocker saw on `page`
++  // (let through or blocked), the domains they went to, and how many of those
++  // domains were reached at least once.
++  struct Summary {
++    int requests = 0;
++    int domains = 0;
++    int connected = 0;
++  };
++  static Summary Totals(content::Page& page);
 +  // The last requests blocked on `page`, the newest first (the logger).
 +  struct Entry {
 +    base::Time time;
@@ -614,6 +673,11 @@ index 0000000000000000000000000000000000000000..0d65002a3f5318dae006238f9f71279d
 +  explicit BlockedCount(content::Page& page);
 +
 +  int count_ = 0;
++  int requests_ = 0;
++  // Domains (the name a site registered, "example.co.uk"), at most kMaxHosts
++  // each: every one asked, and those reached.
++  std::set<std::string> domains_;
++  std::set<std::string> connected_;
 +  // At most kMaxHosts; a page that asks more hosts than that is counted only.
 +  std::map<std::string, int> hosts_;
 +  // At most kMaxRecent, the oldest first.
@@ -3391,10 +3455,10 @@ index 0000000000000000000000000000000000000000..ed67bfcf044d144278258384cbe99530
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5a92e0f5ea830375f09f95d3feba11c9b90d6a2c
+index 0000000000000000000000000000000000000000..070a8bb12f0e84d2a555343d18792017541114d9
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,750 @@
+@@ -0,0 +1,865 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3530,12 +3594,32 @@ index 0000000000000000000000000000000000000000..5a92e0f5ea830375f09f95d3feba11c9
 +    FILE_PATH_LITERAL("site-switches.json");
 +constexpr base::FilePath::CharType kStatsFile[] =
 +    FILE_PATH_LITERAL("stats.json");
++constexpr base::FilePath::CharType kOptionsFile[] =
++    FILE_PATH_LITERAL("options.json");
++
++// The options and what they are when the person never changed them.
++struct OptionDefault {
++  const char* name;
++  bool value;
++};
++constexpr OptionDefault kOptions[] = {
++    {"badge", true},           {"block-csp-reports", false},
++    {"ignore-generic", false}, {"default-media", false},
++    {"default-cosmetic", false}, {"default-fonts", false},
++};
++
++// The switches that can be on for every site.
++bool HasDefault(std::string_view name) {
++  return name == "media" || name == "cosmetic" || name == "fonts";
++}
 +constexpr size_t kMaxSwitchHosts = 10000;
 +constexpr base::TimeDelta kStatsSaveDelay = base::Seconds(30);
 +
 +bool KnownSwitch(std::string_view name) {
-+  return name == "popups" || name == "media" || name == "cosmetic" ||
-+         name == "fonts";
++  if (name.starts_with('-')) {
++    return HasDefault(name.substr(1));
++  }
++  return name == "popups" || HasDefault(name);
 +}
 +
 +void WriteJson(base::FilePath path, base::Value value) {
@@ -3574,6 +3658,17 @@ index 0000000000000000000000000000000000000000..5a92e0f5ea830375f09f95d3feba11c9
 +    }
 +  }
 +  text.clear();
++  if (base::ReadFileToStringWithMaxSize(dir.Append(kOptionsFile), &text, 4096)) {
++    std::optional<base::Value> value = base::JSONReader::Read(text, base::JSON_PARSE_RFC);
++    if (value && value->is_dict()) {
++      for (const auto [name, on] : value->GetDict()) {
++        if (on.is_bool() && KnownOption(name)) {
++          out.options[name] = on.GetBool();
++        }
++      }
++    }
++  }
++  text.clear();
 +  if (base::ReadFileToStringWithMaxSize(dir.Append(kStatsFile), &text, 4096)) {
 +    std::optional<base::Value> value = base::JSONReader::Read(text, base::JSON_PARSE_RFC);
 +    if (value && value->is_dict()) {
@@ -3592,19 +3687,75 @@ index 0000000000000000000000000000000000000000..5a92e0f5ea830375f09f95d3feba11c9
 +  for (auto& [host, names] : state.switches) {
 +    site_switches_.emplace(host, std::move(names));
 +  }
++  for (const auto& [name, on] : state.options) {
++    options_.emplace(name, on);
++  }
 +  total_blocked_ += state.total;
 +}
 +
-+bool EngineService::SiteSwitch(const GURL& site, std::string_view name) const {
-+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-+  if (!site.has_host() || site_switches_.empty()) {
-+    return false;
-+  }
-+  std::string_view host = site.host();
-+  while (!host.empty()) {
-+    auto it = site_switches_.find(std::string(host));
-+    if (it != site_switches_.end() && it->second.contains(std::string(name))) {
++// static
++bool EngineService::KnownOption(std::string_view name) {
++  for (const OptionDefault& option : kOptions) {
++    if (name == option.name) {
 +      return true;
++    }
++  }
++  return false;
++}
++
++bool EngineService::Option(std::string_view name) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (auto it = options_.find(std::string(name)); it != options_.end()) {
++    return it->second;
++  }
++  for (const OptionDefault& option : kOptions) {
++    if (name == option.name) {
++      return option.value;
++    }
++  }
++  return false;
++}
++
++void EngineService::SetOption(std::string_view name, bool on) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!KnownOption(name)) {
++    return;
++  }
++  options_[std::string(name)] = on;
++  SaveOptions();
++}
++
++void EngineService::SaveOptions() {
++  EnsureStarted();
++  if (store_dir_.empty()) {
++    return;
++  }
++  base::DictValue dict;
++  for (const auto& [name, on] : options_) {
++    dict.Set(name, on);
++  }
++  file_runner_->PostTask(
++      FROM_HERE, base::BindOnce(&WriteJson, store_dir_.Append(kOptionsFile),
++                                base::Value(std::move(dict))));
++}
++
++bool EngineService::HostSwitch(std::string_view host,
++                               std::string_view name,
++                               bool* found) const {
++  const std::string on(name);
++  const std::string out = "-" + on;
++  *found = false;
++  while (!host.empty()) {
++    if (auto it = site_switches_.find(std::string(host));
++        it != site_switches_.end()) {
++      if (it->second.contains(on)) {
++        *found = true;
++        return true;
++      }
++      if (it->second.contains(out)) {
++        *found = true;
++        return false;
++      }
 +    }
 +    const size_t dot = host.find('.');
 +    if (dot == std::string_view::npos) {
@@ -3615,6 +3766,19 @@ index 0000000000000000000000000000000000000000..5a92e0f5ea830375f09f95d3feba11c9
 +  return false;
 +}
 +
++bool EngineService::SiteSwitch(const GURL& site, std::string_view name) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!site.has_host()) {
++    return false;
++  }
++  bool found = false;
++  const bool on = HostSwitch(site.host(), name, &found);
++  if (found) {
++    return on;
++  }
++  return HasDefault(name) && Option(base::StrCat({"default-", name}));
++}
++
 +void EngineService::SetSiteSwitch(const GURL& site,
 +                                  std::string_view name,
 +                                  bool on) {
@@ -3622,18 +3786,26 @@ index 0000000000000000000000000000000000000000..5a92e0f5ea830375f09f95d3feba11c9
 +  if (!site.has_host() || !KnownSwitch(name)) {
 +    return;
 +  }
++  if (name.starts_with('-')) {
++    return;
++  }
 +  const std::string host(site.host());
-+  if (on) {
++  if (auto it = site_switches_.find(host); it != site_switches_.end()) {
++    it->second.erase(std::string(name));
++    it->second.erase(base::StrCat({"-", name}));
++    if (it->second.empty()) {
++      site_switches_.erase(it);
++    }
++  }
++  // what the host has without a setting of its own: from a host it is under,
++  // or the default for every site
++  if (SiteSwitch(site, name) != on) {
 +    if (site_switches_.size() >= kMaxSwitchHosts &&
 +        !site_switches_.contains(host)) {
 +      return;
 +    }
-+    site_switches_[host].insert(std::string(name));
-+  } else if (auto it = site_switches_.find(host); it != site_switches_.end()) {
-+    it->second.erase(std::string(name));
-+    if (it->second.empty()) {
-+      site_switches_.erase(it);
-+    }
++    site_switches_[host].insert(on ? std::string(name)
++                                   : base::StrCat({"-", name}));
 +  }
 +  SaveSiteSwitches();
 +}
@@ -3790,6 +3962,12 @@ index 0000000000000000000000000000000000000000..5a92e0f5ea830375f09f95d3feba11c9
 +  if (!engine_ || !IsBlockableScheme(url) || !source.is_valid() ||
 +      !base::IsStringASCII(method)) {
 +    return {};
++  }
++  // The option of uBlock Origin's: the reports a page's security policy asks
++  // the browser to send (where they go is up to the page).
++  if (destination == network::mojom::RequestDestination::kReport &&
++      Option("block-csp-reports")) {
++    return {true, std::string(), GURL(), std::string()};
 +  }
 +  const std::string& u = url.spec();
 +  const std::string& s = source.spec();
@@ -3949,7 +4127,8 @@ index 0000000000000000000000000000000000000000..5a92e0f5ea830375f09f95d3feba11c9
 +  DocumentResources found =
 +      (*engine_)->document_resources(rust::Str(u.data(), u.size()));
 +  return {std::string(found.stylesheet), std::string(found.script),
-+          std::string(found.isolated_script), !found.generichide};
++          std::string(found.isolated_script),
++          !found.generichide && !Option("ignore-generic")};
 +}
 +
 +std::string EngineService::GenericStylesheet(
@@ -4147,10 +4326,10 @@ index 0000000000000000000000000000000000000000..5a92e0f5ea830375f09f95d3feba11c9
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..a6c521c990d6f66ce81ee330fbb08cbed536a9cd
+index 0000000000000000000000000000000000000000..afe65114c568577b03ec95e52027ea17d454d585
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,257 @@
+@@ -0,0 +1,281 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4342,18 +4521,33 @@ index 0000000000000000000000000000000000000000..a6c521c990d6f66ce81ee330fbb08cbe
 +  // picker.h), unless it is there already.
 +  void AddToMyFilters(const std::string& rule, Changed callback);
 +
-+  // The menu's switches for a site, by name: "media" (no audio or video file
-+  // larger than 50 KB), "cosmetic" (nothing hidden on the site, no
-+  // scriptlets), "fonts" (no fonts loaded). A switch set for a host counts for
-+  // the hosts below it too. Kept in <store>/site-switches.json.
++  // The menu's switches for a site, by name: "popups" (no window the site
++  // opens), "media" (no audio or video file larger than 50 KB), "cosmetic"
++  // (nothing hidden on the site, no scriptlets), "fonts" (no fonts loaded). A
++  // switch set for a host counts for the hosts below it too. "media",
++  // "cosmetic" and "fonts" can be on for every site (the options "default-"
++  // and the name); a site is then kept out by "-" and the name. Kept in
++  // <store>/site-switches.json.
 +  bool SiteSwitch(const GURL& site, std::string_view name) const;
++  // Sets the switch for the site's host, as set or as kept out, and only when
++  // that differs from what the host would have without it.
 +  void SetSiteSwitch(const GURL& site, std::string_view name, bool on);
-+  // Every host with a switch on, and its switches (the dashboard), and
-+  // all switches of one host off.
++  // Every host with a switch set, and its switches (the dashboard), and all
++  // switches of one host cleared.
 +  const std::map<std::string, std::set<std::string>>& site_switches() const {
 +    return site_switches_;
 +  }
 +  void ClearSiteSwitches(const std::string& host);
++
++  // The settings of chrome://adblock, as in uBlock Origin, by name: "badge"
++  // (the shield shows what was blocked; on unless switched off),
++  // "block-csp-reports" (reports a page's security policy asks for are not
++  // sent), "ignore-generic" (hide rules for every site are not used), and
++  // "default-media", "default-cosmetic", "default-fonts" (the menu's switch of
++  // that name on for every site). Kept in <store>/options.json.
++  static bool KnownOption(std::string_view name);
++  bool Option(std::string_view name) const;
++  void SetOption(std::string_view name, bool on);
 +
 +  // One more blocked request; how many since counting started. Kept in
 +  // <store>/stats.json, written at most every 30 seconds.
@@ -4380,15 +4574,24 @@ index 0000000000000000000000000000000000000000..a6c521c990d6f66ce81ee330fbb08cbe
 +    SavedState& operator=(SavedState&&);
 +    ~SavedState();
 +    std::map<std::string, std::set<std::string>> switches;
++    std::map<std::string, bool> options;
 +    int64_t total = 0;
 +  };
 +  static SavedState ReadSavedState(base::FilePath dir);
 +  void OnSavedStateRead(SavedState state);
 +  void SaveSiteSwitches();
++  void SaveOptions();
 +  void SaveStats();
++  // The switch for `host` or a host it is under; `found` is false when none of
++  // them has it set either way.
++  bool HostSwitch(std::string_view host, std::string_view name,
++                  bool* found) const;
 +
-+  // Host -> the names of its switches that are on.
++  // Host -> the names of its switches that are set: "media" on, "-media" kept
++  // out of a switch that is on for every site.
 +  std::map<std::string, std::set<std::string>> site_switches_;
++  // The options changed from their defaults (KnownOption).
++  std::map<std::string, bool> options_;
 +  int64_t total_blocked_ = 0;
 +  bool stats_save_pending_ = false;
 +
@@ -8430,10 +8633,10 @@ index 0000000000000000000000000000000000000000..bb5e6c8789e8a4e07c5d7069027b5132
 +}
 diff --git a/components/thoron_adblock/popup_page.html b/components/thoron_adblock/popup_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..874d4d9cc76874e8fa750acf288f8277760ea8bc
+index 0000000000000000000000000000000000000000..4f5bbdc10b60b6b1db49d8f4c71528188f9882fd
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.html
-@@ -0,0 +1,147 @@
+@@ -0,0 +1,148 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file. -->
@@ -8481,6 +8684,7 @@ index 0000000000000000000000000000000000000000..874d4d9cc76874e8fa750acf288f8277
 +  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px 14px 12px; }
 +  .stat { text-align: center; border: 1px solid var(--line); border-radius: 10px; padding: 8px 4px; }
 +  .stat b { display: block; font-size: 18px; font-weight: 600; }
++  .stat b small { font-size: 12px; font-weight: 400; opacity: 0.7; }
 +  .stat span { display: block; color: var(--soft); font-size: 11px; line-height: 1.3; }
 +  .row { display: flex; justify-content: space-between; gap: 6px; padding: 8px 14px;
 +         border-block-start: 1px solid var(--line); }
@@ -8524,8 +8728,8 @@ index 0000000000000000000000000000000000000000..874d4d9cc76874e8fa750acf288f8277
 +</div>
 +
 +<div class="stats">
-+  <div class="stat"><b id="page-count">0</b><span>blocked on this page</span></div>
-+  <div class="stat"><b id="site-count">0</b><span>sites blocked on this page</span></div>
++  <div class="stat"><b><span id="page-count">0</span> <small id="page-share"></small></b><span>blocked on this page</span></div>
++  <div class="stat"><b id="domains">0</b><span>domains connected</span></div>
 +  <div class="stat"><b id="total-count">0</b><span>blocked since you started counting</span></div>
 +</div>
 +
@@ -8583,10 +8787,10 @@ index 0000000000000000000000000000000000000000..874d4d9cc76874e8fa750acf288f8277
 +</html>
 diff --git a/components/thoron_adblock/popup_page.js b/components/thoron_adblock/popup_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..3295fb2c1029779850ddf8198c3698e29ade9017
+index 0000000000000000000000000000000000000000..008ea53c87d45e42ee95602d849dd29f31c07c89
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.js
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,98 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -8613,7 +8817,11 @@ index 0000000000000000000000000000000000000000..3295fb2c1029779850ddf8198c3698e2
 +      : next.enabled ? 'Blocking is on for this site.'
 +      : 'Ads and trackers are allowed on this site.';
 +  $('page-count').textContent = number(next.pageCount);
-+  $('site-count').textContent = number(next.sites.length);
++  // as uBlock Origin shows them: the share of the page's requests that was
++  // blocked, and the domains reached out of all the page asked
++  const requests = next.requests || 0;
++  $('page-share').textContent = requests ? `(${Math.round((100 * next.pageCount) / requests)}%)` : '';
++  $('domains').textContent = `${number(next.connected || 0)} of ${number(next.domains || 0)}`;
 +  $('total-count').textContent = number(next.totalCount);
 +  for (const button of document.querySelectorAll('.switch')) {
 +    const name = button.dataset.switch;
@@ -9577,10 +9785,10 @@ index 0000000000000000000000000000000000000000..e8ba37d6d7127e3a48dab3fa94c3d34f
 +}
 diff --git a/components/thoron_adblock/proxying_url_loader_factory.cc b/components/thoron_adblock/proxying_url_loader_factory.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..2b073df5e5410d66f2cc134719b732d22bb661bd
+index 0000000000000000000000000000000000000000..53f3d010c224673e2684c9b6bdd80fc1c484bbde
 --- /dev/null
 +++ b/components/thoron_adblock/proxying_url_loader_factory.cc
-@@ -0,0 +1,289 @@
+@@ -0,0 +1,292 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -9822,6 +10030,9 @@ index 0000000000000000000000000000000000000000..2b073df5e5410d66f2cc134719b732d2
 +      BlockedCount::Record(frame_, request.url);
 +    }
 +    return;
++  }
++  if (frame_) {
++    BlockedCount::Allowed(frame_, request.url);
 +  }
 +  // The request goes out, with a watcher between its loader and its client
 +  // that looks at the redirects it may meet, and at its answer when `$header`
@@ -11186,10 +11397,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..34eaf7fe40f1d90a71c42cdb4f1fe7d0c5f2babf
+index 0000000000000000000000000000000000000000..4c754c774e2f795ffcf55e4813696842fc6bf165
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,197 @@
+@@ -0,0 +1,231 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -11265,6 +11476,9 @@ index 0000000000000000000000000000000000000000..34eaf7fe40f1d90a71c42cdb4f1fe7d0
 +              border: 1px solid var(--line); }
 +  nav.bar a:hover, nav.bar a:focus-visible { border-color: var(--accent); }
 +  #total { color: var(--soft); }
++  #settings h3 { font-size: 13px; font-weight: 600; color: var(--soft); margin: 18px 0 4px; }
++  .option { display: flex; gap: 10px; align-items: flex-start; padding: 5px 0; }
++  .option input { margin-top: 3px; accent-color: var(--accent); }
 +  #catalog details { border-top: 1px solid var(--line); padding: 8px 0; margin: 0; }
 +  #catalog details:first-child { border-top: 0; }
 +  #catalog summary { cursor: pointer; font-weight: 500; }
@@ -11290,6 +11504,7 @@ index 0000000000000000000000000000000000000000..34eaf7fe40f1d90a71c42cdb4f1fe7d0
 +<main>
 +  <h1>Ad blocking</h1>
 +  <nav class="bar" aria-label="Sections">
++    <a href="#settings">Settings</a>
 +    <a href="#lists-section">Filter lists</a>
 +    <a href="#more-lists">More lists</a>
 +    <a href="#mine">My filters</a>
@@ -11309,6 +11524,36 @@ index 0000000000000000000000000000000000000000..34eaf7fe40f1d90a71c42cdb4f1fe7d0
 +    <p>Blocking is switched on or off for all sites, and sites are allowed one by one, in the site settings.
 +      On a page, the icon in the address bar does the same for that site.</p>
 +    <a class="button" id="site-settings" href="chrome://settings/content/ads">Open "Ads and trackers" in Settings</a>
++  </section>
++
++  <section id="settings">
++    <h2>Settings</h2>
++    <p>As in uBlock Origin. A change is in use at once.</p>
++    <h3>Appearance</h3>
++    <label class="option"><input type="checkbox" data-setting="badge">
++      <span>Show the number of blocked requests on the shield</span></label>
++    <h3>Privacy</h3>
++    <label class="option"><input type="checkbox" data-setting="prefetch">
++      <span>Disable pre-fetching, so that blocked requests make no connection at all</span></label>
++    <label class="option"><input type="checkbox" data-setting="hyperlink-auditing">
++      <span>Disable hyperlink auditing (the pings a link sends when it is clicked)</span></label>
++    <label class="option"><input type="checkbox" data-setting="webrtc">
++      <span>Prevent WebRTC from leaking local IP addresses</span></label>
++    <label class="option"><input type="checkbox" data-setting="block-csp-reports">
++      <span>Block CSP reports (what a page's security policy reports to its servers)</span></label>
++    <h3>Default behavior</h3>
++    <p>For every site. The switches in the menu of the shield change it for one site.</p>
++    <label class="option"><input type="checkbox" data-setting="default-cosmetic">
++      <span>Disable cosmetic filtering: nothing is hidden</span></label>
++    <label class="option"><input type="checkbox" data-setting="default-media">
++      <span>Block media elements larger than 50 KB</span></label>
++    <label class="option"><input type="checkbox" data-setting="default-fonts">
++      <span>Block remote fonts</span></label>
++    <label class="option"><input type="checkbox" data-setting="javascript">
++      <span>Disable JavaScript</span></label>
++    <h3>Filtering</h3>
++    <label class="option"><input type="checkbox" data-setting="ignore-generic">
++      <span>Ignore generic cosmetic filters (hide rules written for every site)</span></label>
 +  </section>
 +
 +  <section id="lists-section">
@@ -11389,10 +11634,10 @@ index 0000000000000000000000000000000000000000..34eaf7fe40f1d90a71c42cdb4f1fe7d0
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..103f6445d96ab93a6286277b34601ce0c990f9d3
+index 0000000000000000000000000000000000000000..d9f92294ee06b5714f3a2aaa4432ac1e5c7e53e5
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,384 @@
+@@ -0,0 +1,414 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -11584,7 +11829,36 @@ index 0000000000000000000000000000000000000000..103f6445d96ab93a6286277b34601ce0
 +
 +// --- Sites: allowed sites and the menu's switches ---
 +const SWITCH_NAMES = {popups: 'no pop-ups', media: 'no large media', cosmetic: 'no hiding',
-+                      fonts: 'no remote fonts', javascript: 'no JavaScript'};
++                      fonts: 'no remote fonts', javascript: 'no JavaScript',
++                      // kept out of a default that is on for every site (Settings)
++                      '-media': 'large media allowed', '-cosmetic': 'hiding allowed',
++                      '-fonts': 'remote fonts allowed'};
++
++// --- Settings ---
++async function showSettings() {
++  let settings = {};
++  try {
++    settings = await sendWithPromise('getSettings');
++  } catch {
++    return;
++  }
++  for (const box of document.querySelectorAll('[data-setting]')) {
++    box.checked = !!settings[box.dataset.setting];
++  }
++}
++
++for (const box of document.querySelectorAll('[data-setting]')) {
++  box.addEventListener('change', async () => {
++    const error = await sendWithPromise('setSetting', box.dataset.setting, box.checked);
++    if (error) {
++      say(error, true);
++    } else {
++      say('The setting is in use.');
++    }
++    showSettings();
++    refreshSites();
++  });
++}
 +
 +function siteRow(name, what, onRemove) {
 +  const row = make('div', 'site-row');
@@ -11775,6 +12049,7 @@ index 0000000000000000000000000000000000000000..103f6445d96ab93a6286277b34601ce0
 +});
 +
 +refresh();
++showSettings();
 +refreshSites();
 +refreshLog();
 diff --git a/components/thoron_adblock/subresource_loader_throttle.cc b/components/thoron_adblock/subresource_loader_throttle.cc
