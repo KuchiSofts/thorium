@@ -102,6 +102,7 @@ Explanations live in the design docs under `docs/design/`.
 
 ### Fixed
 
+- **Tools:** the profile rehearsal also sees a profile written a moment ago when the drive's clock runs ahead.
 - **Ad blocking:** ads in frames are blocked; a frame's own document was loaded without being checked.
 - **Ad blocking:** rules for one request method (`method=post`) now apply; every request was checked as a GET.
 - **Build:** two small patches fix the Chromium 158 build (FFmpeg duplicate sources, a Rust compiler flag).

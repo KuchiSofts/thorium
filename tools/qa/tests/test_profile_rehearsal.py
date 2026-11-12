@@ -151,6 +151,15 @@ class RefusalTests(Scratch):
         (self.ud / "lockfile").write_bytes(b"")
         self.assertIn("running", pr.refusal(self.browser, self.ud, self.work))
 
+    def test_a_clock_a_little_ahead_still_counts_as_a_moment_ago(self):
+        rest(self.ud)
+        ahead = time.time() + 1                        # the file system's clock runs ahead of this one
+        os.utime(self.ud / "Local State", (ahead, ahead))
+        self.assertIn("still", pr.refusal(self.browser, self.ud, self.work))
+        far = time.time() + 3600                       # a date really in the future is left aside
+        os.utime(self.ud / "Local State", (far, far))
+        self.assertIsNone(pr.refusal(self.browser, self.ud, self.work))
+
     def test_a_profile_that_was_written_a_moment_ago_is_not_copied_yet(self):
         write_bookmarks(self.ud, 2)                    # its browser may still be closing
         why = pr.refusal(self.browser, self.ud, self.work)
