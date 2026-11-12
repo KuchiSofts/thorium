@@ -78,10 +78,10 @@ index 0f7d54fe9798d8726656c6cd8f30ea2194b8c4e1..908235300b443a23bea4c2a9b39d0715
        "//sandbox:sandbox_unittests",
 diff --git a/components/thoron_adblock/BUILD.gn b/components/thoron_adblock/BUILD.gn
 new file mode 100644
-index 0000000000000000000000000000000000000000..b3898ba060fdbada14a397a824396a9fcabf17aa
+index 0000000000000000000000000000000000000000..341e7b3818455e477b359e3f1b5a813b92b576b0
 --- /dev/null
 +++ b/components/thoron_adblock/BUILD.gn
-@@ -0,0 +1,242 @@
+@@ -0,0 +1,244 @@
 +# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
 +
@@ -190,6 +190,8 @@ index 0000000000000000000000000000000000000000..b3898ba060fdbada14a397a824396a9f
 +    "list_updater.h",
 +    "new_window.cc",
 +    "new_window.h",
++    "page_block_throttle.cc",
++    "page_block_throttle.h",
 +    "proxying_url_loader_factory.cc",
 +    "proxying_url_loader_factory.h",
 +    "redirect_watcher.cc",
@@ -1976,10 +1978,10 @@ index 0000000000000000000000000000000000000000..43051154413e4f2354bc088827e16717
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_INTERCEPTOR_H_
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..5dd240c8f36a83c9018888a316ba497926ef7333
+index 0000000000000000000000000000000000000000..aee5c80101022d61a29364ce9bf863c6221d0079
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,973 @@
+@@ -0,0 +1,1006 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2091,6 +2093,10 @@ index 0000000000000000000000000000000000000000..5dd240c8f36a83c9018888a316ba4979
 +        /// True when the lists' `$popup` rules (or `$all`) block the window or tab that the page at
 +        /// `opener_url` opens at `url`. A rule without either never blocks a window.
 +        fn blocks_popup(self: &Engine, url: &str, opener_url: &str) -> bool;
++
++        /// True when the lists block the page at `url` itself (strict blocking): a rule for whole
++        /// pages (`$doc`, `$all`) or one that names its whole host matches it.
++        fn blocks_page(self: &Engine, url: &str) -> bool;
 +
 +        /// `RequestDecision::clean_url` on its own, also for a request that would be blocked: a
 +        /// page's own navigation is never blocked, but its address is still cleaned.
@@ -2234,6 +2240,10 @@ index 0000000000000000000000000000000000000000..5dd240c8f36a83c9018888a316ba4979
 +
 +    fn blocks_popup(&self, url: &str, opener_url: &str) -> bool {
 +        self.0.as_ref().is_some_and(|f| engine_core::blocks_popup(f, url, opener_url))
++    }
++
++    fn blocks_page(&self, url: &str) -> bool {
++        self.0.as_ref().is_some_and(|f| engine_core::blocks_page(f, url))
 +    }
 +
 +    fn clean_url(&self, url: &str, source_url: &str, request_type: &str) -> String {
@@ -2563,6 +2573,31 @@ index 0000000000000000000000000000000000000000..5dd240c8f36a83c9018888a316ba4979
 +        assert!(engine.should_block("https://ads.example/a.js", "https://news.example/", "script"));
 +        assert!(!engine.should_block("https://ads.example/wanted.js", "https://news.example/", "script"));
 +        assert!(engine.document_resources("https://news.example/").hide_selectors.contains(&".promo".to_string()));
++    }
++
++    #[test]
++    fn a_page_the_lists_block_is_not_opened() {
++        let e = engine_from_rules(
++            "||ads.example^\n||bad.example^$doc\n||harm.example^$all\n@@||fine.ads.example^\n\
++             ||script.example^$script\n||gone.example^\n||gone.example^$badfilter\n\
++             ||kept.example^\n@@||kept.example^$document\n||path.example/ads^\n/banner/*\n\
++             ||other.example^$third-party\n||weighty.example^$important\n",
++        );
++        // a rule for the whole host (also under it, also `$important`), for whole pages, `$all`
++        for blocked in ["https://ads.example/x", "https://www.ads.example/", "https://bad.example/",
++                        "https://harm.example/", "https://weighty.example/"] {
++            assert!(e.blocks_page(blocked), "{blocked}");
++        }
++        // an exception, scripts only, `$badfilter`, an exception for the page, a part of an address,
++        // a rule for other sites only, no rule, not an address
++        for open in ["https://fine.ads.example/", "https://script.example/", "https://gone.example/",
++                     "https://kept.example/", "https://path.example/ads", "https://site.example/banner/x",
++                     "https://other.example/", "https://plain.example/", "not an address"] {
++            assert!(!e.blocks_page(open), "{open}");
++        }
++        let restored = engine_from_serialized(&e.serialize());
++        assert!(restored.blocks_page("https://ads.example/x"));
++        assert!(!restored.blocks_page("https://fine.ads.example/"));
 +    }
 +
 +    #[test]
@@ -2955,10 +2990,10 @@ index 0000000000000000000000000000000000000000..5dd240c8f36a83c9018888a316ba4979
 +}
 diff --git a/components/thoron_adblock/engine_core.rs b/components/thoron_adblock/engine_core.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..582ea7b621345bc75aa718649484b61506dcb115
+index 0000000000000000000000000000000000000000..ed67bfcf044d144278258384cbe9953003efafe8
 --- /dev/null
 +++ b/components/thoron_adblock/engine_core.rs
-@@ -0,0 +1,387 @@
+@@ -0,0 +1,395 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3199,6 +3234,14 @@ index 0000000000000000000000000000000000000000..582ea7b621345bc75aa718649484b615
 +    filters.popups.blocks(url, opener_url)
 +}
 +
++/// True when the lists block the page at `url` itself, as uBlock Origin's strict blocking does. As
++/// there, adblock-rust applies to a page's own request a rule for whole pages (`$doc`, `$all`) and a
++/// rule that names the page's whole host and nothing more (`||ads.example^`), never a rule for a
++/// part of an address (`/ads/*`); an exception for the page or its host keeps it open.
++pub fn blocks_page(filters: &Filters, url: &str) -> bool {
++    Request::new(url, url, "document", "GET").is_ok_and(|page| filters.engine.check_network_request(&page).should_block())
++}
++
 +/// The address a `$uritransform` rule makes of a request's own, or "".
 +pub fn transform(filters: &Filters, url: &str, source_url: &str, request_type: &str) -> String {
 +    filters.transforms.apply(url, source_url, request_type).unwrap_or_default()
@@ -3348,10 +3391,10 @@ index 0000000000000000000000000000000000000000..582ea7b621345bc75aa718649484b615
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..b473ae31700dd721d0291f82b4d0577bc6dfaee4
+index 0000000000000000000000000000000000000000..5a92e0f5ea830375f09f95d3feba11c9b90d6a2c
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,741 @@
+@@ -0,0 +1,750 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3811,6 +3854,15 @@ index 0000000000000000000000000000000000000000..b473ae31700dd721d0291f82b4d0577b
 +                                  rust::Str(o.data(), o.size()));
 +}
 +
++bool EngineService::BlocksPage(const GURL& url) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!engine_ || !url.SchemeIsHTTPOrHTTPS()) {
++    return false;
++  }
++  const std::string& u = url.spec();
++  return (*engine_)->blocks_page(rust::Str(u.data(), u.size()));
++}
++
 +GURL EngineService::CleanUrl(const GURL& url,
 +                             const GURL& source,
 +                             bool main_frame) const {
@@ -4095,10 +4147,10 @@ index 0000000000000000000000000000000000000000..b473ae31700dd721d0291f82b4d0577b
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..87ac532cc2705a34e4e083c6882412a257be95ca
+index 0000000000000000000000000000000000000000..a6c521c990d6f66ce81ee330fbb08cbed536a9cd
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,253 @@
+@@ -0,0 +1,257 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4194,6 +4246,10 @@ index 0000000000000000000000000000000000000000..87ac532cc2705a34e4e083c6882412a2
 +  // True when the lists' `$popup` rules (or `$all`) block the window or tab
 +  // that the page at `opener` opens at `url` (http or https).
 +  bool BlocksPopup(const GURL& url, const GURL& opener) const;
++
++  // Strict blocking: true when the lists block the page at `url` (http or
++  // https) itself, with a rule for whole pages or one for its whole host.
++  bool BlocksPage(const GURL& url) const;
 +
 +  // For a document's own request (a page, or a frame in one): the address
 +  // without the parameters `$removeparam` rules take out. Invalid (empty)
@@ -7277,6 +7333,229 @@ index 0000000000000000000000000000000000000000..131119962cc6783162f9381146a326ef
 +}  // namespace thoron_adblock
 +
 +#endif  // COMPONENTS_THORON_ADBLOCK_NEW_WINDOW_H_
+diff --git a/components/thoron_adblock/page_block_throttle.cc b/components/thoron_adblock/page_block_throttle.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..c4a7f34e054c91e6000cf258665d18dc7862701a
+--- /dev/null
++++ b/components/thoron_adblock/page_block_throttle.cc
+@@ -0,0 +1,150 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/thoron_adblock/page_block_throttle.h"
++
++#include <memory>
++#include <utility>
++
++#include "base/feature_list.h"
++#include "base/strings/escape.h"
++#include "base/strings/strcat.h"
++#include "components/content_settings/core/browser/host_content_settings_map.h"
++#include "components/thoron_adblock/engine_service.h"
++#include "components/thoron_adblock/features.h"
++#include "components/thoron_adblock/proxying_url_loader_factory.h"
++#include "content/public/browser/navigation_handle.h"
++#include "content/public/browser/navigation_throttle_registry.h"
++#include "net/base/net_errors.h"
++#include "net/base/url_util.h"
++#include "url/gurl.h"
++
++namespace thoron_adblock {
++
++namespace {
++
++// Plain HTML, styled inline, without scripts: error pages are shown as they
++// are. Light and dark follow the system.
++constexpr char kPageStart[] = R"(<!doctype html>
++<html lang="en"><head><meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<title>Thoron blocked this page</title>
++<style>
++:root { color-scheme: light dark; --bg: #f7f8fa; --fg: #1f2328; --soft: #59636e; --card: #ffffff;
++  --line: #d8dee4; --accent: #0b7f86; }
++@media (prefers-color-scheme: dark) { :root { --bg: #16181c; --fg: #e6e8eb; --soft: #9aa3ad;
++  --card: #1f2227; --line: #343a42; --accent: #3cc6cf; } }
++body { margin: 0; background: var(--bg); color: var(--fg);
++  font: 15px/1.55 system-ui, "Segoe UI", sans-serif; }
++main { max-width: 640px; margin: 12vh auto 0; padding: 0 20px; }
++.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 28px; }
++h1 { font-size: 22px; margin: 0 0 12px; }
++.shield { color: var(--accent); }
++.url, code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
++.url { display: block; padding: 10px 12px; border-radius: 8px; background: var(--bg); margin: 8px 0 16px; }
++a.url { color: var(--accent); }
++p { margin: 0 0 12px; } .soft { color: var(--soft); }
++</style></head><body><main><div class="card">
++<h1><span class="shield">&#x1F6E1;</span> Thoron blocked this page</h1>
++<p>The built-in ad blocker did not open this page, because your filter lists block it:</p>
++<span class="url">)";
++
++}  // namespace
++
++// static
++void PageBlockThrottle::MaybeAdd(content::NavigationThrottleRegistry& registry,
++                                 HostContentSettingsMap* settings) {
++  if (!base::FeatureList::IsEnabled(kThoronNativeAdblock) || !settings ||
++      !registry.GetNavigationHandle().IsInOutermostMainFrame()) {
++    return;
++  }
++  registry.AddThrottle(std::make_unique<PageBlockThrottle>(
++      registry, base::WrapRefCounted(settings)));
++}
++
++PageBlockThrottle::PageBlockThrottle(
++    content::NavigationThrottleRegistry& registry,
++    scoped_refptr<HostContentSettingsMap> settings)
++    : content::NavigationThrottle(registry), settings_(std::move(settings)) {}
++
++PageBlockThrottle::~PageBlockThrottle() = default;
++
++content::NavigationThrottle::ThrottleCheckResult
++PageBlockThrottle::WillStartRequest() {
++  return Check();
++}
++
++content::NavigationThrottle::ThrottleCheckResult
++PageBlockThrottle::WillRedirectRequest() {
++  return Check();
++}
++
++const char* PageBlockThrottle::GetNameForLogging() {
++  return "ThoronPageBlockThrottle";
++}
++
++content::NavigationThrottle::ThrottleCheckResult PageBlockThrottle::Check() {
++  const GURL& url = navigation_handle()->GetURL();
++  if (!url.SchemeIsHTTPOrHTTPS() ||
++      ProxyingURLLoaderFactory::AdsAllowedOn(settings_.get(), url)) {
++    return PROCEED;
++  }
++  const EngineService& engine = EngineService::Get();
++  if (!engine.BlocksPage(url)) {
++    return PROCEED;
++  }
++  // A redirector that a `$urlskip` rule goes past is not opened anyway: the
++  // navigation goes straight to where it sends on to (DocumentRequest-
++  // Interceptor), as in uBlock Origin.
++  if (!navigation_handle()->IsPost() && engine.SkipUrl(url).is_valid()) {
++    return PROCEED;
++  }
++  GURL onward = Onward(url);
++  if (onward.is_valid() && engine.BlocksPage(onward)) {
++    onward = GURL();
++  }
++  return {BLOCK_REQUEST, net::ERR_BLOCKED_BY_CLIENT,
++          BlockedPage(url, onward)};
++}
++
++// static
++GURL PageBlockThrottle::Onward(const GURL& url) {
++  for (net::QueryIterator it(url); !it.IsAtEnd(); it.Advance()) {
++    const GURL candidate(it.GetUnescapedValue());
++    if (candidate.is_valid() && candidate.SchemeIsHTTPOrHTTPS() &&
++        !candidate.has_username() && !candidate.has_password() &&
++        candidate.host() != url.host()) {
++      return candidate;
++    }
++  }
++  return GURL();
++}
++
++// static
++std::string PageBlockThrottle::BlockedPage(const GURL& url,
++                                           const GURL& onward) {
++  const std::string why = base::StrCat(
++      {"<p>A rule of your lists names the site <code>",
++       base::EscapeForHTML(url.host()),
++       "</code> as a whole, or this very page. Such rules name sites that "
++       "serve ads or track you, and pages known to be harmful: malware, "
++       "scams, phishing.</p>"});
++  const std::string onward_text =
++      onward.is_valid()
++          ? base::StrCat({"<p>It would send you on to this address, which is "
++                          "not blocked. To go there directly, use the link:"
++                          "</p><a class=\"url\" href=\"",
++                          base::EscapeForHTML(onward.spec()), "\">",
++                          base::EscapeForHTML(onward.spec()), "</a>"})
++          : std::string();
++  return base::StrCat(
++      {kPageStart, base::EscapeForHTML(url.possibly_invalid_spec()), "</span>",
++       why, onward_text,
++       "<p>To open it anyway, click the shield in the toolbar and switch "
++       "blocking off for this site with the big button, then reload. Or go "
++       "back with the Back button.</p>"
++       "<p class=\"soft\">Your lists and your own rules are on "
++       "<code>chrome://adblock</code>.</p></div></main></body></html>"});
++}
++
++}  // namespace thoron_adblock
+diff --git a/components/thoron_adblock/page_block_throttle.h b/components/thoron_adblock/page_block_throttle.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..eb0db093b0f0f835c5904f7ad3a129cae8db1d18
+--- /dev/null
++++ b/components/thoron_adblock/page_block_throttle.h
+@@ -0,0 +1,61 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_THORON_ADBLOCK_PAGE_BLOCK_THROTTLE_H_
++#define COMPONENTS_THORON_ADBLOCK_PAGE_BLOCK_THROTTLE_H_
++
++#include <string>
++
++#include "base/memory/scoped_refptr.h"
++#include "content/public/browser/navigation_throttle.h"
++
++class GURL;
++class HostContentSettingsMap;
++
++namespace content {
++class NavigationThrottleRegistry;
++}  // namespace content
++
++namespace thoron_adblock {
++
++// Strict blocking, as in uBlock Origin: a page whose own address the lists
++// block (a rule for whole pages, `$doc` or `$all`, or one that names its whole
++// host) is not opened. A page that says why, and how to open it anyway, is shown in its
++// place. Only for the main frame of a tab, and not on a site where ads are
++// allowed (the shield's power button is the way to open such a page).
++class PageBlockThrottle : public content::NavigationThrottle {
++ public:
++  // Adds the throttle when native ad blocking is on.
++  static void MaybeAdd(content::NavigationThrottleRegistry& registry,
++                       HostContentSettingsMap* settings);
++
++  PageBlockThrottle(content::NavigationThrottleRegistry& registry,
++                    scoped_refptr<HostContentSettingsMap> settings);
++  PageBlockThrottle(const PageBlockThrottle&) = delete;
++  PageBlockThrottle& operator=(const PageBlockThrottle&) = delete;
++  ~PageBlockThrottle() override;
++
++  // content::NavigationThrottle:
++  ThrottleCheckResult WillStartRequest() override;
++  ThrottleCheckResult WillRedirectRequest() override;
++  const char* GetNameForLogging() override;
++
++  // The page shown in place of a blocked one: plain HTML without scripts.
++  // `onward`, when valid, is where the blocked page would send the person on
++  // to (written in its own address); the page offers it as a link.
++  static std::string BlockedPage(const GURL& url, const GURL& onward);
++
++  // The first web address written in a parameter of `url`, as a redirector
++  // writes where it sends on to ("?url=https%3A%2F%2F..."). Invalid when there
++  // is none.
++  static GURL Onward(const GURL& url);
++
++ private:
++  ThrottleCheckResult Check();
++
++  scoped_refptr<HostContentSettingsMap> settings_;
++};
++
++}  // namespace thoron_adblock
++
++#endif  // COMPONENTS_THORON_ADBLOCK_PAGE_BLOCK_THROTTLE_H_
 diff --git a/components/thoron_adblock/permissions.rs b/components/thoron_adblock/permissions.rs
 new file mode 100644
 index 0000000000000000000000000000000000000000..00523ed2ab49618d8acc12bcd40a1fdc6390d444

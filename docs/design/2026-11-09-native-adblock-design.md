@@ -1293,6 +1293,34 @@ reload; the zapper removes one element and keeps the rest.
   on neither a window nor a link to the plain host opens; with ads allowed on the site the ad window opens.
   Seven engine tests cover the rules.
 
+### 12.24 Strict blocking: pages the lists block are not opened (P5.37, 2026-11-12)
+
+- **What was missing.** A page's own address was never blocked, so the lists that exist to keep people
+  away from harmful pages did little: uBlock Origin's badware list (2,542 `$doc` and 1,308 `$all` rules),
+  the 7,563 `$all` addresses of the malware list (URLhaus) and the phishing list of "More lists" only
+  blocked what such a page loaded, not the page.
+- **What happens now**, as in uBlock Origin: a page is not opened when a rule for whole pages matches it
+  (`$doc`, `$document`, `$all`), or a rule that names its whole host and nothing more (`||ads.example^`,
+  about 90,000 in the bundled lists), never by a rule for a part of an address (`/ads/*`). A page that says
+  why is shown in its place: the address, its site, and how to open it anyway (the shield's big button
+  allows the site). When the blocked
+  page is a redirector that names where it sends on to (`?url=https%3A...`) and that address is not
+  blocked itself, the page offers it as a link, as uBlock Origin does. A redirector a `$urlskip` rule goes
+  past is not stopped: the navigation goes straight on. Redirects are checked too.
+- **How.** adblock-rust already reads a page's own request the way uBlock Origin does: a rule for whole
+  pages, and a rule for a whole host (also with `$important`) match it, a rule for a part of an address or
+  for other sites only (`$third-party`) does not, and an exception for the host, `$badfilter` or an
+  exception for the page (`@@...$document`) keeps it open (engine test). What was missing was asking it.
+  A navigation throttle on the main frame of a tab (`page_block_throttle.cc`) asks before the request is
+  made, so the server is never reached; the page is Chromium's error page with Thoron's own text (plain
+  HTML, no scripts, every address escaped). Nothing happens on a site where ads are allowed. No new data:
+  the saved engine stays as it was.
+- **Checked** by `tools/qa/adblock_strict_check.py`: with blocking off every page opens; with it on, pages
+  on a host rule of EasyList, a `$doc` and an `$all` host of the badware list are not opened (the server is
+  never asked) and the page names the site, a plain page opens, a redirect to a blocked host ends on the
+  blocked page, a blocked redirector offers where it sends on to and the link opens it; with ads allowed on
+  the site its page opens. An engine test covers what blocks a page and what does not.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
