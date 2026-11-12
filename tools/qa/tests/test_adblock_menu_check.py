@@ -61,6 +61,11 @@ class ProblemsTests(unittest.TestCase):
         found = mc.picker_problems("other.test##.promo-card\n", "hidden")
         self.assertIn("no rule", found[0])
 
+    def test_blocked_ads_must_take_no_space(self):
+        self.assertEqual(mc.collapse_problems({"box": 0, "frame": 0}), [])
+        self.assertEqual(len(mc.collapse_problems({"box": 300, "frame": 0})), 1)
+        self.assertEqual(len(mc.collapse_problems({})), 2)
+
     def test_the_zapper_must_take_the_element_out(self):
         self.assertEqual(mc.zapper_problems({"zapped": True, "kept": True}), [])
         self.assertEqual(len(mc.zapper_problems({"zapped": False, "kept": True})), 1)

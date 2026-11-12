@@ -1671,10 +1671,10 @@ index 0000000000000000000000000000000000000000..bc172c09dcfab5376a6cb3a397be1df8
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_H_
 diff --git a/components/thoron_adblock/document_request_interceptor.cc b/components/thoron_adblock/document_request_interceptor.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..3c2970f33be2bd74093d8fd7ad71aed959c8f7db
+index 0000000000000000000000000000000000000000..fdca0643703db9af496a113698f93967fb2dc0c3
 --- /dev/null
 +++ b/components/thoron_adblock/document_request_interceptor.cc
-@@ -0,0 +1,174 @@
+@@ -0,0 +1,175 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1843,8 +1843,9 @@ index 0000000000000000000000000000000000000000..3c2970f33be2bd74093d8fd7ad71aed9
 +  Bind(std::move(receiver), std::move(client));
 +  if (stand_in.empty() || !ProxyingURLLoaderFactory::AnswerWithStandIn(
 +                              stand_in, request, *client_)) {
++    // a frame the lists block leaves no empty box in its page
 +    client_->OnComplete(
-+        network::URLLoaderCompletionStatus(net::ERR_BLOCKED_BY_CLIENT));
++        ProxyingURLLoaderFactory::BlockedStatus(request.destination));
 +  }
 +}
 +
@@ -8909,10 +8910,10 @@ index 0000000000000000000000000000000000000000..e8ba37d6d7127e3a48dab3fa94c3d34f
 +}
 diff --git a/components/thoron_adblock/proxying_url_loader_factory.cc b/components/thoron_adblock/proxying_url_loader_factory.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e092c311b0e82282f6c1d5b6003e057a20fa4b7b
+index 0000000000000000000000000000000000000000..2b073df5e5410d66f2cc134719b732d22bb661bd
 --- /dev/null
 +++ b/components/thoron_adblock/proxying_url_loader_factory.cc
-@@ -0,0 +1,278 @@
+@@ -0,0 +1,289 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -9028,6 +9029,18 @@ index 0000000000000000000000000000000000000000..e092c311b0e82282f6c1d5b6003e057a
 +}
 +
 +// static
++network::URLLoaderCompletionStatus ProxyingURLLoaderFactory::BlockedStatus(
++    network::mojom::RequestDestination destination) {
++  using D = network::mojom::RequestDestination;
++  network::URLLoaderCompletionStatus status(net::ERR_BLOCKED_BY_CLIENT);
++  status.should_collapse_initiator =
++      destination == D::kImage || destination == D::kIframe ||
++      destination == D::kFrame || destination == D::kFencedframe ||
++      destination == D::kObject || destination == D::kEmbed;
++  return status;
++}
++
++// static
 +bool ProxyingURLLoaderFactory::AdsAllowedOn(
 +    const HostContentSettingsMap* settings,
 +    const GURL& top_site) {
@@ -9136,8 +9149,7 @@ index 0000000000000000000000000000000000000000..e092c311b0e82282f6c1d5b6003e057a
 +    mojo::Remote<network::mojom::URLLoaderClient> remote(std::move(client));
 +    if (decision.stand_in.empty() ||
 +        !AnswerWithStandIn(decision.stand_in, request, *remote)) {
-+      remote->OnComplete(
-+          network::URLLoaderCompletionStatus(net::ERR_BLOCKED_BY_CLIENT));
++      remote->OnComplete(BlockedStatus(request.destination));
 +    }
 +    if (frame_) {
 +      BlockedCount::Record(frame_, request.url);
@@ -9193,10 +9205,10 @@ index 0000000000000000000000000000000000000000..e092c311b0e82282f6c1d5b6003e057a
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/proxying_url_loader_factory.h b/components/thoron_adblock/proxying_url_loader_factory.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..2d6ed942a8994a9132b89b326929abc569e0ddb7
+index 0000000000000000000000000000000000000000..9f8bcd7906233a6946c08a19c4e028201be32382
 --- /dev/null
 +++ b/components/thoron_adblock/proxying_url_loader_factory.h
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,112 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -9215,6 +9227,8 @@ index 0000000000000000000000000000000000000000..2d6ed942a8994a9132b89b326929abc5
 +#include "services/network/public/cpp/resource_request.h"
 +#include "services/network/public/cpp/url_loader_factory_builder.h"
 +#include "services/network/public/mojom/url_loader.mojom.h"
++#include "services/network/public/cpp/url_loader_completion_status.h"
++#include "services/network/public/mojom/fetch_api.mojom.h"
 +#include "services/network/public/mojom/url_loader_factory.mojom.h"
 +
 +class GURL;
@@ -9254,6 +9268,13 @@ index 0000000000000000000000000000000000000000..2d6ed942a8994a9132b89b326929abc5
 +                         content::RenderFrameHost* frame);
 +
 +  // True when the person allowed ads on `top_site`, or on every site.
++  // How a blocked request ends: with ERR_BLOCKED_BY_CLIENT, and for an image,
++  // a frame or an embedded object also with the flag that collapses the
++  // element that asked, so the page shows no empty box where the ad was (as
++  // uBlock Origin hides the placeholders of blocked elements).
++  static network::URLLoaderCompletionStatus BlockedStatus(
++      network::mojom::RequestDestination destination);
++
 +  static bool AdsAllowedOn(const HostContentSettingsMap* settings,
 +                           const GURL& top_site);
 +
@@ -9637,10 +9658,10 @@ index 0000000000000000000000000000000000000000..93d4b7aef64a8427c748e773c0b2a3d0
 +}
 diff --git a/components/thoron_adblock/redirect_watcher.cc b/components/thoron_adblock/redirect_watcher.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..392fd913ccdf4c92d621382fca94c0464039dd6a
+index 0000000000000000000000000000000000000000..c3d0e76845b900b5cf9c87b7bbdb5712a61de77b
 --- /dev/null
 +++ b/components/thoron_adblock/redirect_watcher.cc
-@@ -0,0 +1,275 @@
+@@ -0,0 +1,276 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -9654,6 +9675,7 @@ index 0000000000000000000000000000000000000000..392fd913ccdf4c92d621382fca94c046
 +#include "base/task/sequenced_task_runner.h"
 +#include "base/task/thread_pool.h"
 +#include "components/thoron_adblock/blocked_count.h"
++#include "components/thoron_adblock/proxying_url_loader_factory.h"
 +#include "content/public/browser/browser_task_traits.h"
 +#include "content/public/browser/browser_thread.h"
 +#include "net/base/net_errors.h"
@@ -9873,7 +9895,7 @@ index 0000000000000000000000000000000000000000..392fd913ccdf4c92d621382fca94c046
 +void RedirectWatcher::EndBlocked() {
 +  if (client_.is_bound()) {
 +    client_->OnComplete(
-+        network::URLLoaderCompletionStatus(net::ERR_BLOCKED_BY_CLIENT));
++        ProxyingURLLoaderFactory::BlockedStatus(context_.destination));
 +  }
 +  // Nothing more may come from the network or go to it: both sides are
 +  // closed.
@@ -10497,10 +10519,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..a29a7dd551a89699e4dd6c41d07cbe8399870d13
+index 0000000000000000000000000000000000000000..34eaf7fe40f1d90a71c42cdb4f1fe7d0c5f2babf
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,182 @@
+@@ -0,0 +1,197 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -10576,6 +10598,13 @@ index 0000000000000000000000000000000000000000..a29a7dd551a89699e4dd6c41d07cbe83
 +              border: 1px solid var(--line); }
 +  nav.bar a:hover, nav.bar a:focus-visible { border-color: var(--accent); }
 +  #total { color: var(--soft); }
++  #catalog details { border-top: 1px solid var(--line); padding: 8px 0; margin: 0; }
++  #catalog details:first-child { border-top: 0; }
++  #catalog summary { cursor: pointer; font-weight: 500; }
++  #catalog summary .on { color: var(--soft); font-weight: 400; }
++  #catalog label { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0 6px 4px; }
++  #catalog label input { margin-top: 3px; accent-color: var(--accent); }
++  #catalog .url { display: block; font-size: 12px; color: var(--soft); overflow-wrap: anywhere; }
 +  .site-row { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
 +  .site-row:first-child { border-top: 0; }
 +  .site-row .name { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; }
@@ -10595,6 +10624,7 @@ index 0000000000000000000000000000000000000000..a29a7dd551a89699e4dd6c41d07cbe83
 +  <h1>Ad blocking</h1>
 +  <nav class="bar" aria-label="Sections">
 +    <a href="#lists-section">Filter lists</a>
++    <a href="#more-lists">More lists</a>
 +    <a href="#mine">My filters</a>
 +    <a href="#sites">Sites</a>
 +    <a href="#logger">Logger</a>
@@ -10626,6 +10656,13 @@ index 0000000000000000000000000000000000000000..a29a7dd551a89699e4dd6c41d07cbe83
 +      <summary>What the last update did</summary>
 +      <pre id="result"></pre>
 +    </details>
++  </section>
++
++  <section id="more-lists">
++    <h2>More lists</h2>
++    <p>The lists uBlock Origin offers besides its defaults: cookie notices and other annoyances, more privacy, and
++      lists for regions and languages. A list you switch on is downloaded from its address and is in use at once.</p>
++    <div id="catalog"></div>
 +  </section>
 +
 +  <section>
@@ -10685,10 +10722,10 @@ index 0000000000000000000000000000000000000000..a29a7dd551a89699e4dd6c41d07cbe83
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..b9760bdb352d489cab653584c78551da3339facb
+index 0000000000000000000000000000000000000000..103f6445d96ab93a6286277b34601ce0c990f9d3
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,384 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -10726,10 +10763,127 @@ index 0000000000000000000000000000000000000000..b9760bdb352d489cab653584c78551da
 +  return count === 1 ? '1 rule' : `${count.toLocaleString()} rules`;
 +}
 +
++// uBlock Origin's optional lists (its assets.json), in its groups. They are added like any list a person adds.
++const CATALOG = [
++  {"group": "uBlock Origin", "title": "uBlock filters - Experimental", "url": "https://ublockorigin.github.io/uAssets/filters/experimental.txt"},
++  {"group": "Ads", "title": "AdGuard - Ads", "url": "https://filters.adtidy.org/extension/ublock/filters/2_without_easylist.txt"},
++  {"group": "Ads", "title": "AdGuard - Mobile Ads", "url": "https://filters.adtidy.org/extension/ublock/filters/11.txt"},
++  {"group": "Privacy", "title": "AdGuard/uBO - URL Tracking Protection", "url": "https://ublockorigin.github.io/uAssets/filters/privacy-removeparam.txt"},
++  {"group": "Privacy", "title": "Block Outsider Intrusion into LAN", "url": "https://ublockorigin.github.io/uAssets/filters/lan-block.txt"},
++  {"group": "Malware and phishing", "title": "Phishing URL Blocklist", "url": "https://malware-filter.gitlab.io/phishing-filter/phishing-filter.txt"},
++  {"group": "Annoyances and cookie notices", "title": "AdGuard - Cookie Notices", "url": "https://filters.adtidy.org/extension/ublock/filters/18.txt"},
++  {"group": "Annoyances and cookie notices", "title": "AdGuard - Mobile App Banners", "url": "https://filters.adtidy.org/extension/ublock/filters/20.txt"},
++  {"group": "Annoyances and cookie notices", "title": "AdGuard - Other Annoyances", "url": "https://filters.adtidy.org/extension/ublock/filters/21.txt"},
++  {"group": "Annoyances and cookie notices", "title": "AdGuard - Popup Overlays", "url": "https://filters.adtidy.org/extension/ublock/filters/19.txt"},
++  {"group": "Annoyances and cookie notices", "title": "AdGuard - Social Widgets", "url": "https://filters.adtidy.org/extension/ublock/filters/4.txt"},
++  {"group": "Annoyances and cookie notices", "title": "AdGuard - Widgets", "url": "https://filters.adtidy.org/extension/ublock/filters/22.txt"},
++  {"group": "Annoyances and cookie notices", "title": "EasyList - AI Widgets", "url": "https://ublockorigin.github.io/uAssets/thirdparties/easylist-ai.txt"},
++  {"group": "Annoyances and cookie notices", "title": "EasyList - Chat Widgets", "url": "https://ublockorigin.github.io/uAssets/thirdparties/easylist-chat.txt"},
++  {"group": "Annoyances and cookie notices", "title": "EasyList - Cookie Notices", "url": "https://ublockorigin.github.io/uAssets/thirdparties/easylist-cookies.txt"},
++  {"group": "Annoyances and cookie notices", "title": "EasyList - Newsletter Notices", "url": "https://ublockorigin.github.io/uAssets/thirdparties/easylist-newsletters.txt"},
++  {"group": "Annoyances and cookie notices", "title": "EasyList - Notifications", "url": "https://ublockorigin.github.io/uAssets/thirdparties/easylist-notifications.txt"},
++  {"group": "Annoyances and cookie notices", "title": "EasyList - Other Annoyances", "url": "https://ublockorigin.github.io/uAssets/thirdparties/easylist-annoyances.txt"},
++  {"group": "Annoyances and cookie notices", "title": "EasyList - Social Widgets", "url": "https://ublockorigin.github.io/uAssets/thirdparties/easylist-social.txt"},
++  {"group": "Annoyances and cookie notices", "title": "Fanboy - Anti-Facebook", "url": "https://secure.fanboy.co.nz/fanboy-antifacebook.txt"},
++  {"group": "Annoyances and cookie notices", "title": "uBlock filters - Annoyances", "url": "https://ublockorigin.github.io/uAssets/filters/annoyances.txt"},
++  {"group": "Annoyances and cookie notices", "title": "uBlock filters - Cookie Notices", "url": "https://ublockorigin.github.io/uAssets/filters/annoyances-cookies.txt"},
++  {"group": "Annoyances and cookie notices", "title": "uBlock filters - Cookie Notices", "url": "https://ublockorigin.github.io/uAssets/filters/annoyances-cookies.txt"},
++  {"group": "Multipurpose", "title": "Dan Pollock's hosts file", "url": "https://someonewhocares.org/hosts/hosts"},
++  {"group": "Regions and languages", "title": "🇦🇱al 🇽🇰xk: Adblock List for Albania", "url": "https://raw.githubusercontent.com/AnXh3L0/blocklist/master/albanian-easylist-addition/Albania.txt"},
++  {"group": "Regions and languages", "title": "🇧🇬bg: Bulgarian Adblock list", "url": "https://stanev.org/abp/adblock_bg.txt"},
++  {"group": "Regions and languages", "title": "🇨🇳cn 🇹🇼tw: AdGuard Chinese (中文)", "url": "https://filters.adtidy.org/extension/ublock/filters/224.txt"},
++  {"group": "Regions and languages", "title": "🇨🇿cz 🇸🇰sk: EasyList Czech and Slovak", "url": "https://raw.githubusercontent.com/tomasko126/easylistczechandslovak/master/filters.txt"},
++  {"group": "Regions and languages", "title": "🇩🇪de 🇨🇭ch 🇦🇹at: EasyList Germany", "url": "https://easylist.to/easylistgermany/easylistgermany.txt"},
++  {"group": "Regions and languages", "title": "🇪🇪ee: Eesti saitidele kohandatud filter", "url": "https://ubo-et.lepik.io/list.txt"},
++  {"group": "Regions and languages", "title": "🇪🇬eg 🇸🇦sa 🇲🇦ma 🇩🇿dz: Liste AR", "url": "https://easylist-downloads.adblockplus.org/Liste_AR.txt"},
++  {"group": "Regions and languages", "title": "🇪🇸es 🇦🇷ar 🇧🇷br 🇵🇹pt: AdGuard Spanish/Portuguese", "url": "https://filters.adtidy.org/extension/ublock/filters/9.txt"},
++  {"group": "Regions and languages", "title": "🇪🇸es 🇦🇷ar 🇲🇽mx 🇨🇴co: EasyList Spanish", "url": "https://easylist-downloads.adblockplus.org/easylistspanish.txt"},
++  {"group": "Regions and languages", "title": "🇫🇮fi: Adblock List for Finland", "url": "https://raw.githubusercontent.com/finnish-easylist-addition/finnish-easylist-addition/gh-pages/Finland_adb.txt"},
++  {"group": "Regions and languages", "title": "🇫🇷fr 🇧🇪be 🇨🇦ca: AdGuard Français", "url": "https://filters.adtidy.org/extension/ublock/filters/16.txt"},
++  {"group": "Regions and languages", "title": "🇬🇷gr 🇨🇾cy: Greek AdBlock Filter", "url": "https://www.void.gr/kargig/void-gr-filters.txt"},
++  {"group": "Regions and languages", "title": "🇭🇷hr 🇷🇸rs: Dandelion Sprout's Serbo-Croatian filters", "url": "https://raw.githubusercontent.com/DandelionSprout/adfilt/master/SerboCroatianList.txt"},
++  {"group": "Regions and languages", "title": "🇭🇺hu: hufilter", "url": "https://cdn.jsdelivr.net/gh/hufilter/hufilter@gh-pages/hufilter-ublock.txt"},
++  {"group": "Regions and languages", "title": "🇮🇩id 🇲🇾my: ABPindo", "url": "https://raw.githubusercontent.com/ABPindo/indonesianadblockrules/master/subscriptions/abpindo.txt"},
++  {"group": "Regions and languages", "title": "🇮🇱il: EasyList Hebrew", "url": "https://raw.githubusercontent.com/easylist/EasyListHebrew/master/EasyListHebrew.txt"},
++  {"group": "Regions and languages", "title": "🇮🇳in 🇱🇰lk 🇳🇵np: IndianList", "url": "https://easylist-downloads.adblockplus.org/indianlist.txt"},
++  {"group": "Regions and languages", "title": "🇮🇷ir: PersianBlocker", "url": "https://raw.githubusercontent.com/MasterKia/PersianBlocker/main/PersianBlocker.txt"},
++  {"group": "Regions and languages", "title": "🇮🇸is: Icelandic ABP List", "url": "https://raw.githubusercontent.com/brave/adblock-lists/master/custom/is.txt"},
++  {"group": "Regions and languages", "title": "🇮🇹it: EasyList Italy", "url": "https://easylist-downloads.adblockplus.org/easylistitaly.txt"},
++  {"group": "Regions and languages", "title": "🇯🇵jp: AdGuard Japanese", "url": "https://filters.adtidy.org/extension/ublock/filters/7.txt"},
++  {"group": "Regions and languages", "title": "🇰🇷kr: 한국어 (Korean)", "url": "https://cdn.jsdelivr.net/npm/@filteringdev/filterslists-ko@latest/dist/filterslist-uBlockOrigin-classic.txt"},
++  {"group": "Regions and languages", "title": "🇱🇹lt: EasyList Lithuania", "url": "https://raw.githubusercontent.com/EasyList-Lithuania/easylist_lithuania/master/easylistlithuania.txt"},
++  {"group": "Regions and languages", "title": "🇱🇻lv: Latvian List", "url": "https://raw.githubusercontent.com/Latvian-List/adblock-latvian/master/lists/latvian-list.txt"},
++  {"group": "Regions and languages", "title": "🇲🇰mk: Macedonian adBlock Filters", "url": "https://raw.githubusercontent.com/DeepSpaceHarbor/Macedonian-adBlock-Filters/master/Filters"},
++  {"group": "Regions and languages", "title": "🇳🇱nl 🇧🇪be: AdGuard Dutch", "url": "https://filters.adtidy.org/extension/ublock/filters/8.txt"},
++  {"group": "Regions and languages", "title": "🇳🇴no 🇩🇰dk 🇮🇸is: Dandelion Sprouts nordiske filtre", "url": "https://raw.githubusercontent.com/DandelionSprout/adfilt/master/NorwegianList.txt"},
++  {"group": "Regions and languages", "title": "🇵🇱pl: CERT.PL's Warning List", "url": "https://hole.cert.pl/domains/v2/domains_ublock.txt"},
++  {"group": "Regions and languages", "title": "🇵🇱pl: Oficjalne Polskie Filtry do uBlocka Origin", "url": "https://raw.githubusercontent.com/MajkiIT/polish-ads-filter/master/polish-adblock-filters/adblock.txt"},
++  {"group": "Regions and languages", "title": "🇷🇴ro 🇲🇩md: Romanian Ad (ROad) Block List Light", "url": "https://raw.githubusercontent.com/tcptomato/ROad-Block/master/road-block-filters-light.txt"},
++  {"group": "Regions and languages", "title": "🇷🇺ru 🇺🇦ua 🇺🇿uz 🇰🇿kz: RU AdList", "url": "https://raw.githubusercontent.com/easylist/ruadlist/master/RuAdList-uBO.txt"},
++  {"group": "Regions and languages", "title": "🇷🇺ru 🇺🇦ua 🇺🇿uz 🇰🇿kz: RU AdList: Counters", "url": "https://raw.githubusercontent.com/easylist/ruadlist/master/cntblock.txt"},
++  {"group": "Regions and languages", "title": "🇸🇪se: Frellwit's Swedish Filter", "url": "https://raw.githubusercontent.com/lassekongo83/Frellwits-filter-lists/master/Frellwits-Swedish-Filter.txt"},
++  {"group": "Regions and languages", "title": "🇸🇮si: Slovenian List", "url": "https://raw.githubusercontent.com/betterwebleon/slovenian-list/master/filters.txt"},
++  {"group": "Regions and languages", "title": "🇹🇭th: EasyList Thailand", "url": "https://raw.githubusercontent.com/easylist-thailand/easylist-thailand/master/subscription/easylist-thailand.txt"},
++  {"group": "Regions and languages", "title": "🇹🇷tr: AdGuard Turkish", "url": "https://filters.adtidy.org/extension/ublock/filters/13.txt"},
++  {"group": "Regions and languages", "title": "🇺🇦ua: AdGuard Ukrainian", "url": "https://filters.adtidy.org/extension/ublock/filters/23.txt"},
++  {"group": "Regions and languages", "title": "🇻🇳vn: ABPVN List", "url": "https://raw.githubusercontent.com/abpvn/abpvn/master/filter/abpvn_ublock.txt"}
++];
++const CATALOG_URLS = new Set(CATALOG.map((entry) => entry.url));
++
++function showCatalog(lists) {
++  const added = new Map(lists.filter((l) => !l.builtin).map((l) => [l.url, l]));
++  const box = $('catalog');
++  const open = new Set(Array.from(box.querySelectorAll('details[open]')).map((d) => d.dataset.group));
++  box.replaceChildren();
++  const groups = [];
++  for (const entry of CATALOG) {
++    let group = groups.find((g) => g.name === entry.group);
++    if (!group) {
++      group = {name: entry.group, entries: []};
++      groups.push(group);
++    }
++    group.entries.push(entry);
++  }
++  for (const group of groups) {
++    const details = make('details');
++    details.dataset.group = group.name;
++    const inUse = group.entries.filter((e) => added.has(e.url)).length;
++    const summary = make('summary', '', group.name);
++    if (inUse) {
++      summary.append(make('span', 'on', `  ${inUse} in use`));
++    }
++    details.append(summary);
++    details.open = open.has(group.name) || (inUse > 0 && group.name !== 'Regions and languages');
++    for (const entry of group.entries) {
++      const label = make('label');
++      const check = make('input');
++      check.type = 'checkbox';
++      check.checked = added.has(entry.url);
++      check.addEventListener('change', () => {
++        const list = added.get(entry.url);
++        if (check.checked) {
++          change('addList', [entry.url], `${entry.title} was added and is in use.`);
++        } else if (list) {
++          change('removeList', [list.id], `${entry.title} was removed.`);
++        }
++      });
++      const about = make('span');
++      about.append(make('span', 'title', entry.title), make('span', 'url', entry.url));
++      label.append(check, about);
++      details.append(label);
++    }
++    box.append(details);
++  }
++}
++
 +function showLists(lists) {
++  showCatalog(lists);
 +  const box = $('lists');
 +  box.replaceChildren();
 +  for (const list of lists) {
++    if (!list.builtin && CATALOG_URLS.has(list.url)) {
++      continue;  // under "More lists"
++    }
 +    const row = make('div', 'list');
 +    row.setAttribute('role', 'listitem');
 +    row.dataset.id = list.id;
