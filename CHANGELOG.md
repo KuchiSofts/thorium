@@ -32,6 +32,10 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** blocked images and frames leave no empty boxes on the page.
 - **Ad blocking:** pop-up and pop-under ads are blocked: the lists' 3,112 pop-up rules now work.
 - **Ad blocking:** the menu's "no pop-ups" switch stops every window a site opens, as in uBlock Origin.
+- **Ad blocking:** `chrome://adblock` has uBlock Origin's settings: the badge, privacy options (pre-fetching,
+  hyperlink auditing, WebRTC, CSP reports), default behavior for every site, ignoring generic hide rules.
+- **Ad blocking:** the menu shows the share of the page's requests blocked and the domains connected, as
+  uBlock Origin's.
 - **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.
@@ -98,6 +102,7 @@ Explanations live in the design docs under `docs/design/`.
 
 ### Fixed
 
+- **Tools:** the profile rehearsal also sees a profile written a moment ago when the drive's clock runs ahead.
 - **Ad blocking:** ads in frames are blocked; a frame's own document was loaded without being checked.
 - **Ad blocking:** rules for one request method (`method=post`) now apply; every request was checked as a GET.
 - **Build:** two small patches fix the Chromium 158 build (FFmpeg duplicate sources, a Rust compiler flag).

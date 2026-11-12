@@ -61,6 +61,7 @@ OFFLINE = ("--no-first-run", "--no-default-browser-check", "--disable-sync", "--
 START_TIMEOUT = 120    # seconds until the build must answer on its DevTools port
 CLOSE_TIMEOUT = 180    # seconds a build with a large profile may take to close
 QUIET_SECONDS = 15     # a profile written less than this ago may belong to a browser that is still closing
+CLOCK_SLACK = 5        # a file system's clock may run a little ahead of this one: not yet "in the future"
 CLOUD_NAMES = ("google drive", "googledrive", "my drive", "onedrive", "dropbox", "icloud")
 TABS_NOT_CHECKED = "tabs and tab groups were not checked: a browser without a window does not restore them"
 
@@ -99,8 +100,8 @@ def _measure(folder: Path) -> tuple[int, float, str]:
             except OSError:
                 continue                    # the copy will say which file cannot be read
             total += info.st_size
-            if newest < info.st_mtime <= now:
-                newest, where = info.st_mtime, name
+            if newest < info.st_mtime <= now + CLOCK_SLACK:
+                newest, where = min(info.st_mtime, now), name
     return total, newest, where
 
 

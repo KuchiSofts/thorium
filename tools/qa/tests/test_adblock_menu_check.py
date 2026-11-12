@@ -34,7 +34,8 @@ class SetupTests(unittest.TestCase):
 
 
 class ProblemsTests(unittest.TestCase):
-    GOOD_MENU = {"site": mc.PAGE_HOST, "power": "true", "pageCount": 1, "sites": [["ads.example", 1]]}
+    GOOD_MENU = {"site": mc.PAGE_HOST, "power": "true", "pageCount": 1, "sites": [["ads.example", 1]],
+                 "share": "(25%)", "domains": "1 of 2"}
 
     def test_the_menu_must_name_the_site_and_count_the_ad(self):
         self.assertEqual(mc.menu_problems(self.GOOD_MENU, "ads.example"), [])
@@ -42,6 +43,8 @@ class ProblemsTests(unittest.TestCase):
         self.assertEqual(len(found), 2)
         found = mc.menu_problems(dict(self.GOOD_MENU, site="other.test"), "ads.example")
         self.assertIn("names", found[0])
+        found = mc.menu_problems(dict(self.GOOD_MENU, share="", domains="2 of 2"), "ads.example")
+        self.assertEqual(len(found), 2)
 
     def test_each_switch_has_its_effect_and_only_while_on(self):
         on = {"fonts": {"font": False}, "media": {"sound": "error"}, "cosmetic": {"generic": "shown"},

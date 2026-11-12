@@ -1321,6 +1321,42 @@ reload; the zapper removes one element and keeps the rest.
   blocked page, a blocked redirector offers where it sends on to and the link opens it; with ads allowed on
   the site its page opens. An engine test covers what blocks a page and what does not.
 
+### 12.25 Settings, as uBlock Origin's (P5.38, 2026-11-12)
+
+- **What.** `chrome://adblock` has a Settings section with the options of uBlock Origin's settings page:
+  - *Appearance:* show the number of blocked requests on the shield (on by default).
+  - *Privacy:* disable pre-fetching, disable hyperlink auditing, prevent WebRTC from leaking local IP
+    addresses, block CSP reports.
+  - *Default behavior:* disable cosmetic filtering, block media elements larger than 50 KB, block remote
+    fonts, disable JavaScript, for every site.
+  - *Filtering:* ignore generic cosmetic filters.
+- **How.** The blocker's own options are kept in `<store>/options.json` (`badge`, `block-csp-reports`,
+  `ignore-generic`, `default-media`, `default-cosmetic`, `default-fonts`; only known names with true or
+  false are read). The pre-fetching, hyperlink-auditing and WebRTC options are the browser's own settings
+  (`net.network_prediction_options`, `enable_a_ping`, `webrtc.ip_handling_policy`), which uBlock Origin
+  also changes; "disable JavaScript" is the browser's default for JavaScript. They show the same in
+  Chromium's settings, and the page reads back what is in force. A CSP report is a request of the kind
+  "report"; with the option it is blocked like any blocked request.
+- **Defaults and sites.** As in uBlock Origin, a default is the menu's switch for every site, and the
+  menu changes it for one site: a site where the default is on can be kept out (stored as `-fonts` and so
+  on, listed under Sites as "remote fonts allowed"). A switch is stored for a site only when it differs
+  from what the site would have without it.
+- **Checked** by `tools/qa/adblock_options_check.py`: the defaults read as uBlock Origin's; with every
+  setting on, the CSP report is not sent, the element of a generic rule is shown, the font is not asked
+  for; the menu's switch keeps one site out of the font default and chrome://adblock lists it; "disable
+  JavaScript" stops the page's script; off again, every setting reads off.
+
+### 12.26 The menu's counts, as uBlock Origin's (P5.39, 2026-11-12)
+
+- The menu showed what was blocked on the page and how many sites. It now shows what uBlock Origin's does:
+  blocked on this page with the share of the page's requests that was (12 (20%)), and the domains
+  connected out of all the page asked (8 of 11: three were only ever blocked). A domain is the name a site
+  registered (`example.co.uk`), or the host for an IP address.
+- Every request the blocker lets through is counted with its page as well (`BlockedCount::Allowed`), in
+  memory only, like the blocked ones: at most 500 domains a page, nothing stored or sent.
+- Checked by `tools/qa/adblock_menu_check.py`: the share reads as a percentage, and the domains connected
+  are at least one and fewer than all (the ad's domain is never reached).
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
