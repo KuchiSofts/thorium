@@ -77,7 +77,7 @@ changed in each version is in the [changelog](CHANGELOG.md), one line per change
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `███████░░░░░░░░░░░░░` 52 of 158 tasks done (33%) · roadmap updated 2026-11-12
+**Overall:** `███████░░░░░░░░░░░░░` 52 of 159 tasks done (33%) · roadmap updated 2026-11-12
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -87,7 +87,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/21 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `████████░░░░░░░░░░░░` | 11/29 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `███████░░░░░░░░░░░░░` | 11/30 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `██████████░░░░░░░░░░` | 8/16 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `████████░░░░░░░░░░░░` | 4/10 | 🔄 In progress |
@@ -239,6 +239,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **P5.27** Native ad blocking, the requests that do not pass the request proxy: the main script of a worker and of a service worker, prefetches, preloads announced by early hints, downloads (found while building P5.25)
 - [ ] **P5.28** Native ad blocking, preloads announced by early hints: Chromium fetches them without asking the browser layer or extensions, so a server can make the browser ask a tracker for a script before its page arrives (the script does not run; uBlock Origin cannot see these either)
 - [x] **P5.29** Native ad blocking, WebSocket connections: a WebSocket is not a request for a file, so the request proxy never saw it; uBlock Origin blocks such connections
+- [ ] **P5.30** Native ad blocking, a page in Settings that a person can work with: one switch for the blocker; the filter lists with a checkbox each; add a list by its address and remove it again; "My filters", the person's own rules in the syntax of the lists; the sites where blocking is off
 
 **Security (S)**
 
