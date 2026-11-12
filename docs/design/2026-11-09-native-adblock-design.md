@@ -1444,6 +1444,36 @@ reload; the zapper removes one element and keeps the rest.
   lists; with the setting that blocks third-party scripts on every site turned on, `<page> <other host> *
   allow` still lets that script through.
 
+### 12.32 The menu's grid of rules: uBlock Origin's dynamic filtering pane (P5.45, 2026-11-13)
+
+- **What.** "Rules for this page" in the toolbar menu, as uBlock Origin's popup has it for advanced users:
+  a row for every request, images, third-party requests, inline scripts, first-party scripts, third-party
+  scripts and third-party frames, then a row for each domain the page asked (the page's own first), with
+  the hosts under it it asked, and how many requests each got and how many were blocked. Each row has a
+  cell for every site and one for this site, each with allow, noop and block. A rule set in that cell
+  is shown strong; one that comes from a broader rule (a broader source or a host above) light, as
+  uBlock Origin shows it. A click on the rule that is set takes it out.
+- **For now, until saved.** As in uBlock Origin, what the grid changes is in force at once (after a
+  reload) but only for now: the menu says "not saved". **Save** (uBlock Origin's padlock) keeps the cells
+  of this page in "My rules": every type for `* *` and `<site> *`, and `* <host>` and `<site> <host>` for
+  each host the page asked, the cells uBlock Origin copies. **Revert** (the eraser) sets them back to the
+  saved ones. Rules of other sites and hosts the page did not ask stay as they are. Saving "My rules" on
+  `chrome://adblock` replaces what the grid changed for now. **Reload** reloads the page.
+- **How.** `dynamic.rs` gains `cell_state` (the cell and whether it is set there), `with_cell` (one line
+  of the text set or taken out, comments and every other line kept) and `copy_cells`; the browser keeps
+  the saved text and the text in force side by side. `BlockedCount` counts every host a page asked. The
+  menu takes only a type it knows or a host the page asked, so a message cannot write any other rule; the
+  grid is at most 200 rows. Nothing is changed before the saved rules are read at start, so Save cannot
+  write over them.
+- **Fixed on the way.** The blocker's folder in the profile is made when a setting is written: on a new
+  profile nothing had made it yet, so switches, settings, the counter and My rules set before the first
+  list update were not kept.
+- **Checked** by `tools/qa/adblock_grid_check.py`: the rows; "Block" for another site's host on this site
+  stops its script after a reload but is not on disk; Save puts it on disk; "Allow" for the ad host lets
+  the ad through; Revert takes that back and keeps the saved block; a block for every site shows light
+  in the cell for this site; with the saved rule taken out and saved, the script is asked for again.
+  Three new engine tests (116 in all).
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

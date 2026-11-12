@@ -430,10 +430,10 @@ index 0000000000000000000000000000000000000000..f5da75eee11cccbbb2094285afb8a11e
 +fs.writeFileSync(outArg, JSON.stringify(resources) + '\n');
 diff --git a/components/thoron_adblock/blocked_count.cc b/components/thoron_adblock/blocked_count.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..b2f5c10cdc9955b5bf671627a781a4740bfefd80
+index 0000000000000000000000000000000000000000..2e49eb61fff37893ba5abfdd998b04f7a5c45d78
 --- /dev/null
 +++ b/components/thoron_adblock/blocked_count.cc
-@@ -0,0 +1,184 @@
+@@ -0,0 +1,219 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -515,6 +515,7 @@ index 0000000000000000000000000000000000000000..b2f5c10cdc9955b5bf671627a781a474
 +      count->recent_.pop_front();
 +    }
 +  }
++  count->Asked(url, /*blocked=*/false);
 +  const std::string domain = DomainOf(url);
 +  if (count->domains_.size() < kMaxHosts) {
 +    count->domains_.insert(domain);
@@ -539,6 +540,39 @@ index 0000000000000000000000000000000000000000..b2f5c10cdc9955b5bf671627a781a474
 +          static_cast<int>(count->connected_.size())};
 +}
 +
++void BlockedCount::Asked(const GURL& url, bool blocked) {
++  if (!url.has_host()) {
++    return;
++  }
++  std::string host(url.host());
++  auto it = asked_.find(host);
++  if (it == asked_.end()) {
++    if (asked_.size() >= kMaxHosts) {
++      return;
++    }
++    it = asked_.emplace(std::move(host), std::make_pair(0, 0)).first;
++  }
++  ++it->second.first;
++  if (blocked) {
++    ++it->second.second;
++  }
++}
++
++// static
++std::vector<BlockedCount::HostRequests> BlockedCount::AskedHosts(
++    content::Page& page) {
++  BlockedCount* count = GetForPage(page);
++  std::vector<HostRequests> out;
++  if (!count) {
++    return out;
++  }
++  out.reserve(count->asked_.size());
++  for (const auto& [host, n] : count->asked_) {
++    out.push_back({host, n.first, n.second});
++  }
++  return out;
++}
++
 +// static
 +void BlockedCount::Record(content::GlobalRenderFrameHostId frame,
 +                          const GURL& url) {
@@ -550,6 +584,7 @@ index 0000000000000000000000000000000000000000..b2f5c10cdc9955b5bf671627a781a474
 +  BlockedCount* count = GetOrCreateForPage(page);
 +  ++count->count_;
 +  ++count->requests_;
++  count->Asked(url, /*blocked=*/true);
 +  if (url.has_host() && count->domains_.size() < kMaxHosts) {
 +    count->domains_.insert(DomainOf(url));
 +  }
@@ -620,10 +655,10 @@ index 0000000000000000000000000000000000000000..b2f5c10cdc9955b5bf671627a781a474
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/blocked_count.h b/components/thoron_adblock/blocked_count.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..426b44438c123c215c66a3fb31e0ec1e6fe62087
+index 0000000000000000000000000000000000000000..bd048d27aa3048effa0a940ca2fabaa2b1b2442b
 --- /dev/null
 +++ b/components/thoron_adblock/blocked_count.h
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,106 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -679,6 +714,14 @@ index 0000000000000000000000000000000000000000..426b44438c123c215c66a3fb31e0ec1e
 +    int connected = 0;
 +  };
 +  static Summary Totals(content::Page& page);
++  // Every host the blocker saw `page` ask (the menu's grid of rules), with how
++  // many requests went there and how many of them were blocked; by name.
++  struct HostRequests {
++    std::string host;
++    int requests = 0;
++    int blocked = 0;
++  };
++  static std::vector<HostRequests> AskedHosts(content::Page& page);
 +  // The last requests blocked on `page`, the newest first (the logger).
 +  struct Entry {
 +    base::Time time;
@@ -711,6 +754,9 @@ index 0000000000000000000000000000000000000000..426b44438c123c215c66a3fb31e0ec1e
 +  std::set<std::string> connected_;
 +  // At most kMaxHosts; a page that asks more hosts than that is counted only.
 +  std::map<std::string, int> hosts_;
++  // Host -> (requests, blocked), at most kMaxHosts hosts.
++  std::map<std::string, std::pair<int, int>> asked_;
++  void Asked(const GURL& url, bool blocked);
 +  // At most kMaxRecent, the oldest first.
 +  std::deque<Entry> recent_;
 +  PAGE_USER_DATA_KEY_DECL();
@@ -2094,10 +2140,10 @@ index 0000000000000000000000000000000000000000..43051154413e4f2354bc088827e16717
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_INTERCEPTOR_H_
 diff --git a/components/thoron_adblock/dynamic.rs b/components/thoron_adblock/dynamic.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..fa236b68a0b05e87e8e086fb5162a229aa8ae0e6
+index 0000000000000000000000000000000000000000..80ad9efac012f9ea6daa2ef70ce7f24e87d47ac1
 --- /dev/null
 +++ b/components/thoron_adblock/dynamic.rs
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,444 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2290,6 +2336,102 @@ index 0000000000000000000000000000000000000000..fa236b68a0b05e87e8e086fb5162a229
 +    pub fn blocks_inline_scripts(&self, source: &str) -> bool {
 +        !self.cells.is_empty() && self.by_source(if source.is_empty() { "*" } else { source }, "*", 6) == Action::Block
 +    }
++
++    /// What the menu's grid shows in one cell, as uBlock Origin's popup works it out: for a named
++    /// destination (`kind` "*") the first rule of `source` or a broader source for `destination` or
++    /// a host above it; for `destination` "*" the rule of the type `kind`. The action, and whether
++    /// the rule is set in exactly this cell (shown strong) or comes from a broader one (light).
++    pub fn cell_state(&self, source: &str, destination: &str, kind: &str) -> (Action, bool) {
++        let Some(kind) = slot(kind) else { return (Action::None, false) };
++        if self.cells.is_empty() || (destination != "*" && kind != 0) {
++            return (Action::None, false);
++        }
++        let mut d = Some(destination);
++        while let Some(host) = d {
++            let mut z = Some(source);
++            while let Some(s) = z {
++                let found = self.cell(s, host, kind);
++                if found != Action::None {
++                    return (found, s == source && host == destination);
++                }
++                z = broader(s);
++            }
++            // a type rule is only asked for any destination
++            if destination == "*" {
++                break;
++            }
++            d = broader(host).filter(|h| *h != "*");
++        }
++        (Action::None, false)
++    }
++}
++
++/// One rule as "My rules" writes it, or `None` when the words do not make one.
++fn rule_line(source: &str, destination: &str, kind: &str, action: Action) -> Option<String> {
++    let word = match action {
++        Action::Block => "block",
++        Action::Allow => "allow",
++        Action::Noop => "noop",
++        Action::None => return None,
++    };
++    let line = format!("{source} {destination} {kind} {word}");
++    parse_line(&line).map(|_| line)
++}
++
++/// `text` with the rule of one cell set to `action` (`Action::None` removes it): the lines that
++/// set this cell are taken out, every other line (comments too) is kept as it is, and the new rule
++/// goes at the end. `text` comes back unchanged when the cell is not one a rule can name.
++pub fn with_cell(text: &str, source: &str, destination: &str, kind: &str, action: Action) -> String {
++    let (source, destination) = (source.to_ascii_lowercase(), destination.to_ascii_lowercase());
++    let Some(slot_of_kind) = slot(kind) else { return text.to_string() };
++    // a cell a rule can name: test it with a block rule
++    if rule_line(&source, &destination, kind, Action::Block).is_none() {
++        return text.to_string();
++    }
++    let mut out = String::with_capacity(text.len() + 64);
++    for line in text.lines() {
++        match parse_line(line) {
++            Some((s, d, k, _)) if s == source && d == destination && k == slot_of_kind => {}
++            _ => {
++                out.push_str(line);
++                out.push('\n');
++            }
++        }
++    }
++    if let Some(line) = rule_line(&source, &destination, kind, action) {
++        out.push_str(&line);
++        out.push('\n');
++    }
++    out
++}
++
++/// The cells uBlock Origin's padlock saves and its eraser reverts, for a page of `source` that
++/// asked `destinations`: every type for `* *` and `<source> *`, and `* <host>` and `<source>
++/// <host>` for each destination. `to` with those cells set as they are in `from`; only the cells
++/// that differ are rewritten, so `to` comes back unchanged when nothing differs.
++pub fn copy_cells(from: &str, to: &str, source: &str, destinations: &[String]) -> String {
++    let (a, b) = (DynamicRules::from_text(from), DynamicRules::from_text(to));
++    let source = source.to_ascii_lowercase();
++    let mut cells: Vec<(String, String, usize)> = Vec::new();
++    for s in ["*", source.as_str()] {
++        for kind in 0..TYPES.len() {
++            cells.push((s.to_string(), "*".to_string(), kind));
++        }
++        for d in destinations {
++            let d = d.to_ascii_lowercase();
++            if d != "*" && valid_host(&d) {
++                cells.push((s.to_string(), d, 0));
++            }
++        }
++    }
++    let mut out = to.to_string();
++    for (s, d, kind) in cells {
++        let wanted = a.cell(&s, &d, kind);
++        if wanted != b.cell(&s, &d, kind) {
++            out = with_cell(&out, &s, &d, TYPES[kind], wanted);
++        }
++    }
++    out
 +}
 +
 +#[cfg(test)]
@@ -2379,6 +2521,67 @@ index 0000000000000000000000000000000000000000..fa236b68a0b05e87e8e086fb5162a229
 +    }
 +
 +    #[test]
++    fn the_grid_shows_set_and_inherited_cells() {
++        let r = rules();
++        // set in exactly this cell
++        assert_eq!(r.cell_state("news.example", "cdn.example", "*"), (Action::Allow, true));
++        assert_eq!(r.cell_state("*", "*", "3p-script"), (Action::Block, true));
++        // from a broader source or destination: shown light
++        assert_eq!(r.cell_state("blog.example", "ads.example", "*"), (Action::Block, false));
++        assert_eq!(r.cell_state("blog.example", "x.ads.example", "*"), (Action::Block, false));
++        assert_eq!(r.cell_state("www.news.example", "*", "3p-script"), (Action::Noop, false));
++        assert_eq!(r.cell_state("blog.example", "*", "3p-frame"), (Action::Block, false));
++        // nothing, a type named with a destination, an unknown type
++        assert_eq!(r.cell_state("blog.example", "plain.example", "*"), (Action::None, false));
++        assert_eq!(r.cell_state("blog.example", "ads.example", "image"), (Action::None, false));
++        assert_eq!(r.cell_state("blog.example", "*", "font"), (Action::None, false));
++    }
++
++    #[test]
++    fn a_cell_is_set_and_removed_and_the_rest_is_kept() {
++        let text = "# mine\n* * 3p-script block\nshop.example pay.example * allow\n";
++        let set = with_cell(text, "Shop.example", "pay.example", "*", Action::Block);
++        assert_eq!(set, "# mine\n* * 3p-script block\nshop.example pay.example * block\n");
++        let removed = with_cell(&set, "shop.example", "pay.example", "*", Action::None);
++        assert_eq!(removed, "# mine\n* * 3p-script block\n");
++        let typed = with_cell(&removed, "*", "*", "3p-script", Action::Noop);
++        assert_eq!(typed, "# mine\n* * 3p-script noop\n");
++        // not a cell a rule can name: unchanged
++        for (s, d, k) in [("a..b", "*", "*"), ("*", "pay.example", "image"), ("*", "*", "font"), ("", "*", "*")] {
++            assert_eq!(with_cell(text, s, d, k, Action::Block), text, "{s} {d} {k}");
++        }
++        // no newline at the end, and a line that is not a rule, are kept
++        assert_eq!(with_cell("x y\n* a.example * allow", "*", "b.example", "*", Action::Block),
++                   "x y\n* a.example * allow\n* b.example * block\n");
++    }
++
++    #[test]
++    fn the_padlock_and_the_eraser_copy_only_the_cells_of_the_page() {
++        let permanent = "# kept\n* * 3p-frame block\nother.example * 3p block\n";
++        let session = "# kept\n* * 3p-frame block\nother.example * 3p allow\nnews.example ads.example * block\n\
++                       * cdn.example * allow\nnews.example * image block\nnews.example far.example * block\n";
++        let hosts = vec!["ads.example".to_string(), "cdn.example".to_string()];
++        let saved = copy_cells(session, permanent, "news.example", &hosts);
++        let s = DynamicRules::from_text(&saved);
++        assert_eq!(s.cell("news.example", "ads.example", 0), Action::Block);
++        assert_eq!(s.cell("*", "cdn.example", 0), Action::Allow);
++        assert_eq!(s.cell("news.example", "*", 5), Action::Block);
++        // not of this page: neither another site's rule nor a host the page did not ask
++        assert_eq!(s.cell("other.example", "*", 1), Action::Block);
++        assert_eq!(s.cell("news.example", "far.example", 0), Action::None);
++        assert!(saved.starts_with("# kept\n"));
++        // nothing differs any more: unchanged
++        assert_eq!(copy_cells(session, &saved, "news.example", &hosts), saved);
++        // the eraser: the session as the permanent rules for this page, other sites as they were
++        let reverted = copy_cells(permanent, session, "news.example", &hosts);
++        let r = DynamicRules::from_text(&reverted);
++        assert_eq!(r.cell("news.example", "ads.example", 0), Action::None);
++        assert_eq!(r.cell("*", "cdn.example", 0), Action::None);
++        assert_eq!(r.cell("other.example", "*", 1), Action::Allow);
++        assert_eq!(r.cell("news.example", "far.example", 0), Action::Block);
++    }
++
++    #[test]
 +    fn the_last_rule_for_a_cell_wins() {
 +        let r = DynamicRules::from_text("* * 3p-script block\n* * 3p-script allow\n");
 +        assert_eq!(r.len(), 1);
@@ -2387,10 +2590,10 @@ index 0000000000000000000000000000000000000000..fa236b68a0b05e87e8e086fb5162a229
 +}
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..602eef2c62ec9f502de7be86c1170cc020f17865
+index 0000000000000000000000000000000000000000..58a499bae54b1bb1bb6a1c19663128a5431246d4
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,1044 @@
+@@ -0,0 +1,1073 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2518,6 +2721,16 @@ index 0000000000000000000000000000000000000000..602eef2c62ec9f502de7be86c1170cc0
 +        fn verdict(self: &DynamicRules, source: &str, destination: &str, request_type: &str, third_party: bool)
 +            -> u8;
 +        fn inline_scripts_blocked(self: &DynamicRules, source: &str) -> bool;
++        /// One cell of the menu's grid: the action (as `verdict`), plus 4 when the rule is set in
++        /// exactly this cell rather than in a broader one.
++        fn grid_cell(self: &DynamicRules, source: &str, destination: &str, kind: &str) -> u8;
++        /// The text of the rules with one cell set to `action` (0 removes it); unchanged when no
++        /// rule can name that cell.
++        fn dynamic_rules_with_cell(text: &str, source: &str, destination: &str, kind: &str, action: u8)
++            -> String;
++        /// The menu's padlock and eraser: `to` with the cells of a page of `source` that asked
++        /// `destinations` set as they are in `from`.
++        fn dynamic_rules_copy_cells(from: &str, to: &str, source: &str, destinations: &Vec<String>) -> String;
 +
 +        /// `RequestDecision::clean_url` on its own, also for a request that would be blocked: a
 +        /// page's own navigation is never blocked, but its address is still cleaned.
@@ -2609,6 +2822,25 @@ index 0000000000000000000000000000000000000000..602eef2c62ec9f502de7be86c1170cc0
 +    fn inline_scripts_blocked(&self, source: &str) -> bool {
 +        self.blocks_inline_scripts(source)
 +    }
++
++    fn grid_cell(&self, source: &str, destination: &str, kind: &str) -> u8 {
++        let (action, exact) = self.cell_state(source, destination, kind);
++        action as u8 + if exact && action != dynamic::Action::None { 4 } else { 0 }
++    }
++}
++
++fn dynamic_rules_with_cell(text: &str, source: &str, destination: &str, kind: &str, action: u8) -> String {
++    let action = match action {
++        1 => dynamic::Action::Block,
++        2 => dynamic::Action::Allow,
++        3 => dynamic::Action::Noop,
++        _ => dynamic::Action::None,
++    };
++    dynamic::with_cell(text, source, destination, kind, action)
++}
++
++fn dynamic_rules_copy_cells(from: &str, to: &str, source: &str, destinations: &Vec<String>) -> String {
++    dynamic::copy_cells(from, to, source, destinations)
 +}
 +
 +fn engine_from_rules(rules: &str) -> Box<Engine> {
@@ -3838,10 +4070,10 @@ index 0000000000000000000000000000000000000000..ed67bfcf044d144278258384cbe99530
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..099065085cc27f43df6b8e5825f90b87dbcbacd9
+index 0000000000000000000000000000000000000000..90b4ed9e4433644e1c439b82b2904b6021694d33
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,958 @@
+@@ -0,0 +1,1065 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4011,10 +4243,17 @@ index 0000000000000000000000000000000000000000..099065085cc27f43df6b8e5825f90b87
 +  return name == "popups" || HasDefault(name);
 +}
 +
++// The folder may not be there yet: on a new profile nothing else wrote to it.
++void WriteStoreFile(const base::FilePath& path, const std::string& text) {
++  if (base::CreateDirectory(path.DirName())) {
++    base::ImportantFileWriter::WriteFileAtomically(path, text);
++  }
++}
++
 +void WriteJson(base::FilePath path, base::Value value) {
 +  std::string text;
 +  if (base::JSONWriter::Write(value, &text)) {
-+    base::ImportantFileWriter::WriteFileAtomically(path, text);
++    WriteStoreFile(path, text);
 +  }
 +}
 +
@@ -4088,9 +4327,9 @@ index 0000000000000000000000000000000000000000..099065085cc27f43df6b8e5825f90b87
 +  // rules set before the file was read win
 +  if (!my_rules_ && !state.my_rules.empty()) {
 +    my_rules_text_ = std::move(state.my_rules);
-+    my_rules_ = dynamic_rules_from_text(
-+        rust::Str(my_rules_text_.data(), my_rules_text_.size()));
++    UseSessionRules(my_rules_text_);
 +  }
++  saved_state_read_ = true;
 +  total_blocked_ += state.total;
 +}
 +
@@ -4142,19 +4381,117 @@ index 0000000000000000000000000000000000000000..099065085cc27f43df6b8e5825f90b87
 +    problems.emplace_back(line);
 +  }
 +  my_rules_text_ = std::move(text);
++  // saved text replaces what the menu's grid changed for now
++  UseSessionRules(my_rules_text_);
++  WriteMyRules();
++  return problems;
++}
++
++void EngineService::UseSessionRules(std::string text) {
++  session_rules_text_ = std::move(text);
 +  my_rules_ = dynamic_rules_from_text(
-+      rust::Str(my_rules_text_.data(), my_rules_text_.size()));
++      rust::Str(session_rules_text_.data(), session_rules_text_.size()));
++}
++
++void EngineService::WriteMyRules() {
 +  EnsureStarted();
 +  if (!store_dir_.empty()) {
-+    file_runner_->PostTask(
-+        FROM_HERE,
-+        base::BindOnce(
-+            [](base::FilePath path, std::string body) {
-+              base::ImportantFileWriter::WriteFileAtomically(path, body);
-+            },
-+            store_dir_.Append(kMyRulesFile), my_rules_text_));
++    file_runner_->PostTask(FROM_HERE,
++                           base::BindOnce(&WriteStoreFile,
++                                          store_dir_.Append(kMyRulesFile),
++                                          my_rules_text_));
 +  }
-+  return problems;
++}
++
++namespace {
++
++rust::Str ToRust(std::string_view s) {
++  return rust::Str(s.data(), s.size());
++}
++
++// The hosts a page asked, for the engine (they come from GURL: ASCII).
++rust::Vec<rust::String> HostsToRust(const std::vector<std::string>& hosts) {
++  rust::Vec<rust::String> out;
++  out.reserve(hosts.size());
++  for (const std::string& host : hosts) {
++    if (base::IsStringASCII(host)) {
++      out.push_back(rust::String(host));
++    }
++  }
++  return out;
++}
++
++}  // namespace
++
++int EngineService::GridCell(std::string_view source,
++                            std::string_view destination,
++                            std::string_view kind) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!my_rules_ || !base::IsStringASCII(source) ||
++      !base::IsStringASCII(destination) || !base::IsStringASCII(kind)) {
++    return 0;
++  }
++  return (*my_rules_)->grid_cell(ToRust(source), ToRust(destination),
++                                 ToRust(kind));
++}
++
++void EngineService::SetGridCell(std::string_view source,
++                                std::string_view destination,
++                                std::string_view kind,
++                                int action) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  EnsureStarted();
++  // not before the saved rules are read: the padlock would write over them
++  if (!saved_state_read_ || action < 0 || action > 3 ||
++      !base::IsStringASCII(source) || !base::IsStringASCII(destination) ||
++      !base::IsStringASCII(kind)) {
++    return;
++  }
++  std::string text(dynamic_rules_with_cell(
++      ToRust(session_rules_text_), ToRust(source), ToRust(destination),
++      ToRust(kind), static_cast<uint8_t>(action)));
++  if (text.size() <= kMaxMyRulesBytes) {
++    UseSessionRules(std::move(text));
++  }
++}
++
++bool EngineService::GridChanged(
++    std::string_view source,
++    const std::vector<std::string>& destinations) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (session_rules_text_ == my_rules_text_ || !base::IsStringASCII(source)) {
++    return false;
++  }
++  return std::string(dynamic_rules_copy_cells(
++             ToRust(session_rules_text_), ToRust(my_rules_text_),
++             ToRust(source), HostsToRust(destinations))) != my_rules_text_;
++}
++
++void EngineService::SaveGrid(std::string_view source,
++                             const std::vector<std::string>& destinations) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!saved_state_read_ || !base::IsStringASCII(source)) {
++    return;
++  }
++  std::string saved(dynamic_rules_copy_cells(
++      ToRust(session_rules_text_), ToRust(my_rules_text_), ToRust(source),
++      HostsToRust(destinations)));
++  if (saved == my_rules_text_ || saved.size() > kMaxMyRulesBytes) {
++    return;
++  }
++  my_rules_text_ = std::move(saved);
++  WriteMyRules();
++}
++
++void EngineService::RevertGrid(std::string_view source,
++                               const std::vector<std::string>& destinations) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!base::IsStringASCII(source)) {
++    return;
++  }
++  UseSessionRules(std::string(dynamic_rules_copy_cells(
++      ToRust(my_rules_text_), ToRust(session_rules_text_), ToRust(source),
++      HostsToRust(destinations))));
 +}
 +
 +int EngineService::DynamicVerdict(
@@ -4369,6 +4706,8 @@ index 0000000000000000000000000000000000000000..099065085cc27f43df6b8e5825f90b87
 +        FROM_HERE, base::BindOnce(&EngineService::ReadSavedState, store_dir_),
 +        base::BindOnce(&EngineService::OnSavedStateRead,
 +                       weak_factory_.GetWeakPtr()));
++  } else {
++    saved_state_read_ = true;
 +  }
 +  file_runner_->PostTaskAndReplyWithResult(
 +      FROM_HERE, base::BindOnce(&LoadEngine, Paths()),
@@ -4802,10 +5141,10 @@ index 0000000000000000000000000000000000000000..099065085cc27f43df6b8e5825f90b87
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..f0eeba8355b4b018e36f5645adbe7434a97aa427
+index 0000000000000000000000000000000000000000..7ff4b8d93a0958defd15acf2dbf08a13a979568b
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,301 @@
+@@ -0,0 +1,328 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -5032,6 +5371,26 @@ index 0000000000000000000000000000000000000000..f0eeba8355b4b018e36f5645adbe7434
 +                     const GURL& url,
 +                     network::mojom::RequestDestination destination) const;
 +
++  // The menu's grid, as uBlock Origin's: what it changes is in force at once
++  // but only for now (not saved), until the padlock saves the cells of the
++  // page (SaveGrid) or the eraser takes them back (RevertGrid). `source` is
++  // the page's host, `destinations` the hosts it asked. GridCell: as
++  // DynamicRules::grid_cell, for the rules in force.
++  int GridCell(std::string_view source,
++               std::string_view destination,
++               std::string_view kind) const;
++  // `action`: 0 removes the rule of the cell, 1 block, 2 allow, 3 noop.
++  void SetGridCell(std::string_view source,
++                   std::string_view destination,
++                   std::string_view kind,
++                   int action);
++  bool GridChanged(std::string_view source,
++                   const std::vector<std::string>& destinations) const;
++  void SaveGrid(std::string_view source,
++                const std::vector<std::string>& destinations);
++  void RevertGrid(std::string_view source,
++                  const std::vector<std::string>& destinations);
++
 +  // The settings of chrome://adblock, as in uBlock Origin, by name: "badge"
 +  // (the shield shows what was blocked; on unless switched off),
 +  // "block-csp-reports" (reports a page's security policy asks for are not
@@ -5075,6 +5434,9 @@ index 0000000000000000000000000000000000000000..f0eeba8355b4b018e36f5645adbe7434
 +  void OnSavedStateRead(SavedState state);
 +  void SaveSiteSwitches();
 +  void SaveOptions();
++  // The rules in force become `text`; "My rules" as saved go to their file.
++  void UseSessionRules(std::string text);
++  void WriteMyRules();
 +  void SaveStats();
 +  // The switch for `host` or a host it is under; `found` is false when none of
 +  // them has it set either way.
@@ -5086,8 +5448,12 @@ index 0000000000000000000000000000000000000000..f0eeba8355b4b018e36f5645adbe7434
 +  std::map<std::string, std::set<std::string>> site_switches_;
 +  // The options changed from their defaults (KnownOption).
 +  std::map<std::string, bool> options_;
++  // "My rules" as saved, and the rules in force (with what the menu's grid
++  // changed for now); `my_rules_` is read from the second.
 +  std::string my_rules_text_;
++  std::string session_rules_text_;
 +  std::optional<rust::Box<DynamicRules>> my_rules_;
++  bool saved_state_read_ = false;
 +  int64_t total_blocked_ = 0;
 +  bool stats_save_pending_ = false;
 +
@@ -9155,10 +9521,10 @@ index 0000000000000000000000000000000000000000..bb5e6c8789e8a4e07c5d7069027b5132
 +}
 diff --git a/components/thoron_adblock/popup_page.html b/components/thoron_adblock/popup_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..8fe038c56f58d78aaa9d3379c707b9e0dcf2d628
+index 0000000000000000000000000000000000000000..0422887d918d1a79911da9537619601d65245a2a
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.html
-@@ -0,0 +1,156 @@
+@@ -0,0 +1,206 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file. -->
@@ -9207,7 +9573,7 @@ index 0000000000000000000000000000000000000000..8fe038c56f58d78aaa9d3379c707b9e0
 +  .stat { text-align: center; border: 1px solid var(--line); border-radius: 10px; padding: 8px 4px; }
 +  .stat b { display: block; font-size: 18px; font-weight: 600; }
 +  .stat b small { font-size: 12px; font-weight: 400; opacity: 0.7; }
-+  .stat span { display: block; color: var(--soft); font-size: 11px; line-height: 1.3; }
++  .stat > span { display: block; color: var(--soft); font-size: 11px; line-height: 1.3; }
 +  .row { display: flex; justify-content: space-between; gap: 6px; padding: 8px 14px;
 +         border-block-start: 1px solid var(--line); }
 +  .tool, .switch {
@@ -9227,6 +9593,43 @@ index 0000000000000000000000000000000000000000..8fe038c56f58d78aaa9d3379c707b9e0
 +  li .host { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 +  li .n { color: var(--soft); font-variant-numeric: tabular-nums; }
 +  svg { stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
++  /* uBlock Origin's grid of rules: a row per type and per domain, a cell for every site and one for
++     this site; a rule set in that cell is shown strong, one from a broader rule light */
++  :root { --allow: #1e8e3e; --block: #d93025; --noop: #80868b; --on-set: #fff; }
++  @media (prefers-color-scheme: dark) {
++    :root { --allow: #81c995; --block: #f28b82; --noop: #9aa0a6; --on-set: #202124; }
++  }
++  #grid-box[hidden] { display: none; }
++  #grid-changed { color: var(--block); }
++  .grid-head, .grid-row { display: grid; grid-template-columns: minmax(0, 1fr) 38px 56px 56px; gap: 6px;
++                          align-items: center; }
++  .grid-head { color: var(--soft); font-size: 10px; padding: 8px 0 2px; }
++  .grid-head span { text-align: center; }
++  #grid { max-block-size: 260px; overflow-y: auto; }
++  .grid-row { padding: 2px 0; }
++  .grid-row.first-host { border-block-start: 1px solid var(--line); margin-block-start: 4px; padding-block-start: 6px; }
++  .grid-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++  .grid-row.type .name { color: var(--soft); }
++  .grid-row.domain .name { font-weight: 600; }
++  .grid-row.host .name { padding-inline-start: 10px; }
++  .grid-row .n { color: var(--soft); font-size: 11px; text-align: end; font-variant-numeric: tabular-nums; }
++  .grid-row .n.some { color: var(--block); }
++  .cell { display: flex; gap: 2px; justify-content: center; }
++  .cell button { inline-size: 17px; block-size: 17px; padding: 0; border: 1px solid var(--line); border-radius: 4px;
++                 background: transparent; color: var(--soft); font: inherit; font-size: 10px; line-height: 15px;
++                 cursor: pointer; }
++  .cell button:hover { border-color: currentColor; }
++  .cell .allow.set { background: var(--allow); border-color: var(--allow); color: var(--on-set); }
++  .cell .block.set { background: var(--block); border-color: var(--block); color: var(--on-set); }
++  .cell .noop.set { background: var(--noop); border-color: var(--noop); color: var(--on-set); }
++  .cell .allow.inherited { background: color-mix(in srgb, var(--allow) 30%, transparent); color: inherit; }
++  .cell .block.inherited { background: color-mix(in srgb, var(--block) 30%, transparent); color: inherit; }
++  .cell .noop.inherited { background: color-mix(in srgb, var(--noop) 30%, transparent); color: inherit; }
++  .grid-actions { display: flex; gap: 6px; justify-content: flex-end; padding-block-start: 8px; }
++  .grid-actions button { border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit;
++                         font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer; }
++  .grid-actions button:hover { background: var(--line); }
++  .grid-actions button:disabled { opacity: .4; cursor: default; background: transparent; }
 +</style>
 +</head>
 +<body>
@@ -9307,6 +9710,19 @@ index 0000000000000000000000000000000000000000..8fe038c56f58d78aaa9d3379c707b9e0
 +    </svg>3rd-party frames</button>
 +</div>
 +
++<details id="grid-box" hidden>
++  <summary>Rules for this page <span id="grid-changed" hidden>(not saved)</span></summary>
++  <div class="grid-head" aria-hidden="true">
++    <span></span><span>Requests</span><span>Everywhere</span><span>This site</span>
++  </div>
++  <div id="grid" role="table" aria-label="Rules for this page"></div>
++  <div class="grid-actions">
++    <button id="grid-reload" title="Reload the page with these rules">Reload</button>
++    <button id="grid-revert" title="Take back what was changed here and not saved">Revert</button>
++    <button id="grid-save" title="Keep what was changed here in My rules">Save</button>
++  </div>
++</details>
++
 +<details id="sites-box">
 +  <summary id="sites-title">Blocked on this page</summary>
 +  <ol id="sites"></ol>
@@ -9317,10 +9733,10 @@ index 0000000000000000000000000000000000000000..8fe038c56f58d78aaa9d3379c707b9e0
 +</html>
 diff --git a/components/thoron_adblock/popup_page.js b/components/thoron_adblock/popup_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..008ea53c87d45e42ee95602d849dd29f31c07c89
+index 0000000000000000000000000000000000000000..5e9fc271fd7ddf119a18a0819b963531a3db6633
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.js
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,206 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -9363,7 +9779,115 @@ index 0000000000000000000000000000000000000000..008ea53c87d45e42ee95602d849dd29f
 +  }
 +  $('logger').disabled = !next.applicable;
 +  showSites(next.sites);
++  showGrid(next.grid);
 +}
++
++// --- uBlock Origin's grid of rules (dynamic filtering): a change is in force at once, for now; Save keeps
++// it in My rules (the padlock), Revert takes it back (the eraser).
++const TYPE_NAMES = {
++  '*': 'All requests', 'image': 'Images', '3p': '3rd-party', 'inline-script': 'Inline scripts',
++  '1p-script': '1st-party scripts', '3p-script': '3rd-party scripts', '3p-frame': '3rd-party frames',
++};
++// [action, class, word, glyph]
++const ACTIONS = [[2, 'allow', 'Allow', '✓'], [3, 'noop', 'Leave to the lists', '○'],
++                 [1, 'block', 'Block', '✕']];
++let gridShown = '';
++
++function gridCell(destination, kind, scope, value, name) {
++  const action = value & 3;
++  const exact = (value & 4) !== 0;
++  const box = document.createElement('span');
++  box.className = 'cell';
++  box.setAttribute('role', 'cell');
++  const where = scope === 'local' ? 'on this site' : 'on every site';
++  for (const [n, cls, word, glyph] of ACTIONS) {
++    const button = document.createElement('button');
++    const on = action === n;
++    button.className = cls + (on ? (exact ? ' set' : ' inherited') : '');
++    button.textContent = glyph;
++    button.dataset.key = `${destination} ${kind} ${scope} ${n}`;
++    button.setAttribute('aria-pressed', String(on && exact));
++    button.title = `${word}: ${name} ${where}` + (on && !exact ? ' (from a broader rule)' : '') +
++                   (on && exact ? ' (click again to remove the rule)' : '');
++    button.setAttribute('aria-label', button.title);
++    button.addEventListener('click', () => {
++      chrome.send('setGridCell', [destination, kind, scope, on && exact ? 0 : n]);
++      setTimeout(refresh, 100);
++    });
++    box.append(button);
++  }
++  return box;
++}
++
++function gridRow(name, destination, kind, global, local, rowClass, requests, blocked) {
++  const row = document.createElement('div');
++  row.className = `grid-row ${rowClass}`;
++  row.setAttribute('role', 'row');
++  const label = document.createElement('span');
++  label.className = 'name';
++  label.setAttribute('role', 'rowheader');
++  label.textContent = name;
++  label.title = name;
++  const n = document.createElement('span');
++  n.className = 'n' + (blocked ? ' some' : '');
++  if (requests) {
++    n.textContent = blocked ? `${number(blocked)}/${number(requests)}` : number(requests);
++    n.title = `${number(requests)} requests, ${number(blocked)} blocked`;
++  }
++  row.append(label, n, gridCell(destination, kind, 'global', global, name),
++             gridCell(destination, kind, 'local', local, name));
++  return row;
++}
++
++function showGrid(grid) {
++  const box = $('grid-box');
++  box.hidden = !grid;
++  if (!grid) {
++    return;
++  }
++  $('grid-changed').hidden = !grid.changed;
++  $('grid-save').disabled = !grid.changed;
++  $('grid-revert').disabled = !grid.changed;
++  const key = JSON.stringify([grid.types, grid.hosts]);
++  if (key === gridShown) {
++    return;
++  }
++  gridShown = key;
++  const focused = document.activeElement && document.activeElement.dataset
++      ? document.activeElement.dataset.key : undefined;
++  const rows = grid.types.map((t) => gridRow(TYPE_NAMES[t.kind] || t.kind, '*', t.kind, t.global, t.local, 'type'));
++  grid.hosts.forEach((h, i) => {
++    rows.push(gridRow(h.host, h.host, '*', h.global, h.local,
++                      (h.domain ? 'domain' : 'host') + (i === 0 ? ' first-host' : ''), h.requests, h.blocked));
++  });
++  $('grid').replaceChildren(...rows);
++  if (focused) {
++    const again = Array.from(document.querySelectorAll('.cell button')).find((b) => b.dataset.key === focused);
++    if (again) {
++      again.focus();
++    }
++  }
++}
++
++for (const [id, message] of [['grid-save', 'saveGrid'], ['grid-revert', 'revertGrid'], ['grid-reload', 'reloadTab']]) {
++  $(id).addEventListener('click', () => {
++    chrome.send(message);
++    setTimeout(refresh, 150);
++  });
++}
++// the grid stays open or closed from one opening of the menu to the next
++try {
++  $('grid-box').open = localStorage.getItem('thoron-grid-open') === '1';
++} catch (e) {
++  // no storage: closed
++}
++$('grid-box').addEventListener('toggle', () => {
++  try {
++    localStorage.setItem('thoron-grid-open', $('grid-box').open ? '1' : '0');
++  } catch (e) {
++    // no storage
++  }
++});
 +
 +function showSites(sites) {
 +  $('sites-title').textContent = sites.length ? `Blocked on this page (${sites.length})` : 'Nothing blocked yet';

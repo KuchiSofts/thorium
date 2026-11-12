@@ -1302,18 +1302,23 @@ index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d
 +#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_THORON_ADBLOCK_BUTTON_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..d8684ca9afad4ae7e50673da144c7749b85e533f
+index 0000000000000000000000000000000000000000..06e109775d77eff091f3ed9eac8c1c2a216b48f8
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
-@@ -0,0 +1,301 @@
+@@ -0,0 +1,471 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
 +#include "chrome/browser/ui/webui/thoron_adblock_popup_ui.h"
 +
++#include <algorithm>
++#include <iterator>
++#include <map>
 +#include <memory>
 +#include <string>
++#include <string_view>
 +#include <utility>
++#include <vector>
 +
 +#include "base/feature_list.h"
 +#include "base/functional/bind.h"
@@ -1338,6 +1343,7 @@ index 0000000000000000000000000000000000000000..d8684ca9afad4ae7e50673da144c7749
 +#include "content/public/browser/web_ui.h"
 +#include "content/public/browser/web_ui_message_handler.h"
 +#include "content/public/common/url_constants.h"
++#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 +#include "ui/base/window_open_disposition.h"
 +#include "url/gurl.h"
 +
@@ -1381,6 +1387,12 @@ index 0000000000000000000000000000000000000000..d8684ca9afad4ae7e50673da144c7749
 +// The switch of the menu that is Chrome's own site setting: "on" means
 +// JavaScript is blocked on the site. "popups" is the blocker's own, as in
 +// uBlock Origin: Chrome's pop-up setting still lets a click open a window.
++// The type rows of the grid, in uBlock Origin's order: every request, images,
++// third-party requests, inline scripts, first-party scripts, third-party
++// scripts, third-party frames.
++constexpr std::string_view kGridTypes[] = {
++    "*", "image", "3p", "inline-script", "1p-script", "3p-script", "3p-frame"};
++
 +ContentSettingsType ChromeSwitch(const std::string& name) {
 +  if (name == "javascript") {
 +    return ContentSettingsType::JAVASCRIPT;
@@ -1407,6 +1419,10 @@ index 0000000000000000000000000000000000000000..d8684ca9afad4ae7e50673da144c7749
 +    Register("openDashboard", &MenuHandler::OpenDashboard);
 +    Register("menuReady", &MenuHandler::MenuReady);
 +    Register("closeMenu", &MenuHandler::CloseMenu);
++    Register("setGridCell", &MenuHandler::SetGridCell);
++    Register("saveGrid", &MenuHandler::SaveGrid);
++    Register("revertGrid", &MenuHandler::RevertGrid);
++    Register("reloadTab", &MenuHandler::ReloadTab);
 +  }
 +
 + private:
@@ -1493,8 +1509,162 @@ index 0000000000000000000000000000000000000000..d8684ca9afad4ae7e50673da144c7749
 +      }
 +    }
 +    state.Set("switches", std::move(switches));
++    if (site.is_valid()) {
++      state.Set("grid", Grid(site, tab->GetPrimaryPage()));
++    }
 +    ResolveJavascriptCallback(args[0], state);
 +  }
++
++  // The rows of uBlock Origin's grid for the page: the domains it asked (the
++  // page's own first), each followed by the hosts under it that it asked.
++  struct GridRow {
++    std::string host;
++    bool domain = false;
++    int requests = 0;
++    int blocked = 0;
++  };
++  static constexpr size_t kMaxGridRows = 200;
++  std::vector<GridRow> GridRows(const GURL& site, content::Page& page) {
++    using net::registry_controlled_domains::GetDomainAndRegistry;
++    using net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES;
++    auto domain_of = [](const std::string& host) {
++      std::string domain = GetDomainAndRegistry(host, INCLUDE_PRIVATE_REGISTRIES);
++      return domain.empty() ? host : domain;
++    };
++    std::vector<thoron_adblock::BlockedCount::HostRequests> asked =
++        thoron_adblock::BlockedCount::AskedHosts(page);
++    const std::string own(site.host());
++    if (std::none_of(asked.begin(), asked.end(),
++                     [&](const auto& h) { return h.host == own; })) {
++      asked.push_back({own, 0, 0});
++    }
++    // domain -> (its row, the hosts under it)
++    std::map<std::string, std::pair<GridRow, std::vector<GridRow>>> domains;
++    for (const auto& h : asked) {
++      const std::string domain = domain_of(h.host);
++      auto& [row, hosts] = domains[domain];
++      row.host = domain;
++      row.domain = true;
++      row.requests += h.requests;
++      row.blocked += h.blocked;
++      if (h.host != domain) {
++        hosts.push_back({h.host, false, h.requests, h.blocked});
++      }
++    }
++    std::vector<GridRow> rows;
++    auto add = [&](const std::pair<GridRow, std::vector<GridRow>>& entry) {
++      if (rows.size() < kMaxGridRows) {
++        rows.push_back(entry.first);
++      }
++      for (const GridRow& host : entry.second) {
++        if (rows.size() < kMaxGridRows) {
++          rows.push_back(host);
++        }
++      }
++    };
++    const std::string own_domain = domain_of(own);
++    if (auto it = domains.find(own_domain); it != domains.end()) {
++      add(it->second);
++    }
++    for (const auto& [domain, entry] : domains) {
++      if (domain != own_domain) {
++        add(entry);
++      }
++    }
++    return rows;
++  }
++
++  std::vector<std::string> GridHosts(const GURL& site, content::Page& page) {
++    std::vector<std::string> hosts;
++    for (const GridRow& row : GridRows(site, page)) {
++      hosts.push_back(row.host);
++    }
++    return hosts;
++  }
++
++  base::DictValue Grid(const GURL& site, content::Page& page) {
++    thoron_adblock::EngineService& service =
++        thoron_adblock::EngineService::Get();
++    const std::string source(site.host());
++    base::ListValue types;
++    for (std::string_view kind : kGridTypes) {
++      types.Append(base::DictValue()
++                       .Set("kind", kind)
++                       .Set("global", service.GridCell("*", "*", kind))
++                       .Set("local", service.GridCell(source, "*", kind)));
++    }
++    base::ListValue rows;
++    std::vector<std::string> hosts;
++    for (const GridRow& row : GridRows(site, page)) {
++      rows.Append(base::DictValue()
++                      .Set("host", row.host)
++                      .Set("domain", row.domain)
++                      .Set("requests", row.requests)
++                      .Set("blocked", row.blocked)
++                      .Set("global", service.GridCell("*", row.host, "*"))
++                      .Set("local", service.GridCell(source, row.host, "*")));
++      hosts.push_back(row.host);
++    }
++    return base::DictValue()
++        .Set("types", std::move(types))
++        .Set("hosts", std::move(rows))
++        .Set("changed", service.GridChanged(source, hosts));
++  }
++
++  // [destination, type, "global" or "local", action 0-3]: a type row
++  // ("*" and a type of kGridTypes) or a host the page asked (and "*").
++  void SetGridCell(const base::ListValue& args) {
++    content::WebContents* tab = Tab();
++    const GURL site = Site(tab);
++    if (!site.is_valid() || args.size() != 4 || !args[0].is_string() ||
++        !args[1].is_string() || !args[2].is_string() || !args[3].is_int()) {
++      return;
++    }
++    const std::string& destination = args[0].GetString();
++    const std::string& kind = args[1].GetString();
++    const std::string& scope = args[2].GetString();
++    const int action = args[3].GetInt();
++    if ((scope != "global" && scope != "local") || action < 0 || action > 3) {
++      return;
++    }
++    if (destination == "*") {
++      if (std::find(std::begin(kGridTypes), std::end(kGridTypes), kind) ==
++          std::end(kGridTypes)) {
++        return;
++      }
++    } else {
++      const std::vector<std::string> hosts =
++          GridHosts(site, tab->GetPrimaryPage());
++      if (kind != "*" ||
++          std::find(hosts.begin(), hosts.end(), destination) == hosts.end()) {
++        return;
++      }
++    }
++    thoron_adblock::EngineService::Get().SetGridCell(
++        scope == "local" ? std::string(site.host()) : std::string("*"),
++        destination, kind, action);
++  }
++
++  // uBlock Origin's padlock and eraser, for the cells of this page.
++  void SaveGrid(const base::ListValue& args) {
++    content::WebContents* tab = Tab();
++    const GURL site = Site(tab);
++    if (site.is_valid()) {
++      thoron_adblock::EngineService::Get().SaveGrid(
++          site.host(), GridHosts(site, tab->GetPrimaryPage()));
++    }
++  }
++
++  void RevertGrid(const base::ListValue& args) {
++    content::WebContents* tab = Tab();
++    const GURL site = Site(tab);
++    if (site.is_valid()) {
++      thoron_adblock::EngineService::Get().RevertGrid(
++          site.host(), GridHosts(site, tab->GetPrimaryPage()));
++    }
++  }
++
++  void ReloadTab(const base::ListValue& args) { Reload(Tab()); }
 +
 +  void Reload(content::WebContents* tab) {
 +    if (tab) {
