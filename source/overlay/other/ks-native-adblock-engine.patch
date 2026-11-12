@@ -78,10 +78,10 @@ index 0f7d54fe9798d8726656c6cd8f30ea2194b8c4e1..908235300b443a23bea4c2a9b39d0715
        "//sandbox:sandbox_unittests",
 diff --git a/components/thoron_adblock/BUILD.gn b/components/thoron_adblock/BUILD.gn
 new file mode 100644
-index 0000000000000000000000000000000000000000..66f3798db4e2e19879287fb1910077712ef417af
+index 0000000000000000000000000000000000000000..fcf915debcce6d2ec3532af65d80c25c57f82e17
 --- /dev/null
 +++ b/components/thoron_adblock/BUILD.gn
-@@ -0,0 +1,202 @@
+@@ -0,0 +1,209 @@
 +# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
 +
@@ -101,8 +101,13 @@ index 0000000000000000000000000000000000000000..66f3798db4e2e19879287fb191007771
 +    "query.rs",
 +  ]
 +
-+  # The page-side runner for procedural hide rules; engine.rs includes its text.
-+  inputs = [ "procedural.js" ]
++  # The page-side runner for procedural hide rules, and the settings page
++  # (chrome://adblock); engine.rs includes their text.
++  inputs = [
++    "procedural.js",
++    "settings_page.html",
++    "settings_page.js",
++  ]
 +  allow_unsafe = true  # the cxx bridge's generated glue
 +  cxx_bindings = [ crate_root ]
 +  deps = [
@@ -162,6 +167,8 @@ index 0000000000000000000000000000000000000000..66f3798db4e2e19879287fb191007771
 +    "document_observer.h",
 +    "engine_service.cc",
 +    "engine_service.h",
++    "list_fetch.cc",
++    "list_fetch.h",
 +    "list_store.cc",
 +    "list_store.h",
 +    "list_updater.cc",
@@ -1606,10 +1613,10 @@ index 0000000000000000000000000000000000000000..43051154413e4f2354bc088827e16717
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_INTERCEPTOR_H_
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..c818e90259ba947bd3717ff090a7e9b4a95e8d70
+index 0000000000000000000000000000000000000000..8879ed8ef355cecf902a7fb6cc747df29b178929
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,691 @@
+@@ -0,0 +1,732 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1720,6 +1727,12 @@ index 0000000000000000000000000000000000000000..c818e90259ba947bd3717ff090a7e9b4
 +        /// "@@||^" or "@@|http"), with no site limit. A downloaded list with one is refused: no
 +        /// real list has one, and it would turn blocking off.
 +        fn has_allow_all_rule(text: &str) -> bool;
++
++        /// The settings page (chrome://adblock): its document and its script. They are part of
++        /// this library, so the page needs no entry in a resource pack.
++        fn settings_page_html() -> &'static str;
++
++        fn settings_page_js() -> &'static str;
 +    }
 +}
 +
@@ -1841,6 +1854,14 @@ index 0000000000000000000000000000000000000000..c818e90259ba947bd3717ff090a7e9b4
 +
 +fn has_allow_all_rule(text: &str) -> bool {
 +    rule_lines(text).any(allows_all)
++}
++
++fn settings_page_html() -> &'static str {
++    include_str!("settings_page.html")
++}
++
++fn settings_page_js() -> &'static str {
++    include_str!("settings_page.js")
 +}
 +
 +#[cfg(test)]
@@ -2055,7 +2076,8 @@ index 0000000000000000000000000000000000000000..c818e90259ba947bd3717ff090a7e9b4
 +        let rule = "news.example##+js(trusted-set-cookie, a=b)\n";
 +        let trusted = with_resources(&format!("! thoron-list: ublock-filters\n{rule}"));
 +        assert!(trusted.document_resources("https://news.example/").script.contains("trustedSetCookie("));
-+        for id in ["easylist", "easyprivacy", "urlhaus-1"] {
++        // the other built-in lists, a list a person added, and the person's own rules
++        for id in ["easylist", "easyprivacy", "urlhaus-1", "custom-0123456789abcdef", "my-filters"] {
 +            let other = with_resources(&format!("! thoron-list: {id}\n{rule}"));
 +            assert!(other.document_resources("https://news.example/").script.is_empty(), "{id}");
 +        }
@@ -2065,6 +2087,32 @@ index 0000000000000000000000000000000000000000..c818e90259ba947bd3717ff090a7e9b4
 +        // list that holds a marker line is refused before it gets here: list_store.cc)
 +        let mixed = with_resources(&format!("! thoron-list: easylist\n{rule}! thoron-list: ublock-filters\n||x.example^\n"));
 +        assert!(mixed.document_resources("https://news.example/").script.is_empty());
++    }
++
++    #[test]
++    fn a_persons_own_rules_block_allow_and_hide_like_any_list() {
++        let lists = "! thoron-list: easylist\n||ads.example^\n! thoron-list: my-filters\n||mine.example^\n\
++                     @@||ads.example/wanted.js\nnews.example##.promo\n";
++        let engine = engine_from_rules(lists);
++        assert!(engine.should_block("https://mine.example/a.js", "https://news.example/", "script"));
++        assert!(engine.should_block("https://ads.example/a.js", "https://news.example/", "script"));
++        assert!(!engine.should_block("https://ads.example/wanted.js", "https://news.example/", "script"));
++        assert!(engine.document_resources("https://news.example/").hide_selectors.contains(&".promo".to_string()));
++    }
++
++    #[test]
++    fn the_settings_page_is_plain_and_safe_to_serve() {
++        let html = settings_page_html();
++        let script = settings_page_js();
++        assert!(html.contains("<script type=\"module\" src=\"adblock.js\"></script>"));
++        // The page's security policy allows no inline script and no HTML made from text.
++        assert_eq!(html.matches("<script").count(), 1);
++        assert!(!html.contains("onclick=") && !html.contains("javascript:"));
++        for forbidden in ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("] {
++            assert!(!script.contains(forbidden), "{forbidden}");
++        }
++        // Only the browser's own resources are loaded.
++        assert!(!html.contains("http://") && !html.contains("https://"));
 +    }
 +
 +    #[test]
@@ -2575,10 +2623,10 @@ index 0000000000000000000000000000000000000000..59c306c6d58d7fb7343b7fd161a5e25f
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..76bdcc118fb083878fe6b94b08de93d4d8cdbc89
+index 0000000000000000000000000000000000000000..542b109efd48b536db4312ccdd9f440069e7a55b
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,291 @@
+@@ -0,0 +1,422 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2588,12 +2636,16 @@ index 0000000000000000000000000000000000000000..76bdcc118fb083878fe6b94b08de93d4
 +#include <utility>
 +
 +#include "base/command_line.h"
++#include "base/files/file_util.h"
 +#include "base/functional/bind.h"
 +#include "base/path_service.h"
++#include "base/strings/strcat.h"
 +#include "base/strings/string_util.h"
 +#include "base/task/thread_pool.h"
 +#include "base/version_info/version_info.h"
++#include "components/thoron_adblock/list_fetch.h"
 +#include "net/base/url_util.h"
++#include "services/network/public/cpp/shared_url_loader_factory.h"
 +#include "url/url_constants.h"
 +
 +namespace thoron_adblock {
@@ -2869,13 +2921,140 @@ index 0000000000000000000000000000000000000000..76bdcc118fb083878fe6b94b08de93d4
 +  }
 +}
 +
++void EngineService::DescribeSettings(Described callback) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  EnsureStarted();
++  file_runner_->PostTaskAndReplyWithResult(
++      FROM_HERE, base::BindOnce(&thoron_adblock::DescribeSettings, Paths()),
++      std::move(callback));
++}
++
++void EngineService::SetListEnabled(const std::string& id,
++                                   bool enabled,
++                                   Changed callback) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  EnsureStarted();
++  file_runner_->PostTaskAndReplyWithResult(
++      FROM_HERE,
++      base::BindOnce(&thoron_adblock::SetListEnabled, Paths(), id, enabled,
++                     base::Time::Now()),
++      base::BindOnce(&EngineService::OnChanged, weak_factory_.GetWeakPtr(),
++                     std::move(callback)));
++}
++
++void EngineService::AddList(const GURL& url, Changed callback) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  EnsureStarted();
++  if (!ListFetch::IsAllowed(url, ListsUrlForTesting().is_valid())) {
++    std::move(callback).Run("The address of a list must start with https://");
++    return;
++  }
++  if (add_fetch_) {
++    std::move(callback).Run(
++        "Another list is being added. Try again in a moment.");
++    return;
++  }
++  // The file sequence makes the folder the download goes into.
++  base::FilePath path =
++      store_dir_.Append(FILE_PATH_LITERAL("download"))
++          .AppendASCII(base::StrCat({CustomListId(url.spec()), ".add"}));
++  file_runner_->PostTaskAndReply(
++      FROM_HERE,
++      base::BindOnce(
++          [](const base::FilePath& dir) { base::CreateDirectory(dir); },
++          path.DirName()),
++      base::BindOnce(&EngineService::StartAddFetch, weak_factory_.GetWeakPtr(),
++                     url, path, std::move(callback)));
++}
++
++void EngineService::StartAddFetch(GURL url,
++                                  base::FilePath path,
++                                  Changed callback) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  scoped_refptr<network::SharedURLLoaderFactory> factory =
++      factory_getter_ ? factory_getter_.Run() : nullptr;
++  if (!factory || add_fetch_) {
++    std::move(callback).Run("The list could not be downloaded.");
++    return;
++  }
++  add_fetch_ = std::make_unique<ListFetch>(
++      url, path, std::move(factory), file_runner_,
++      ListsUrlForTesting().is_valid(),
++      base::BindOnce(&EngineService::OnListFetched, weak_factory_.GetWeakPtr(),
++                     url, std::move(callback)));
++}
++
++void EngineService::OnListFetched(GURL url,
++                                  Changed callback,
++                                  base::FilePath path) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  add_fetch_.reset();
++  if (path.empty()) {
++    std::move(callback).Run(
++        "The list could not be downloaded. Check the address and the "
++        "connection.");
++    return;
++  }
++  file_runner_->PostTaskAndReplyWithResult(
++      FROM_HERE,
++      base::BindOnce(&AddCustomList, Paths(), url, path, base::Time::Now()),
++      base::BindOnce(&EngineService::OnChanged, weak_factory_.GetWeakPtr(),
++                     std::move(callback)));
++}
++
++void EngineService::RemoveList(const std::string& id, Changed callback) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  EnsureStarted();
++  file_runner_->PostTaskAndReplyWithResult(
++      FROM_HERE,
++      base::BindOnce(&RemoveCustomList, Paths(), id, base::Time::Now()),
++      base::BindOnce(&EngineService::OnChanged, weak_factory_.GetWeakPtr(),
++                     std::move(callback)));
++}
++
++void EngineService::SetMyFilters(std::string text, Changed callback) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  EnsureStarted();
++  file_runner_->PostTaskAndReplyWithResult(
++      FROM_HERE,
++      base::BindOnce(
++          [](const StorePaths& paths, const std::string& rules,
++             base::Time now) {
++            return thoron_adblock::SetMyFilters(paths, rules, now);
++          },
++          Paths(), std::move(text), base::Time::Now()),
++      base::BindOnce(&EngineService::OnChanged, weak_factory_.GetWeakPtr(),
++                     std::move(callback)));
++}
++
++void EngineService::UpdateNow(Changed callback) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  EnsureStarted();
++  if (!updater_) {
++    std::move(callback).Run(
++        "The blocker is still starting. Try again in a moment.");
++    return;
++  }
++  updater_->CheckNow(base::BindOnce(
++      [](Changed done, std::string summary) { std::move(done).Run(""); },
++      std::move(callback)));
++}
++
++void EngineService::OnChanged(Changed callback, ChangeResult change) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (change.error.empty() && change.engine && (*change.engine)->is_valid()) {
++    engine_ = std::move(change.engine);
++  }
++  std::move(callback).Run(std::move(change.error));
++}
++
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..d1280bebe804c558cec823156dbd3506086e7c4e
+index 0000000000000000000000000000000000000000..11e0bde090055244f8a3581344e16fec73dfff03
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,140 @@
+@@ -0,0 +1,170 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2889,9 +3068,11 @@ index 0000000000000000000000000000000000000000..d1280bebe804c558cec823156dbd3506
 +#include <vector>
 +
 +#include "base/files/file_path.h"
++#include "base/functional/callback.h"
 +#include "base/memory/weak_ptr.h"
 +#include "base/no_destructor.h"
 +#include "base/sequence_checker.h"
++#include "base/values.h"
 +#include "components/thoron_adblock/engine.rs.h"
 +#include "components/thoron_adblock/list_updater.h"
 +#include "services/network/public/mojom/fetch_api.mojom-shared.h"
@@ -2899,6 +3080,8 @@ index 0000000000000000000000000000000000000000..d1280bebe804c558cec823156dbd3506
 +#include "url/gurl.h"
 +
 +namespace thoron_adblock {
++
++class ListFetch;
 +
 +// The browser's one native ad-blocking engine. It is loaded on a background
 +// thread the first time it is needed (the updated engine, else the shipped
@@ -2991,6 +3174,27 @@ index 0000000000000000000000000000000000000000..d1280bebe804c558cec823156dbd3506
 +  // For tests: use this engine instead of the bundled lists.
 +  void SetEngineForTesting(rust::Box<Engine> engine);
 +
++  // What the settings page (chrome://adblock) asks for. The file work runs on
++  // the background sequence and the answer comes back on this one. A change
++  // that was made is in use at once: its engine replaces the one before.
++  using Described = base::OnceCallback<void(base::DictValue)>;
++  // Gets "" when the change was made, else what went wrong, in plain words.
++  using Changed = base::OnceCallback<void(std::string)>;
++  // Every list with its name, address, state and rule count, the person's own
++  // rules, and how the last update went (list_store.h).
++  void DescribeSettings(Described callback);
++  // Switches a built-in list on or off.
++  void SetListEnabled(const std::string& id, bool enabled, Changed callback);
++  // Downloads the list at `url` (HTTPS only), checks it like an updated list
++  // and adds it. Its rules get no trust: no trusted scriptlets.
++  void AddList(const GURL& url, Changed callback);
++  // Removes a list the person added.
++  void RemoveList(const std::string& id, Changed callback);
++  // Replaces the person's own rules.
++  void SetMyFilters(std::string text, Changed callback);
++  // Looks for newer lists now, whenever the last check was.
++  void UpdateNow(Changed callback);
++
 + private:
 +  friend class base::NoDestructor<EngineService>;
 +  EngineService();
@@ -3001,6 +3205,9 @@ index 0000000000000000000000000000000000000000..d1280bebe804c558cec823156dbd3506
 +  void OnNewEngine(rust::Box<Engine> engine);
 +  // Per probe request (list_store.h), whether the current engine blocks it.
 +  std::vector<bool> ProbesBlocked() const;
++  void StartAddFetch(GURL url, base::FilePath path, Changed callback);
++  void OnListFetched(GURL url, Changed callback, base::FilePath path);
++  void OnChanged(Changed callback, ChangeResult change);
 +
 +  bool started_ = false;
 +  bool configured_ = false;
@@ -3008,6 +3215,8 @@ index 0000000000000000000000000000000000000000..d1280bebe804c558cec823156dbd3506
 +  ListUpdater::FactoryGetter factory_getter_;
 +  scoped_refptr<base::SequencedTaskRunner> file_runner_;
 +  std::unique_ptr<ListUpdater> updater_;
++  // The download of a list that is being added; one at a time.
++  std::unique_ptr<ListFetch> add_fetch_;
 +  std::optional<rust::Box<Engine>> engine_;
 +  SEQUENCE_CHECKER(sequence_checker_);
 +  base::WeakPtrFactory<EngineService> weak_factory_{this};
@@ -3509,12 +3718,231 @@ index 0000000000000000000000000000000000000000..2956fae7eba24767f4e169251b59f717
 +    );
 +    ExitCode::SUCCESS
 +}
+diff --git a/components/thoron_adblock/list_fetch.cc b/components/thoron_adblock/list_fetch.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..e920d1f545b40abcb3119c2021177e99ab7962a5
+--- /dev/null
++++ b/components/thoron_adblock/list_fetch.cc
+@@ -0,0 +1,133 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/thoron_adblock/list_fetch.h"
++
++#include <utility>
++
++#include "base/files/file_util.h"
++#include "base/functional/bind.h"
++#include "base/time/time.h"
++#include "components/thoron_adblock/list_store.h"
++#include "net/base/load_flags.h"
++#include "net/base/url_util.h"
++#include "net/http/http_response_headers.h"
++#include "net/traffic_annotation/network_traffic_annotation.h"
++#include "net/url_request/redirect_info.h"
++#include "services/network/public/cpp/resource_request.h"
++#include "services/network/public/cpp/shared_url_loader_factory.h"
++#include "services/network/public/cpp/simple_url_loader.h"
++#include "services/network/public/mojom/url_response_head.mojom.h"
++#include "url/url_constants.h"
++
++namespace thoron_adblock {
++
++namespace {
++
++constexpr base::TimeDelta kDownloadTimeout = base::Minutes(2);
++
++constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
++    net::DefineNetworkTrafficAnnotation("thoron_adblock_lists", R"(
++        semantics {
++          sender: "Thoron native ad blocking"
++          description:
++            "Downloads the public filter lists the built-in ad blocker uses "
++            "(EasyList, EasyPrivacy, uBlock Origin's own lists and the URLhaus "
++            "malware list), from the addresses uBlock Origin uses, at most "
++            "every 4 days, and the lists a person added on chrome://adblock, "
++            "from the addresses that person gave."
++          trigger:
++            "The ThoronNativeAdblock feature is on and the last list check is "
++            "more than 4 days old, or a person adds a list or asks for an "
++            "update on chrome://adblock."
++          data: "None. A plain GET of a public file, without cookies or any "
++                "other credentials."
++          destination: OTHER
++          destination_other:
++            "ublockorigin.github.io, ublockorigin.pages.dev, "
++            "malware-filter.gitlab.io, curbengh.github.io, and the hosts of "
++            "lists a person added."
++        }
++        policy {
++          cookies_allowed: NO
++          setting: "Off unless the ThoronNativeAdblock feature is on."
++          policy_exception_justification: "No policy yet."
++        })");
++
++}  // namespace
++
++// static
++bool ListFetch::IsAllowed(const GURL& url, bool allow_loopback) {
++  return url.is_valid() && (url.SchemeIs(url::kHttpsScheme) ||
++                            (allow_loopback && net::IsLocalhost(url)));
++}
++
++ListFetch::ListFetch(const GURL& url,
++                     const base::FilePath& path,
++                     scoped_refptr<network::SharedURLLoaderFactory> factory,
++                     scoped_refptr<base::SequencedTaskRunner> file_runner,
++                     bool allow_loopback,
++                     Done done)
++    : allow_loopback_(allow_loopback),
++      file_runner_(std::move(file_runner)),
++      done_(std::move(done)) {
++  if (!factory || !IsAllowed(url, allow_loopback_)) {
++    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++        FROM_HERE, base::BindOnce(&ListFetch::Finish,
++                                  weak_factory_.GetWeakPtr(), base::FilePath()));
++    return;
++  }
++  auto request = std::make_unique<network::ResourceRequest>();
++  request->url = url;
++  request->method = "GET";
++  request->credentials_mode = network::mojom::CredentialsMode::kOmit;
++  request->load_flags = net::LOAD_DISABLE_CACHE;
++  loader_ = network::SimpleURLLoader::Create(std::move(request),
++                                             kTrafficAnnotation);
++  loader_->SetTimeoutDuration(kDownloadTimeout);
++  loader_->SetOnRedirectCallback(base::BindRepeating(
++      &ListFetch::OnRedirect, weak_factory_.GetWeakPtr()));
++  loader_->DownloadToFile(
++      factory.get(),
++      base::BindOnce(&ListFetch::OnDownloaded, weak_factory_.GetWeakPtr()),
++      path, static_cast<int64_t>(kMaxListBytes));
++}
++
++ListFetch::~ListFetch() = default;
++
++void ListFetch::OnRedirect(const GURL& url_before_redirect,
++                           const net::RedirectInfo& redirect_info,
++                           const network::mojom::URLResponseHead& response_head,
++                           std::vector<std::string>* removed_headers) {
++  if (IsAllowed(redirect_info.new_url, allow_loopback_)) {
++    return;
++  }
++  loader_.reset();  // cancels the request
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE, base::BindOnce(&ListFetch::Finish, weak_factory_.GetWeakPtr(),
++                                base::FilePath()));
++}
++
++void ListFetch::OnDownloaded(base::FilePath path) {
++  bool ok = false;
++  if (loader_ && !path.empty()) {
++    const network::mojom::URLResponseHead* head = loader_->ResponseInfo();
++    ok = head && head->headers && head->headers->response_code() == 200 &&
++         IsAllowed(loader_->GetFinalURL(), allow_loopback_);
++  }
++  loader_.reset();
++  if (!ok && !path.empty()) {
++    file_runner_->PostTask(FROM_HERE,
++                           base::GetDeleteFileCallback(std::move(path)));
++    path.clear();
++  }
++  Finish(ok ? std::move(path) : base::FilePath());
++}
++
++void ListFetch::Finish(base::FilePath path) {
++  if (done_) {
++    std::move(done_).Run(std::move(path));  // may delete this
++  }
++}
++
++}  // namespace thoron_adblock
+diff --git a/components/thoron_adblock/list_fetch.h b/components/thoron_adblock/list_fetch.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..eed875cd4da34b0f151586a64b5700ff61b6d7b4
+--- /dev/null
++++ b/components/thoron_adblock/list_fetch.h
+@@ -0,0 +1,74 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_THORON_ADBLOCK_LIST_FETCH_H_
++#define COMPONENTS_THORON_ADBLOCK_LIST_FETCH_H_
++
++#include <memory>
++#include <string>
++#include <vector>
++
++#include "base/files/file_path.h"
++#include "base/functional/callback.h"
++#include "base/memory/scoped_refptr.h"
++#include "base/memory/weak_ptr.h"
++#include "base/task/sequenced_task_runner.h"
++#include "url/gurl.h"
++
++namespace net {
++struct RedirectInfo;
++}  // namespace net
++
++namespace network {
++class SharedURLLoaderFactory;
++class SimpleURLLoader;
++namespace mojom {
++class URLResponseHead;
++}  // namespace mojom
++}  // namespace network
++
++namespace thoron_adblock {
++
++// One download of a filter list: a plain GET with no cookies or other
++// credentials, not from and not into the HTTP cache, of at most kMaxListBytes.
++// It must be answered with 200 and must never leave HTTPS, not by a redirect
++// either. This is the only way a list reaches the browser, for the built-in
++// lists and for a list a person adds.
++class ListFetch {
++ public:
++  // Gets the file the list was written to, or an empty path when the download
++  // failed or was refused. The callback may delete this object.
++  using Done = base::OnceCallback<void(base::FilePath)>;
++
++  // True for an address a list may be fetched from: HTTPS, and with
++  // `allow_loopback` (tests only) also a loopback address.
++  static bool IsAllowed(const GURL& url, bool allow_loopback);
++
++  ListFetch(const GURL& url,
++            const base::FilePath& path,
++            scoped_refptr<network::SharedURLLoaderFactory> factory,
++            scoped_refptr<base::SequencedTaskRunner> file_runner,
++            bool allow_loopback,
++            Done done);
++  ListFetch(const ListFetch&) = delete;
++  ListFetch& operator=(const ListFetch&) = delete;
++  ~ListFetch();
++
++ private:
++  void OnRedirect(const GURL& url_before_redirect,
++                  const net::RedirectInfo& redirect_info,
++                  const network::mojom::URLResponseHead& response_head,
++                  std::vector<std::string>* removed_headers);
++  void OnDownloaded(base::FilePath path);
++  void Finish(base::FilePath path);
++
++  const bool allow_loopback_;
++  scoped_refptr<base::SequencedTaskRunner> file_runner_;
++  Done done_;
++  std::unique_ptr<network::SimpleURLLoader> loader_;
++  base::WeakPtrFactory<ListFetch> weak_factory_{this};
++};
++
++}  // namespace thoron_adblock
++
++#endif  // COMPONENTS_THORON_ADBLOCK_LIST_FETCH_H_
 diff --git a/components/thoron_adblock/list_store.cc b/components/thoron_adblock/list_store.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d257521926047c88b604
+index 0000000000000000000000000000000000000000..96ad571100f327e00bed7a511cbb67c8cdc9f218
 --- /dev/null
 +++ b/components/thoron_adblock/list_store.cc
-@@ -0,0 +1,416 @@
+@@ -0,0 +1,878 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3525,12 +3953,14 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +
 +#include "base/files/file_util.h"
 +#include "base/files/important_file_writer.h"
++#include "base/hash/sha1.h"
 +#include "base/json/json_reader.h"
 +#include "base/json/json_writer.h"
 +#include "base/strings/strcat.h"
 +#include "base/strings/string_number_conversions.h"
 +#include "base/strings/string_util.h"
 +#include "base/values.h"
++#include "url/url_constants.h"
 +
 +namespace thoron_adblock {
 +
@@ -3557,28 +3987,40 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +constexpr size_t kMaxAllListsBytes = 96 * 1024 * 1024;
 +constexpr size_t kMaxStateBytes = 64 * 1024;
 +
++// What a person chose on the settings page, and their own rules.
++constexpr base::FilePath::CharType kSettingsFile[] =
++    FILE_PATH_LITERAL("settings.json");
++constexpr base::FilePath::CharType kMyFiltersFile[] =
++    FILE_PATH_LITERAL("my-filters.txt");
++constexpr size_t kMaxSettingsBytes = 256 * 1024;
++constexpr std::string_view kCustomPrefix = "custom-";
++// A list's own name is looked for in its first lines only.
++constexpr size_t kTitleSearchBytes = 4096;
++constexpr size_t kMaxTitleLength = 80;
++
 +constexpr auto kSources = std::to_array<ListSource>({
-+    {"easylist", "https://ublockorigin.github.io/uAssets/thirdparties/easylist.txt",
++    {"easylist", "EasyList",
++     "https://ublockorigin.github.io/uAssets/thirdparties/easylist.txt",
 +     "https://ublockorigin.pages.dev/thirdparties/easylist.txt"},
-+    {"easyprivacy",
++    {"easyprivacy", "EasyPrivacy",
 +     "https://ublockorigin.github.io/uAssets/thirdparties/easyprivacy.txt",
 +     "https://ublockorigin.pages.dev/thirdparties/easyprivacy.txt"},
-+    {"ublock-filters",
++    {"ublock-filters", "uBlock filters",
 +     "https://ublockorigin.github.io/uAssetsCDN/filters/filters.min.txt",
 +     "https://ublockorigin.pages.dev/filters/filters.min.txt"},
-+    {"ublock-privacy",
++    {"ublock-privacy", "uBlock filters - Privacy",
 +     "https://ublockorigin.github.io/uAssetsCDN/filters/privacy.min.txt",
 +     "https://ublockorigin.pages.dev/filters/privacy.min.txt"},
-+    {"ublock-badware",
++    {"ublock-badware", "uBlock filters - Badware risks",
 +     "https://ublockorigin.github.io/uAssetsCDN/filters/badware.min.txt",
 +     "https://ublockorigin.pages.dev/filters/badware.min.txt"},
-+    {"ublock-quick-fixes",
++    {"ublock-quick-fixes", "uBlock filters - Quick fixes",
 +     "https://ublockorigin.github.io/uAssetsCDN/filters/quick-fixes.min.txt",
 +     "https://ublockorigin.pages.dev/filters/quick-fixes.min.txt"},
-+    {"ublock-unbreak",
++    {"ublock-unbreak", "uBlock filters - Unbreak",
 +     "https://ublockorigin.github.io/uAssetsCDN/filters/unbreak.min.txt",
 +     "https://ublockorigin.pages.dev/filters/unbreak.min.txt"},
-+    {"urlhaus-1",
++    {"urlhaus-1", "Online Malicious URL Blocklist",
 +     "https://malware-filter.gitlab.io/urlhaus-filter/urlhaus-filter-ag-online.txt",
 +     "https://curbengh.github.io/malware-filter/urlhaus-filter-ag-online.txt"},
 +});
@@ -3647,22 +4089,88 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +}
 +
 +// `result` says what the last check did, for people and tests reading the
-+// file; nothing reads it back.
++// file, and for the settings page. `settings` is the fingerprint of the
++// settings the saved engine was built for ("" for the defaults). `building`
++// is the fingerprint of settings whose lists are being read right now ("" when
++// none are): if the browser stops while reading them, the next start does not
++// try the same again.
 +bool WriteState(const StorePaths& paths,
-+                base::Time now,
++                base::Time checked,
 +                bool engine_saved,
 +                base::DictValue lists,
-+                const std::string& result) {
++                const std::string& result,
++                const std::string& settings,
++                const std::string& building) {
 +  base::DictValue state;
 +  state.Set("version", paths.version);
-+  state.Set("last_check", now.InSecondsFSinceUnixEpoch());
++  state.Set("last_check", checked.InSecondsFSinceUnixEpoch());
 +  state.Set("engine", engine_saved);
 +  state.Set("lists", std::move(lists));
 +  state.Set("result", result);
++  state.Set("settings", settings);
++  if (!building.empty()) {
++    state.Set("building", building);
++  }
 +  std::optional<std::string> json = base::WriteJson(state);
 +  return json && base::CreateDirectory(paths.store_dir) &&
 +         base::ImportantFileWriter::WriteFileAtomically(
 +             paths.store_dir.Append(kStateFile), *json);
++}
++
++std::string StateString(const std::optional<base::DictValue>& state,
++                        std::string_view key) {
++  const std::string* found = state ? state->FindString(key) : nullptr;
++  return found ? *found : std::string();
++}
++
++bool IsBuiltin(std::string_view id) {
++  for (const ListSource& source : kSources) {
++    if (source.id == id) {
++      return true;
++    }
++  }
++  return false;
++}
++
++// Tells settings apart: "" for the defaults, so a state file written before
++// there were settings still matches them. Not a secret and not a security
++// check.
++std::string Fingerprint(const Settings& settings, std::string_view my_filters) {
++  if (settings.disabled.empty() && settings.custom.empty() &&
++      my_filters.empty()) {
++    return std::string();
++  }
++  std::string text;
++  for (const std::string& id : settings.disabled) {
++    base::StrAppend(&text, {"-", id, "\n"});
++  }
++  for (const CustomList& list : settings.custom) {
++    base::StrAppend(&text, {"+", list.url, "\n"});
++  }
++  base::StrAppend(&text, {"\n", my_filters});
++  return base::HexEncodeLower(base::SHA1HashString(text));
++}
++
++// A list's own name: its "! Title: ..." line, when it has one near the top.
++std::string TitleOf(std::string_view text) {
++  constexpr std::string_view kTitle = "! Title:";
++  std::string_view head = text.substr(0, kTitleSearchBytes);
++  size_t pos = 0;
++  while (pos < head.size()) {
++    size_t end = head.find('\n', pos);
++    if (end == std::string_view::npos) {
++      end = head.size();
++    }
++    std::string_view line =
++        base::TrimWhitespaceASCII(head.substr(pos, end - pos), base::TRIM_ALL);
++    if (base::StartsWith(line, kTitle, base::CompareCase::INSENSITIVE_ASCII)) {
++      std::string_view title = base::TrimWhitespaceASCII(
++          line.substr(kTitle.size()), base::TRIM_ALL);
++      return std::string(title.substr(0, kMaxTitleLength));
++    }
++    pos = end + 1;
++  }
++  return std::string();
 +}
 +
 +base::FilePath StoredListPath(const StorePaths& paths, std::string_view id) {
@@ -3758,11 +4266,34 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +  }
 +}
 +
-+std::optional<rust::Box<Engine>> LoadFilters(const StorePaths& paths) {
++// The saved or shipped engine for the settings in use, or nullopt when there
++// is none. `rebuild` then says whether one has to be built from the lists the
++// settings name.
++std::optional<rust::Box<Engine>> LoadFilters(const StorePaths& paths,
++                                             bool* rebuild) {
++  *rebuild = false;
++  const std::string fingerprint =
++      Fingerprint(ReadSettings(paths), ReadMyFilters(paths));
 +  std::optional<base::DictValue> state = ReadState(paths);
-+  if (state && state->FindBool("engine").value_or(false)) {
++  const bool engine_saved = state && state->FindBool("engine").value_or(false);
++  if (engine_saved && StateString(state, "settings") == fingerprint) {
 +    if (auto engine = LoadSaved(paths.store_dir.Append(kStoredEngine))) {
 +      return engine;
++    }
++  }
++  if (!fingerprint.empty()) {
++    if (StateString(state, "building") != fingerprint) {
++      *rebuild = true;
++      return std::nullopt;
++    }
++    // The browser stopped while it was reading the lists for these settings.
++    // Reading them again could stop it again, at every start. The engine of
++    // the settings before them is the safest one there is; the settings page
++    // says what happened.
++    if (engine_saved) {
++      if (auto engine = LoadSaved(paths.store_dir.Append(kStoredEngine))) {
++        return engine;
++      }
 +    }
 +  }
 +  if (auto engine = LoadSaved(paths.bundled_dir.Append(kBundledEngine))) {
@@ -3776,45 +4307,40 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +  return engine_from_rules(ToStr(*rules));
 +}
 +
-+}  // namespace
-+
-+std::optional<rust::Box<Engine>> LoadEngine(const StorePaths& paths) {
-+  std::optional<rust::Box<Engine>> engine = LoadFilters(paths);
-+  if (engine && (*engine)->is_valid()) {
-+    AddResources(paths, **engine);
-+  }
-+  return engine;
-+}
-+
-+bool IsUpdateDue(const StorePaths& paths, base::Time now) {
-+  std::optional<base::DictValue> state = ReadState(paths);
-+  std::optional<double> last =
-+      state ? state->FindDouble("last_check") : std::nullopt;
-+  if (!last) {
-+    return true;
-+  }
-+  const base::Time checked = base::Time::FromSecondsSinceUnixEpoch(*last);
-+  // A clock that went backwards must not stop updates for long.
-+  return now - checked >= kUpdateInterval || checked - now >= kUpdateInterval;
-+}
-+
-+UpdateResult ApplyUpdate(const StorePaths& paths,
-+                         std::map<std::string, base::FilePath> downloads,
-+                         std::vector<bool> probes_blocked,
-+                         base::Time now) {
++// Builds the engine from the lists the settings name. For an update
++// (`settings_changed` false): checks each download, keeps the previous copy of
++// every list that fails a check, and builds only when a list changed and the
++// new engine passes the probes. For changed settings: builds in any case, from
++// the copies there are, and leaves the time of the last check as it was.
++UpdateResult Assemble(const StorePaths& paths,
++                      std::map<std::string, base::FilePath> downloads,
++                      std::vector<bool> probes_blocked,
++                      base::Time now,
++                      bool settings_changed) {
 +  UpdateResult result;
++  const Settings settings = ReadSettings(paths);
++  const std::string my_filters = ReadMyFilters(paths);
++  const std::string fingerprint = Fingerprint(settings, my_filters);
 +  std::optional<base::DictValue> state = ReadState(paths);
 +  const base::DictValue* old_lists = state ? state->FindDict("lists") : nullptr;
 +  const bool old_engine_saved =
 +      state && state->FindBool("engine").value_or(false);
-+  // Put the check on record before any new list is read. Reading one runs
-+  // the Rust parser in this process, and a list that made it abort would take
-+  // the browser down with it. With the record, the next attempt is
-+  // kUpdateInterval away; without it, it would be at every start.
-+  WriteState(paths, now, old_engine_saved,
++  const std::string old_fingerprint = StateString(state, "settings");
++  base::Time checked = now;
++  if (settings_changed) {
++    std::optional<double> last =
++        state ? state->FindDouble("last_check") : std::nullopt;
++    checked = last ? base::Time::FromSecondsSinceUnixEpoch(*last) : base::Time();
++  }
++  // Put the work on record before any list is read. Reading one runs the Rust
++  // parser in this process, and a list that made it abort would take the
++  // browser down with it. With the record, the next update is kUpdateInterval
++  // away and changed settings are not read again at the next start; without
++  // it, both would happen at every start.
++  WriteState(paths, checked, old_engine_saved,
 +             old_lists ? old_lists->Clone() : base::DictValue(),
-+             "interrupted: the browser stopped while it was reading new "
-+             "lists\n");
++             "interrupted: the browser stopped while it was reading lists\n",
++             old_fingerprint, fingerprint);
 +  std::optional<std::string> bundled_text =
 +      ReadText(paths.bundled_dir.Append(kBundledLists), kMaxAllListsBytes);
 +  std::map<std::string, std::string> bundled =
@@ -3823,20 +4349,20 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +  std::string combined;
 +  std::map<std::string, std::string> accepted;
 +  base::DictValue new_lists;
-+  for (const ListSource& source : kSources) {
-+    const std::string id(source.id);
-+    // The copy in use now: an earlier update from this version, else the
-+    // shipped one.
++  for (const ActiveList& source : ActiveLists(settings)) {
++    const std::string& id = source.id;
++    // The copy in use now. A built-in list: an earlier update from this
++    // version, else the shipped one. A list the person added: its stored copy.
 +    std::optional<std::string> previous;
 +    std::string previous_from = "bundled";
 +    const base::DictValue* old =
 +        old_lists ? old_lists->FindDict(id) : nullptr;
 +    const std::string* old_from = old ? old->FindString("source") : nullptr;
-+    if (old_from && *old_from == "download") {
++    if (!source.builtin || (old_from && *old_from == "download")) {
 +      previous = ReadText(StoredListPath(paths, id), kMaxListBytes);
 +      previous_from = "download";
 +    }
-+    if (!previous && bundled.contains(id)) {
++    if (!previous && source.builtin && bundled.contains(id)) {
 +      previous = bundled[id];
 +      previous_from = "bundled";
 +    }
@@ -3850,7 +4376,7 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +    std::string chosen_from = previous_from;
 +    auto it = downloads.find(id);
 +    if (it == downloads.end()) {
-+      note = "kept: download failed";
++      note = settings_changed ? "" : "kept: download failed";
 +    } else if (std::string raw; !base::ReadFileToStringWithMaxSize(
 +                   it->second, &raw, kMaxListBytes)) {
 +      note = "kept: too large or unreadable";
@@ -3864,6 +4390,11 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +      chosen_from = "download";
 +      note = "updated";
 +    }
++    if (settings_changed && note.empty()) {
++      // Not an update: the note of the last update stays.
++      const std::string* old_note = old ? old->FindString("note") : nullptr;
++      note = old_note ? *old_note : std::string();
++    }
 +    if (!chosen) {
 +      result.summary += base::StrCat({id, ": missing\n"});
 +      continue;
@@ -3874,19 +4405,43 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +                          .Set("rules", static_cast<int>(
 +                                            count_rules(ToStr(*chosen))))
 +                          .Set("note", note));
-+    result.summary += base::StrCat({id, ": ", note, "\n"});
++    if (!note.empty()) {
++      result.summary += base::StrCat({id, ": ", note, "\n"});
++    }
 +  }
 +  for (const auto& [id, path] : downloads) {
 +    base::DeleteFile(path);
++  }
++  // A built-in list that is switched off keeps its record: when it is switched
++  // on again it comes back with its updated copy, not with the shipped one.
++  if (old_lists) {
++    for (const auto [id, info] : *old_lists) {
++      if (IsBuiltin(id) && settings.disabled.contains(id) && info.is_dict()) {
++        new_lists.Set(id, info.Clone());
++      }
++    }
++  }
++  if (!my_filters.empty()) {
++    // The person's own rules, last, under an id that gives no trust.
++    base::StrAppend(&combined, {kMarker, kMyFiltersId, "\n", my_filters, "\n"});
++    new_lists.Set(kMyFiltersId,
++                  base::DictValue()
++                      .Set("source", "own")
++                      .Set("rules",
++                           static_cast<int>(count_rules(ToStr(my_filters))))
++                      .Set("note", ""));
++  }
++  if (settings_changed) {
++    result.summary += "settings changed: the filters were built again\n";
 +  }
 +
 +  // The lists as they were, for when nothing new is used.
 +  base::DictValue kept_lists =
 +      old_lists ? old_lists->Clone() : base::DictValue();
-+  if (accepted.empty()) {
++  if (accepted.empty() && !settings_changed) {
 +    // Every list kept its copy, so the entries still name the right files.
-+    WriteState(paths, now, old_engine_saved, std::move(new_lists),
-+               result.summary);
++    WriteState(paths, checked, old_engine_saved, std::move(new_lists),
++               result.summary, old_fingerprint, std::string());
 +    return result;
 +  }
 +
@@ -3895,8 +4450,8 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +  if (!engine->is_valid() || !BlocksAllProbes(*engine, probes_blocked, &missed)) {
 +    result.summary += base::StrCat(
 +        {"all kept: the new engine no longer blocks ", missed, "\n"});
-+    WriteState(paths, now, old_engine_saved, std::move(kept_lists),
-+               result.summary);
++    WriteState(paths, checked, old_engine_saved, std::move(kept_lists),
++               result.summary, old_fingerprint, std::string());
 +    return result;
 +  }
 +
@@ -3919,24 +4474,359 @@ index 0000000000000000000000000000000000000000..46993a9192c0c4dc99e1d25752192604
 +          std::string_view(reinterpret_cast<const char*>(data.data()),
 +                           data.size()));
 +  if (lists_saved) {
-+    WriteState(paths, now, engine_saved, std::move(new_lists), result.summary);
++    WriteState(paths, checked, engine_saved, std::move(new_lists),
++               result.summary, fingerprint, std::string());
 +  } else {
 +    result.summary += "not saved: the new lists could not be written\n";
-+    WriteState(paths, now, old_engine_saved, std::move(kept_lists),
-+               result.summary);
++    WriteState(paths, checked, old_engine_saved, std::move(kept_lists),
++               result.summary, old_fingerprint, std::string());
 +  }
 +  AddResources(paths, *engine);
 +  result.engine = std::move(engine);
 +  return result;
 +}
 +
++// Saves the settings and builds the engine for them.
++ChangeResult Commit(const StorePaths& paths,
++                    const Settings& settings,
++                    base::Time now) {
++  base::DictValue dict;
++  base::ListValue disabled;
++  for (const std::string& id : settings.disabled) {
++    disabled.Append(id);
++  }
++  base::ListValue custom;
++  for (const CustomList& list : settings.custom) {
++    custom.Append(
++        base::DictValue().Set("url", list.url).Set("title", list.title));
++  }
++  dict.Set("disabled", std::move(disabled));
++  dict.Set("custom", std::move(custom));
++  std::optional<std::string> json = base::WriteJson(dict);
++  ChangeResult change;
++  if (!json || !base::CreateDirectory(paths.store_dir) ||
++      !base::ImportantFileWriter::WriteFileAtomically(
++          paths.store_dir.Append(kSettingsFile), *json)) {
++    change.error = "The settings could not be saved.";
++    return change;
++  }
++  change.engine = std::move(Assemble(paths, {}, {}, now, true).engine);
++  if (!change.engine) {
++    change.error =
++        "The filters could not be built again; the previous ones stay in use.";
++  }
++  return change;
++}
++
++}  // namespace
++
++std::optional<rust::Box<Engine>> LoadEngine(const StorePaths& paths) {
++  bool rebuild = false;
++  std::optional<rust::Box<Engine>> engine = LoadFilters(paths, &rebuild);
++  if (rebuild) {
++    // It comes with its resources.
++    return std::move(Assemble(paths, {}, {}, base::Time::Now(), true).engine);
++  }
++  if (engine && (*engine)->is_valid()) {
++    AddResources(paths, **engine);
++  }
++  return engine;
++}
++
++bool IsUpdateDue(const StorePaths& paths, base::Time now) {
++  std::optional<base::DictValue> state = ReadState(paths);
++  std::optional<double> last =
++      state ? state->FindDouble("last_check") : std::nullopt;
++  if (!last) {
++    return true;
++  }
++  const base::Time checked = base::Time::FromSecondsSinceUnixEpoch(*last);
++  // A clock that went backwards must not stop updates for long.
++  return now - checked >= kUpdateInterval || checked - now >= kUpdateInterval;
++}
++
++UpdateResult ApplyUpdate(const StorePaths& paths,
++                         std::map<std::string, base::FilePath> downloads,
++                         std::vector<bool> probes_blocked,
++                         base::Time now) {
++  return Assemble(paths, std::move(downloads), std::move(probes_blocked), now,
++                  false);
++}
++
++Settings ReadSettings(const StorePaths& paths) {
++  Settings settings;
++  std::string json;
++  if (!base::ReadFileToStringWithMaxSize(paths.store_dir.Append(kSettingsFile),
++                                         &json, kMaxSettingsBytes)) {
++    return settings;
++  }
++  std::optional<base::DictValue> dict =
++      base::JSONReader::ReadDict(json, base::JSON_PARSE_RFC);
++  if (!dict) {
++    return settings;
++  }
++  if (const base::ListValue* disabled = dict->FindList("disabled")) {
++    for (const base::Value& id : *disabled) {
++      if (id.is_string() && IsBuiltin(id.GetString())) {
++        settings.disabled.insert(id.GetString());
++      }
++    }
++  }
++  if (const base::ListValue* custom = dict->FindList("custom")) {
++    for (const base::Value& entry : *custom) {
++      const base::DictValue* list = entry.GetIfDict();
++      const std::string* url = list ? list->FindString("url") : nullptr;
++      if (!url || settings.custom.size() >= kMaxCustomLists) {
++        continue;
++      }
++      const GURL parsed(*url);
++      if (!parsed.is_valid() || !parsed.SchemeIsHTTPOrHTTPS()) {
++        continue;
++      }
++      // The id is always worked out here: nothing in the file can give a list
++      // the id of a trusted one.
++      CustomList added;
++      added.url = parsed.spec();
++      added.id = CustomListId(added.url);
++      const std::string* title = list->FindString("title");
++      added.title = title ? title->substr(0, kMaxTitleLength) : std::string();
++      bool known = false;
++      for (const CustomList& other : settings.custom) {
++        known = known || other.id == added.id;
++      }
++      if (!known) {
++        settings.custom.push_back(std::move(added));
++      }
++    }
++  }
++  return settings;
++}
++
++std::string ReadMyFilters(const StorePaths& paths) {
++  std::string text;
++  if (!base::ReadFileToStringWithMaxSize(paths.store_dir.Append(kMyFiltersFile),
++                                         &text, kMaxMyFiltersBytes) ||
++      RefuseMyFilters(text)) {
++    return std::string();
++  }
++  return text;
++}
++
++std::string CustomListId(std::string_view url) {
++  return base::StrCat(
++      {kCustomPrefix,
++       base::HexEncodeLower(base::SHA1HashString(url)).substr(0, 16)});
++}
++
++std::vector<ActiveList> ActiveLists(const Settings& settings) {
++  std::vector<ActiveList> lists;
++  for (const ListSource& source : kSources) {
++    if (!settings.disabled.contains(std::string(source.id))) {
++      lists.push_back({std::string(source.id), GURL(source.url),
++                       GURL(source.fallback_url), true});
++    }
++  }
++  for (const CustomList& list : settings.custom) {
++    lists.push_back({list.id, GURL(list.url), GURL(), false});
++  }
++  return lists;
++}
++
++std::optional<std::string> RefuseMyFilters(std::string_view text) {
++  if (text.size() > kMaxMyFiltersBytes) {
++    return "Your filters are larger than 1 MB.";
++  }
++  if (!base::IsStringUTF8(text)) {
++    return "Your filters are not plain text.";
++  }
++  if (text.find(kMarker) != std::string_view::npos) {
++    return "A line starts with \"! thoron-list:\", which Thoron keeps for "
++           "itself.";
++  }
++  if (has_allow_all_rule(ToStr(text))) {
++    return "One rule allows every request, which would turn blocking off. To "
++           "allow a site, write a rule like @@||example.com^";
++  }
++  return std::nullopt;
++}
++
++ChangeResult SetListEnabled(const StorePaths& paths,
++                            const std::string& id,
++                            bool enabled,
++                            base::Time now) {
++  if (!IsBuiltin(id)) {
++    ChangeResult change;
++    change.error = "There is no such list.";
++    return change;
++  }
++  Settings settings = ReadSettings(paths);
++  if (enabled) {
++    settings.disabled.erase(id);
++  } else {
++    settings.disabled.insert(id);
++  }
++  return Commit(paths, settings, now);
++}
++
++ChangeResult AddCustomList(const StorePaths& paths,
++                           const GURL& url,
++                           const base::FilePath& download,
++                           base::Time now) {
++  ChangeResult change;
++  std::string text;
++  const bool read =
++      !download.empty() &&
++      base::ReadFileToStringWithMaxSize(download, &text, kMaxListBytes);
++  if (!download.empty()) {
++    base::DeleteFile(download);
++  }
++  if (!read) {
++    change.error =
++        "The list could not be downloaded, or it is larger than 20 MB.";
++    return change;
++  }
++  if (auto why = RefuseList(text, std::nullopt)) {
++    change.error =
++        base::StrCat({"This is not a usable filter list: ", *why, "."});
++    return change;
++  }
++  Settings settings = ReadSettings(paths);
++  const std::string id = CustomListId(url.spec());
++  CustomList* known = nullptr;
++  for (CustomList& list : settings.custom) {
++    if (list.id == id) {
++      known = &list;
++    }
++  }
++  if (!known && settings.custom.size() >= kMaxCustomLists) {
++    change.error = "No more lists can be added. Remove one first.";
++    return change;
++  }
++  if (known) {
++    known->title = TitleOf(text);
++  } else {
++    settings.custom.push_back({id, url.spec(), TitleOf(text)});
++  }
++  if (!base::CreateDirectory(paths.store_dir.Append(kStoredLists)) ||
++      !base::ImportantFileWriter::WriteFileAtomically(StoredListPath(paths, id),
++                                                      text)) {
++    change.error = "The list could not be saved.";
++    return change;
++  }
++  return Commit(paths, settings, now);
++}
++
++ChangeResult RemoveCustomList(const StorePaths& paths,
++                              const std::string& id,
++                              base::Time now) {
++  Settings settings = ReadSettings(paths);
++  const size_t before = settings.custom.size();
++  std::erase_if(settings.custom,
++                [&id](const CustomList& list) { return list.id == id; });
++  if (settings.custom.size() == before) {
++    ChangeResult change;
++    change.error = "There is no such list.";
++    return change;
++  }
++  ChangeResult change = Commit(paths, settings, now);
++  if (change.error.empty()) {
++    base::DeleteFile(StoredListPath(paths, id));
++  }
++  return change;
++}
++
++ChangeResult SetMyFilters(const StorePaths& paths,
++                          std::string_view text,
++                          base::Time now) {
++  ChangeResult change;
++  if (auto why = RefuseMyFilters(text)) {
++    change.error = *why;
++    return change;
++  }
++  const base::FilePath path = paths.store_dir.Append(kMyFiltersFile);
++  const bool written =
++      text.empty() ? base::DeleteFile(path)
++                   : (base::CreateDirectory(paths.store_dir) &&
++                      base::ImportantFileWriter::WriteFileAtomically(path,
++                                                                     text));
++  if (!written) {
++    change.error = "Your filters could not be saved.";
++    return change;
++  }
++  return Commit(paths, ReadSettings(paths), now);
++}
++
++base::DictValue DescribeSettings(const StorePaths& paths) {
++  const Settings settings = ReadSettings(paths);
++  std::optional<base::DictValue> state = ReadState(paths);
++  const base::DictValue* state_lists =
++      state ? state->FindDict("lists") : nullptr;
++  // The shipped lists are read only for a rule count that is not on record.
++  std::optional<std::map<std::string, std::string>> bundled;
++  auto describe = [&](const std::string& id, std::string_view title,
++                      std::string_view url, bool enabled, bool builtin) {
++    base::DictValue list;
++    list.Set("id", id);
++    list.Set("title", title);
++    list.Set("url", url);
++    list.Set("enabled", enabled);
++    list.Set("builtin", builtin);
++    const base::DictValue* info =
++        state_lists ? state_lists->FindDict(id) : nullptr;
++    std::optional<int> rules = info ? info->FindInt("rules") : std::nullopt;
++    if (!rules && builtin) {
++      if (!bundled) {
++        std::optional<std::string> text = ReadText(
++            paths.bundled_dir.Append(kBundledLists), kMaxAllListsBytes);
++        bundled = text ? SplitLists(*text)
++                       : std::map<std::string, std::string>();
++      }
++      if (auto it = bundled->find(id); it != bundled->end()) {
++        rules = static_cast<int>(count_rules(ToStr(it->second)));
++      }
++    } else if (!rules) {
++      if (auto text = ReadText(StoredListPath(paths, id), kMaxListBytes)) {
++        rules = static_cast<int>(count_rules(ToStr(*text)));
++      }
++    }
++    list.Set("rules", rules.value_or(0));
++    const std::string* note = info ? info->FindString("note") : nullptr;
++    list.Set("note", note ? *note : std::string());
++    return list;
++  };
++  base::ListValue lists;
++  for (const ListSource& source : kSources) {
++    const std::string id(source.id);
++    lists.Append(describe(id, source.title, source.url,
++                          !settings.disabled.contains(id), true));
++  }
++  for (const CustomList& list : settings.custom) {
++    lists.Append(describe(list.id, list.title, list.url, true, false));
++  }
++  const std::string my_filters = ReadMyFilters(paths);
++  const std::string fingerprint = Fingerprint(settings, my_filters);
++  base::DictValue out;
++  out.Set("lists", std::move(lists));
++  out.Set("myFilters", my_filters);
++  out.Set("myFiltersRules", static_cast<int>(count_rules(ToStr(my_filters))));
++  out.Set("lastCheck",
++          state ? state->FindDouble("last_check").value_or(0.0) : 0.0);
++  out.Set("result", StateString(state, "result"));
++  out.Set("maxLists", static_cast<int>(kMaxCustomLists));
++  // True when the browser stopped while it was reading the lists for these
++  // settings, so they are not in use.
++  out.Set("notApplied", !fingerprint.empty() &&
++                            StateString(state, "building") == fingerprint);
++  return out;
++}
++
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/list_store.h b/components/thoron_adblock/list_store.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..3a9c16f46e74552624f8deb32a6ae586061652b8
+index 0000000000000000000000000000000000000000..68ae9a5baa21f8e0062cc5f83f8676d9c4f3de12
 --- /dev/null
 +++ b/components/thoron_adblock/list_store.h
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,174 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3945,6 +4835,7 @@ index 0000000000000000000000000000000000000000..3a9c16f46e74552624f8deb32a6ae586
 +
 +#include <map>
 +#include <optional>
++#include <set>
 +#include <string>
 +#include <string_view>
 +#include <vector>
@@ -3952,15 +4843,19 @@ index 0000000000000000000000000000000000000000..3a9c16f46e74552624f8deb32a6ae586
 +#include "base/containers/span.h"
 +#include "base/files/file_path.h"
 +#include "base/time/time.h"
++#include "base/values.h"
 +#include "components/thoron_adblock/engine.rs.h"
 +#include "third_party/rust/cxx/v1/cxx.h"
++#include "url/gurl.h"
 +
 +namespace thoron_adblock {
 +
-+// One filter list: uBlock Origin's id for it, and where updates come from
-+// (the same addresses uBlock Origin uses).
++// One filter list that comes with the browser: uBlock Origin's id for it, the
++// name people know it by, and where updates come from (the same addresses
++// uBlock Origin uses).
 +struct ListSource {
 +  std::string_view id;
++  std::string_view title;
 +  std::string_view url;
 +  std::string_view fallback_url;
 +};
@@ -3981,6 +4876,49 @@ index 0000000000000000000000000000000000000000..3a9c16f46e74552624f8deb32a6ae586
 +// Lists are checked for updates at most this often.
 +inline constexpr base::TimeDelta kUpdateInterval = base::Days(4);
 +
++// What a person chose on the settings page (chrome://adblock). It is kept in
++// the store, for the whole browser like the lists themselves, never in a
++// profile.
++struct CustomList {
++  std::string id;     // always worked out from the address, never read from a file
++  std::string url;
++  std::string title;  // the list's own "! Title:" line, when it has one
++
++  bool operator==(const CustomList&) const = default;
++};
++struct Settings {
++  std::set<std::string> disabled;  // built-in lists that are switched off
++  std::vector<CustomList> custom;  // lists the person added
++
++  bool operator==(const Settings&) const = default;
++};
++// The most lists a person can add, and the largest "My filters" text.
++inline constexpr size_t kMaxCustomLists = 30;
++inline constexpr size_t kMaxMyFiltersBytes = 1024 * 1024;
++// The id the person's own rules are built in under. Like every id that does
++// not start with "ublock-", it gives no trust: such rules cannot use the
++// trusted scriptlets.
++inline constexpr std::string_view kMyFiltersId = "my-filters";
++
++// The settings as saved; the defaults when there are none or the file cannot
++// be read. Ids of built-in lists that do not exist are dropped.
++Settings ReadSettings(const StorePaths& paths);
++// The person's own rules, or "" when there are none.
++std::string ReadMyFilters(const StorePaths& paths);
++
++// The id of a list a person added: "custom-" and a hash of its address.
++std::string CustomListId(std::string_view url);
++
++// A list the engine is built from and the updater fetches: a built-in one
++// that is switched on, or one the person added.
++struct ActiveList {
++  std::string id;
++  GURL url;
++  GURL fallback_url;  // built-in lists only
++  bool builtin = true;
++};
++std::vector<ActiveList> ActiveLists(const Settings& settings);
++
 +// Splits the bundled lists file at its "! thoron-list: <id>" lines.
 +std::map<std::string, std::string> SplitLists(std::string_view text);
 +
@@ -3989,9 +4927,14 @@ index 0000000000000000000000000000000000000000..3a9c16f46e74552624f8deb32a6ae586
 +std::optional<std::string> RefuseList(std::string_view text,
 +                                      std::optional<size_t> previous_rules);
 +
-+// The engine to start with: the updated one when it was written by this
-+// browser version and loads, else the shipped engine, else one built from the
-+// shipped lists.
++// Why a person's own rules are refused, or nullopt when they are accepted.
++std::optional<std::string> RefuseMyFilters(std::string_view text);
++
++// The engine to start with. With the default settings: the updated one when
++// it was written by this browser version and loads, else the shipped engine,
++// else one built from the shipped lists. With other settings: the engine
++// saved for exactly these settings, else one built from the lists the
++// settings name (and saved).
 +std::optional<rust::Box<Engine>> LoadEngine(const StorePaths& paths);
 +
 +// True when the last list check is older than kUpdateInterval, or was made by
@@ -4024,15 +4967,46 @@ index 0000000000000000000000000000000000000000..3a9c16f46e74552624f8deb32a6ae586
 +                         std::vector<bool> probes_blocked,
 +                         base::Time now);
 +
++// A change made on the settings page. `error` is empty when it was made, and
++// then `engine` is the engine built for the new settings. On an error nothing
++// was changed.
++struct ChangeResult {
++  std::string error;
++  std::optional<rust::Box<Engine>> engine;
++};
++// Switches a built-in list on or off.
++ChangeResult SetListEnabled(const StorePaths& paths,
++                            const std::string& id,
++                            bool enabled,
++                            base::Time now);
++// Adds the list at `url`, whose text was downloaded to `download` (deleted
++// here). The same checks as for an updated list apply.
++ChangeResult AddCustomList(const StorePaths& paths,
++                           const GURL& url,
++                           const base::FilePath& download,
++                           base::Time now);
++// Removes a list the person added, with its stored copy.
++ChangeResult RemoveCustomList(const StorePaths& paths,
++                              const std::string& id,
++                              base::Time now);
++// Replaces the person's own rules.
++ChangeResult SetMyFilters(const StorePaths& paths,
++                          std::string_view text,
++                          base::Time now);
++
++// What the settings page shows: every list with its name, address, state and
++// rule count, the person's own rules, and when and how the last update went.
++base::DictValue DescribeSettings(const StorePaths& paths);
++
 +}  // namespace thoron_adblock
 +
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_STORE_H_
 diff --git a/components/thoron_adblock/list_updater.cc b/components/thoron_adblock/list_updater.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..72d94f02871076b58d4c4b15ce471077c47572a5
+index 0000000000000000000000000000000000000000..b03c276e8a02db80c65690b6d896e1819061b903
 --- /dev/null
 +++ b/components/thoron_adblock/list_updater.cc
-@@ -0,0 +1,226 @@
+@@ -0,0 +1,199 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4046,15 +5020,8 @@ index 0000000000000000000000000000000000000000..72d94f02871076b58d4c4b15ce471077
 +#include "base/strings/strcat.h"
 +#include "base/task/task_runner.h"
 +#include "base/time/time.h"
-+#include "net/base/load_flags.h"
-+#include "net/base/url_util.h"
-+#include "net/http/http_response_headers.h"
-+#include "net/traffic_annotation/network_traffic_annotation.h"
-+#include "services/network/public/cpp/resource_request.h"
++#include "components/thoron_adblock/list_fetch.h"
 +#include "services/network/public/cpp/shared_url_loader_factory.h"
-+#include "services/network/public/cpp/simple_url_loader.h"
-+#include "services/network/public/mojom/url_response_head.mojom.h"
-+#include "url/url_constants.h"
 +
 +namespace thoron_adblock {
 +
@@ -4063,38 +5030,19 @@ index 0000000000000000000000000000000000000000..72d94f02871076b58d4c4b15ce471077
 +constexpr base::TimeDelta kFirstCheckDelay = base::Minutes(2);
 +constexpr base::TimeDelta kFirstCheckDelayForTesting = base::Seconds(1);
 +constexpr base::TimeDelta kCheckEvery = base::Hours(1);
-+constexpr base::TimeDelta kDownloadTimeout = base::Minutes(2);
 +constexpr base::FilePath::CharType kDownloadDir[] =
 +    FILE_PATH_LITERAL("download");
 +
-+constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
-+    net::DefineNetworkTrafficAnnotation("thoron_adblock_lists", R"(
-+        semantics {
-+          sender: "Thoron native ad blocking"
-+          description:
-+            "Downloads the public filter lists the built-in ad blocker uses "
-+            "(EasyList, EasyPrivacy, uBlock Origin's own lists and the URLhaus "
-+            "malware list), from the addresses uBlock Origin uses, at most "
-+            "every 4 days."
-+          trigger:
-+            "The ThoronNativeAdblock feature is on and the last list check is "
-+            "more than 4 days old."
-+          data: "None. A plain GET of a public file, without cookies or any "
-+                "other credentials."
-+          destination: OTHER
-+          destination_other:
-+            "ublockorigin.github.io, ublockorigin.pages.dev, "
-+            "malware-filter.gitlab.io, curbengh.github.io"
-+        }
-+        policy {
-+          cookies_allowed: NO
-+          setting: "Off unless the ThoronNativeAdblock feature is on."
-+          policy_exception_justification: "No policy yet."
-+        })");
-+
-+bool CreateDownloadDir(const StorePaths& paths, base::Time now) {
-+  return IsUpdateDue(paths, now) &&
-+         base::CreateDirectory(paths.store_dir.Append(kDownloadDir));
++// The lists to fetch, when a check is due (or asked for) and there is a
++// folder to download into.
++std::optional<std::vector<ActiveList>> ListsToFetch(const StorePaths& paths,
++                                                    base::Time now,
++                                                    bool forced) {
++  if ((!forced && !IsUpdateDue(paths, now)) ||
++      !base::CreateDirectory(paths.store_dir.Append(kDownloadDir))) {
++    return std::nullopt;
++  }
++  return ActiveLists(ReadSettings(paths));
 +}
 +
 +}  // namespace
@@ -4120,6 +5068,20 @@ index 0000000000000000000000000000000000000000..72d94f02871076b58d4c4b15ce471077
 +                                                 : kFirstCheckDelay);
 +}
 +
++void ListUpdater::CheckNow(base::OnceCallback<void(std::string)> done) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  forced_ = true;
++  if (busy_) {
++    // The check that is running may be one that finds nothing due. This
++    // request gets a check of its own, right after it.
++    waiting_next_.push_back(std::move(done));
++    return;
++  }
++  waiting_.push_back(std::move(done));
++  timer_.Stop();
++  Check();
++}
++
 +void ListUpdater::ScheduleCheck(base::TimeDelta delay) {
 +  timer_.Start(FROM_HERE, delay,
 +               base::BindOnce(&ListUpdater::Check, weak_factory_.GetWeakPtr()));
@@ -4131,97 +5093,71 @@ index 0000000000000000000000000000000000000000..72d94f02871076b58d4c4b15ce471077
 +    return;
 +  }
 +  busy_ = true;
++  const bool forced = forced_;
++  forced_ = false;
 +  file_runner_->PostTaskAndReplyWithResult(
-+      FROM_HERE, base::BindOnce(&CreateDownloadDir, paths_, base::Time::Now()),
++      FROM_HERE,
++      base::BindOnce(&ListsToFetch, paths_, base::Time::Now(), forced),
 +      base::BindOnce(&ListUpdater::OnDueChecked, weak_factory_.GetWeakPtr()));
 +}
 +
-+void ListUpdater::OnDueChecked(bool due) {
++void ListUpdater::OnDueChecked(std::optional<std::vector<ActiveList>> sources) {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-+  if (!due) {
-+    busy_ = false;
-+    ScheduleCheck(kCheckEvery);
++  if (!sources) {
++    Finished("No check was due.\n");
 +    return;
 +  }
++  sources_ = std::move(*sources);
 +  index_ = 0;
 +  on_fallback_ = false;
 +  downloads_.clear();
 +  FetchNext();
 +}
 +
-+GURL ListUpdater::UrlFor(const ListSource& source, bool fallback) const {
-+  if (base_url_for_testing_.is_valid()) {
-+    return fallback ? GURL() : base_url_for_testing_.Resolve(
-+                                   base::StrCat({source.id, ".txt"}));
++GURL ListUpdater::UrlFor(const ActiveList& source, bool fallback) const {
++  const bool testing = base_url_for_testing_.is_valid();
++  if (!source.builtin) {
++    // A list a person added has one address, the one they gave.
++    return fallback || !ListFetch::IsAllowed(source.url, testing) ? GURL()
++                                                                  : source.url;
 +  }
-+  return GURL(fallback ? source.fallback_url : source.url);
++  if (testing) {
++    return fallback ? GURL()
++                    : base_url_for_testing_.Resolve(
++                          base::StrCat({source.id, ".txt"}));
++  }
++  return fallback ? source.fallback_url : source.url;
 +}
 +
 +void ListUpdater::FetchNext() {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-+  const base::span<const ListSource> sources = ListSources();
-+  while (index_ < sources.size() &&
-+         !UrlFor(sources[index_], on_fallback_).is_valid()) {
++  while (index_ < sources_.size() &&
++         !UrlFor(sources_[index_], on_fallback_).is_valid()) {
 +    ++index_;
 +    on_fallback_ = false;
 +  }
 +  scoped_refptr<network::SharedURLLoaderFactory> factory =
-+      index_ < sources.size() ? factory_getter_.Run() : nullptr;
++      index_ < sources_.size() ? factory_getter_.Run() : nullptr;
 +  if (!factory) {
 +    FinishFetching();
 +    return;
 +  }
-+  const ListSource& source = sources[index_];
-+  auto request = std::make_unique<network::ResourceRequest>();
-+  request->url = UrlFor(source, on_fallback_);
-+  request->method = "GET";
-+  request->credentials_mode = network::mojom::CredentialsMode::kOmit;
-+  request->load_flags = net::LOAD_DISABLE_CACHE;
-+  loader_ = network::SimpleURLLoader::Create(std::move(request),
-+                                             kTrafficAnnotation);
-+  loader_->SetTimeoutDuration(kDownloadTimeout);
-+  // Never follow a redirect away from HTTPS (loopback test servers aside).
-+  loader_->SetOnRedirectCallback(base::BindRepeating(
-+      [](base::WeakPtr<ListUpdater> self, const GURL&,
-+         const net::RedirectInfo& info, const network::mojom::URLResponseHead&,
-+         std::vector<std::string>*) {
-+        if (!self || info.new_url.SchemeIs(url::kHttpsScheme) ||
-+            (self->base_url_for_testing_.is_valid() &&
-+             net::IsLocalhost(info.new_url))) {
-+          return;
-+        }
-+        self->loader_.reset();  // cancels the request
-+        base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-+            FROM_HERE, base::BindOnce(&ListUpdater::OnFetched, self,
-+                                      base::FilePath()));
-+      },
-+      weak_factory_.GetWeakPtr()));
++  const ActiveList& source = sources_[index_];
 +  const base::FilePath path =
 +      paths_.store_dir.Append(kDownloadDir)
 +          .AppendASCII(base::StrCat({source.id, ".part"}));
-+  loader_->DownloadToFile(
-+      factory.get(),
-+      base::BindOnce(&ListUpdater::OnFetched, weak_factory_.GetWeakPtr()),
-+      path, static_cast<int64_t>(kMaxListBytes));
++  fetch_ = std::make_unique<ListFetch>(
++      UrlFor(source, on_fallback_), path, std::move(factory), file_runner_,
++      base_url_for_testing_.is_valid(),
++      base::BindOnce(&ListUpdater::OnFetched, weak_factory_.GetWeakPtr()));
 +}
 +
 +void ListUpdater::OnFetched(base::FilePath path) {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-+  const base::span<const ListSource> sources = ListSources();
-+  bool ok = false;
-+  if (loader_ && !path.empty()) {
-+    const network::mojom::URLResponseHead* head = loader_->ResponseInfo();
-+    const GURL& final_url = loader_->GetFinalURL();
-+    ok = head && head->headers && head->headers->response_code() == 200 &&
-+         (final_url.SchemeIs(url::kHttpsScheme) ||
-+          (base_url_for_testing_.is_valid() && net::IsLocalhost(final_url)));
-+  }
-+  loader_.reset();
++  fetch_.reset();
++  const bool ok = !path.empty();
 +  if (ok) {
-+    downloads_[std::string(sources[index_].id)] = path;
-+  } else if (!path.empty()) {
-+    file_runner_->PostTask(FROM_HERE,
-+                           base::GetDeleteFileCallback(std::move(path)));
++    downloads_[sources_[index_].id] = std::move(path);
 +  }
 +  if (ok || on_fallback_) {
 +    ++index_;
@@ -4236,8 +5172,7 @@ index 0000000000000000000000000000000000000000..72d94f02871076b58d4c4b15ce471077
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 +  if (downloads_.empty()) {
 +    // Offline or every host failed: try again in an hour; nothing changes.
-+    busy_ = false;
-+    ScheduleCheck(kCheckEvery);
++    Finished("No list could be downloaded.\n");
 +    return;
 +  }
 +  file_runner_->PostTaskAndReplyWithResult(
@@ -4250,21 +5185,33 @@ index 0000000000000000000000000000000000000000..72d94f02871076b58d4c4b15ce471077
 +
 +void ListUpdater::OnApplied(UpdateResult result) {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-+  busy_ = false;
 +  VLOG(1) << "Thoron ad-blocking list check:\n" << result.summary;
 +  if (result.engine) {
 +    on_new_engine_.Run(std::move(*result.engine));
 +  }
-+  ScheduleCheck(kCheckEvery);
++  Finished(result.summary);
++}
++
++void ListUpdater::Finished(const std::string& summary) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  busy_ = false;
++  std::vector<base::OnceCallback<void(std::string)>> waiting;
++  waiting.swap(waiting_);
++  for (auto& done : waiting) {
++    std::move(done).Run(summary);
++  }
++  // Asked for while this one ran: check once more right away.
++  waiting_.swap(waiting_next_);
++  ScheduleCheck(forced_ ? base::TimeDelta() : kCheckEvery);
 +}
 +
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/list_updater.h b/components/thoron_adblock/list_updater.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..0a76e6667f9a9c920439eed2e8be12546147345b
+index 0000000000000000000000000000000000000000..397ecb69ddb3e4d84730c1d49cb23d5797304845
 --- /dev/null
 +++ b/components/thoron_adblock/list_updater.h
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,98 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4273,6 +5220,7 @@ index 0000000000000000000000000000000000000000..0a76e6667f9a9c920439eed2e8be1254
 +
 +#include <map>
 +#include <memory>
++#include <optional>
 +#include <string>
 +#include <vector>
 +
@@ -4288,15 +5236,18 @@ index 0000000000000000000000000000000000000000..0a76e6667f9a9c920439eed2e8be1254
 +
 +namespace network {
 +class SharedURLLoaderFactory;
-+class SimpleURLLoader;
 +}  // namespace network
 +
 +namespace thoron_adblock {
 +
++class ListFetch;
++
 +// Keeps the filter lists current: checks every hour whether the last check is
-+// older than kUpdateInterval, then downloads each list over HTTPS with no
-+// cookies or other credentials, and hands the files to ApplyUpdate, which keeps
-+// the previous copy of any list that fails its checks. Lives on the UI thread.
++// older than kUpdateInterval, then downloads each list that is in use (the
++// built-in ones that are switched on and the ones a person added) over HTTPS
++// with no cookies or other credentials, and hands the files to ApplyUpdate,
++// which keeps the previous copy of any list that fails its checks. Lives on
++// the UI thread.
 +class ListUpdater {
 + public:
 +  using FactoryGetter =
@@ -4304,8 +5255,9 @@ index 0000000000000000000000000000000000000000..0a76e6667f9a9c920439eed2e8be1254
 +  using ProbeCheck = base::RepeatingCallback<std::vector<bool>()>;
 +  using EngineCallback = base::RepeatingCallback<void(rust::Box<Engine>)>;
 +
-+  // `base_url_for_testing`, when valid, replaces every list address with
-+  // base + "<id>.txt" (loopback addresses only) and checks a second after start.
++  // `base_url_for_testing`, when valid, replaces the address of every built-in
++  // list with base + "<id>.txt", accepts loopback addresses only for those and
++  // for lists a person added, and checks a second after start.
 +  ListUpdater(scoped_refptr<base::SequencedTaskRunner> file_runner,
 +              StorePaths paths,
 +              FactoryGetter factory_getter,
@@ -4318,15 +5270,20 @@ index 0000000000000000000000000000000000000000..0a76e6667f9a9c920439eed2e8be1254
 +
 +  void Start();
 +
++  // Checks for updates now, whenever the last check was ("Update now" on the
++  // settings page). `done` runs when the check is over, with what it did.
++  void CheckNow(base::OnceCallback<void(std::string)> done);
++
 + private:
 +  void ScheduleCheck(base::TimeDelta delay);
 +  void Check();
-+  void OnDueChecked(bool due);
++  void OnDueChecked(std::optional<std::vector<ActiveList>> sources);
 +  void FetchNext();
 +  void OnFetched(base::FilePath path);
 +  void FinishFetching();
 +  void OnApplied(UpdateResult result);
-+  GURL UrlFor(const ListSource& source, bool fallback) const;
++  void Finished(const std::string& summary);
++  GURL UrlFor(const ActiveList& source, bool fallback) const;
 +
 +  scoped_refptr<base::SequencedTaskRunner> file_runner_;
 +  const StorePaths paths_;
@@ -4337,9 +5294,14 @@ index 0000000000000000000000000000000000000000..0a76e6667f9a9c920439eed2e8be1254
 +
 +  base::OneShotTimer timer_;
 +  bool busy_ = false;
++  bool forced_ = false;
++  // Who waits for the check that is running, and for the one after it.
++  std::vector<base::OnceCallback<void(std::string)>> waiting_;
++  std::vector<base::OnceCallback<void(std::string)>> waiting_next_;
++  std::vector<ActiveList> sources_;
 +  size_t index_ = 0;
 +  bool on_fallback_ = false;
-+  std::unique_ptr<network::SimpleURLLoader> loader_;
++  std::unique_ptr<ListFetch> fetch_;
 +  std::map<std::string, base::FilePath> downloads_;
 +  SEQUENCE_CHECKER(sequence_checker_);
 +  base::WeakPtrFactory<ListUpdater> weak_factory_{this};
@@ -6523,6 +7485,306 @@ index 0000000000000000000000000000000000000000..1f205b02df58c69766c5544f0470991e
 +}  // namespace thoron_adblock
 +
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
+diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
+new file mode 100644
+index 0000000000000000000000000000000000000000..620061c8c592a69564425967bb86633ad6115112
+--- /dev/null
++++ b/components/thoron_adblock/settings_page.html
+@@ -0,0 +1,131 @@
++<!doctype html>
++<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++     found in the LICENSE file.
++     The settings page of Thoron's built-in ad blocking, chrome://adblock. Plain HTML and one module
++     script (settings_page.js): the page's security policy allows no inline script. -->
++<html lang="en" dir="ltr">
++<head>
++<meta charset="utf-8">
++<meta name="color-scheme" content="light dark">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<title>Ad blocking</title>
++<link rel="icon" href="chrome://theme/current-channel-logo@2x">
++<style>
++  @import url(chrome://resources/css/text_defaults_md.css);
++  :root {
++    --line: color-mix(in srgb, currentColor 16%, transparent);
++    --soft: color-mix(in srgb, currentColor 62%, transparent);
++    --accent: #7235da;
++    --bad: #c5221f;
++  }
++  @media (prefers-color-scheme: dark) {
++    :root { --accent: #b097fa; --bad: #f28b82; }
++  }
++  body { margin: 0; }
++  main { box-sizing: border-box; max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; }
++  h1 { font-size: 28px; font-weight: 500; margin: 0 0 8px; }
++  h2 { font-size: 16px; font-weight: 500; margin: 0 0 6px; }
++  p { margin: 0 0 12px; line-height: 1.5; }
++  .lead, .note, .url, #last-check, #my-count { color: var(--soft); }
++  section { border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin: 18px 0; }
++  .list { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
++  .list:first-child { border-top: 0; }
++  .list input { margin-top: 3px; inline-size: 16px; block-size: 16px; accent-color: var(--accent); }
++  .list .about { flex: 1; min-inline-size: 0; }
++  .list .title { font-weight: 500; }
++  .list .url { display: block; font-size: 12px; overflow-wrap: anywhere; }
++  .list .count { font-size: 12px; color: var(--soft); }
++  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0 0; }
++  button, .button {
++    font: inherit; padding: 7px 16px; border-radius: 16px; border: 1px solid var(--line);
++    background: transparent; color: inherit; cursor: pointer; text-decoration: none; display: inline-block;
++  }
++  button.main { background: var(--accent); border-color: var(--accent); color: #fff; }
++  @media (prefers-color-scheme: dark) { button.main { color: #1b1036; } }
++  button:disabled { opacity: .5; cursor: default; }
++  button:focus-visible, .button:focus-visible, input:focus-visible, textarea:focus-visible {
++    outline: 2px solid var(--accent); outline-offset: 2px;
++  }
++  form { display: flex; gap: 10px; }
++  input[type=url] {
++    flex: 1; min-inline-size: 0; font: inherit; padding: 7px 10px; border-radius: 8px;
++    border: 1px solid var(--line); background: transparent; color: inherit;
++  }
++  textarea {
++    box-sizing: border-box; inline-size: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--line);
++    background: transparent; color: inherit; resize: vertical;
++    font: 13px/1.5 ui-monospace, Consolas, "Liberation Mono", monospace;
++  }
++  code { font: 13px ui-monospace, Consolas, "Liberation Mono", monospace; }
++  #message { position: sticky; inset-block-end: 12px; margin: 18px 0 0; padding: 10px 14px; border-radius: 8px;
++             border: 1px solid var(--line); background: Canvas; min-block-size: 1.5em; }
++  #message:empty { visibility: hidden; }
++  #message.bad, #not-applied { border-color: var(--bad); color: var(--bad); }
++  #not-applied { border: 1px solid var(--bad); border-radius: 8px; padding: 10px 14px; }
++  [hidden] { display: none !important; }
++  details { margin-top: 12px; }
++  pre { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, Consolas, monospace;
++        color: var(--soft); }
++  body.busy button, body.busy input, body.busy textarea { pointer-events: none; opacity: .6; }
++</style>
++</head>
++<body>
++<main>
++  <h1>Ad blocking</h1>
++  <p class="lead">Thoron blocks ads and trackers inside the browser, with the filter lists below. What you
++    choose here stays on this computer. A list is downloaded from its address every few days, without
++    cookies or anything that tells who you are.</p>
++
++  <p id="not-applied" hidden>Your last change is not in use: the browser stopped while it was reading it.
++    Change the setting again, or remove the list or the rules you added last.</p>
++
++  <section>
++    <h2>On, off and allowed sites</h2>
++    <p>Blocking is switched on or off for all sites, and sites are allowed one by one, in the site settings.
++      On a page, the icon in the address bar does the same for that site.</p>
++    <a class="button" id="site-settings" href="chrome://settings/content/ads">Open "Ads and trackers" in Settings</a>
++  </section>
++
++  <section>
++    <h2>Filter lists</h2>
++    <p>A list that is switched off is neither used nor downloaded.</p>
++    <div id="lists" role="list"></div>
++    <div class="row">
++      <button id="update-now" type="button">Update now</button>
++      <span id="last-check"></span>
++    </div>
++    <details id="result-box" hidden>
++      <summary>What the last update did</summary>
++      <pre id="result"></pre>
++    </details>
++  </section>
++
++  <section>
++    <h2>Add a list</h2>
++    <p>Give the address of a filter list. It must be a secure address.</p>
++    <form id="add-form">
++      <input id="add-url" type="url" required aria-label="Address of the list">
++      <button id="add-button" class="main" type="submit">Add</button>
++    </form>
++    <p class="note row">Rules of a list you add block and hide like any other. They cannot use the powerful
++      scripts that only uBlock Origin's own lists may use.</p>
++  </section>
++
++  <section>
++    <h2>My filters</h2>
++    <p>Your own rules, one per line, written like the rules of the lists. <code>||ads.example.com^</code>
++      blocks a host, <code>example.com##.banner</code> hides something on a site, and
++      <code>@@||example.com^</code> allows a site.</p>
++    <textarea id="my-filters" rows="12" spellcheck="false" aria-label="My filters"></textarea>
++    <div class="row">
++      <button id="save-filters" class="main" type="button">Save</button>
++      <button id="revert-filters" type="button">Undo changes</button>
++      <span id="my-count"></span>
++    </div>
++  </section>
++
++  <p id="message" role="status" aria-live="polite"></p>
++</main>
++<script type="module" src="adblock.js"></script>
++</body>
++</html>
+diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..6918512f49ca06d07e767dec3c953341ce2fb628
+--- /dev/null
++++ b/components/thoron_adblock/settings_page.js
+@@ -0,0 +1,157 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// The script of chrome://adblock, the settings page of Thoron's built-in ad blocking. It asks the
++// browser (thoron_adblock_ui.cc) for the state and for each change; every answer to a change is ""
++// when it was made, else what went wrong. The page is built with DOM calls only: its security policy
++// allows no markup made from text.
++
++import {sendWithPromise} from 'chrome://resources/js/cr.js';
++
++const $ = (id) => document.getElementById(id);
++
++/** The rules as they are saved, to tell whether the box was edited. */
++let savedFilters = '';
++let busy = false;
++
++function say(text, bad = false) {
++  const message = $('message');
++  message.textContent = text;
++  message.classList.toggle('bad', bad);
++}
++
++function make(tag, className, text) {
++  const element = document.createElement(tag);
++  if (className) {
++    element.className = className;
++  }
++  if (text) {
++    element.textContent = text;
++  }
++  return element;
++}
++
++function rulesText(count) {
++  return count === 1 ? '1 rule' : `${count.toLocaleString()} rules`;
++}
++
++function showLists(lists) {
++  const box = $('lists');
++  box.replaceChildren();
++  for (const list of lists) {
++    const row = make('div', 'list');
++    row.setAttribute('role', 'listitem');
++    row.dataset.id = list.id;
++
++    const about = make('div', 'about');
++    const title = make('span', 'title', list.title || list.url);
++    const count = make('span', 'count', `  ${rulesText(list.rules)}${list.note ? ' - ' + list.note : ''}`);
++    about.append(title, count, make('span', 'url', list.url));
++
++    if (list.builtin) {
++      const check = make('input');
++      check.type = 'checkbox';
++      check.checked = list.enabled;
++      check.setAttribute('aria-label', list.title);
++      check.addEventListener('change', () => {
++        change('setListEnabled', [list.id, check.checked],
++               check.checked ? `${list.title} is in use.` : `${list.title} is switched off.`);
++      });
++      row.append(check, about);
++    } else {
++      const remove = make('button', '', 'Remove');
++      remove.type = 'button';
++      remove.addEventListener('click', () => {
++        change('removeList', [list.id], 'The list was removed.');
++      });
++      row.append(about, remove);
++    }
++    box.append(row);
++  }
++}
++
++function show(state) {
++  showLists(state.lists);
++  $('not-applied').hidden = !state.notApplied;
++
++  $('last-check').textContent = state.lastCheck > 0 ?
++      `Last looked for updates: ${new Date(state.lastCheck * 1000).toLocaleString()}` :
++      'The lists that came with the browser are in use.';
++  $('result').textContent = state.result;
++  $('result-box').hidden = !state.result;
++
++  const box = $('my-filters');
++  if (box.value === savedFilters) {  // never overwrite what is being typed
++    box.value = state.myFilters;
++  }
++  savedFilters = state.myFilters;
++  $('my-count').textContent = state.myFiltersRules > 0 ? `${rulesText(state.myFiltersRules)} in use` : '';
++  showDirty();
++}
++
++function showDirty() {
++  const dirty = $('my-filters').value !== savedFilters;
++  $('save-filters').disabled = !dirty;
++  $('revert-filters').disabled = !dirty;
++}
++
++async function refresh() {
++  show(await sendWithPromise('getState'));
++}
++
++/** Asks the browser for one change, says how it went, and shows the new state. */
++async function change(name, args, done) {
++  if (busy) {
++    return;
++  }
++  busy = true;
++  document.body.classList.add('busy');
++  say('Working...');
++  let error = '';
++  try {
++    error = await sendWithPromise(name, ...args);
++  } catch (e) {
++    error = 'The browser did not answer. Reload the page and try again.';
++  }
++  busy = false;
++  document.body.classList.remove('busy');
++  await refresh();
++  say(error || done, !!error);
++  return !error;
++}
++
++$('add-url').placeholder = 'https' + '://example.com/filters.txt';
++
++$('add-form').addEventListener('submit', async (event) => {
++  event.preventDefault();
++  const input = $('add-url');
++  const url = input.value.trim();
++  if (url && await change('addList', [url], 'The list was added and is in use.')) {
++    input.value = '';
++  }
++});
++
++$('update-now').addEventListener('click', () => {
++  change('updateNow', [], 'Looked for newer lists.');
++});
++
++$('my-filters').addEventListener('input', showDirty);
++
++$('save-filters').addEventListener('click', () => {
++  // When the browser refuses the rules, the box keeps what was typed.
++  change('setMyFilters', [$('my-filters').value], 'Your filters were saved and are in use.');
++});
++
++$('revert-filters').addEventListener('click', () => {
++  $('my-filters').value = savedFilters;
++  showDirty();
++  say('');
++});
++
++window.addEventListener('beforeunload', (event) => {
++  if ($('my-filters').value !== savedFilters) {
++    event.preventDefault();
++  }
++});
++
++refresh();
 diff --git a/components/thoron_adblock/websocket.cc b/components/thoron_adblock/websocket.cc
 new file mode 100644
 index 0000000000000000000000000000000000000000..4bc7eda90caa0ebb3a33a4838fafb0e499e3ddff

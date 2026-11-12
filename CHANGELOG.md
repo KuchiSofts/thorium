@@ -18,6 +18,8 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** hides page elements by specific, generic and procedural rules and supports `$removeparam` and `$csp`.
 - **Ad blocking:** rechecks every redirect, stops blocked targets and strips the tracking parameters the lists name.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
+- **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.
+- **Ad blocking:** every change on that page is in use at once and survives a restart and a browser update.
 - **UI:** About page names the Chromium version the build is based on, shows the disclaimer and links to release notes.
 - **Brand:** the UI, all translations and `chrome://version` carry the Thoron name, logo and wordmark.
 - **Brand:** icon pipeline builds every PNG size, the `.ico` and the tile icons from the logo SVG (CC BY 4.0).
@@ -47,6 +49,7 @@ Explanations live in the design docs under `docs/design/`.
 - **QA tools:** `bench.py` measures start-up time, memory and idle CPU offline on throwaway profiles.
 - **QA tools:** `adblock_proof.py`, `adblock_breakage.py` and `mv2_check.py` compare blocking with uBlock Origin.
 - **QA tools:** offline checks cover filter syntax, redirects, workers, hide rules, the site switch and list updates.
+- **QA tools:** `adblock_settings_check.py` works the settings page like a person, offline, in 14 steps.
 - **QA tools:** `fuzz_lists` feeds changed filter list lines to the engine to check that list reading survives any text.
 - **Docs:** README, `ROADMAP.md`, `SECURITY.md` and `CONTRIBUTING.md` describe Thoron; designs live in `docs/design/`.
 - **Docs:** build guides cover Windows 11 and Linux with measured build times; `win_env.ps1` prepares a build window.
@@ -89,6 +92,7 @@ Explanations live in the design docs under `docs/design/`.
 
 - **Ad blocking:** a list update is recorded before it is read, so a bad list cannot close the browser at every start.
 - **Ad blocking:** only uBlock Origin's own lists may use trusted scriptlets; report-sending `$csp` rules are refused.
+- **Ad blocking:** added lists and own rules get no trust, are HTTPS only, and a bad one cannot crash every start.
 - **Privacy:** docs name no machine details and use `C:\thoron-build` in examples; `check_docs --private` enforces it.
 - **Privacy:** `.gitignore` excludes browser-profile file types (passwords, cookies, sessions, history, keys).
 - **Security:** flags that weaken security start with a warning on `chrome://flags`; the unsupported-flag bar is back.
