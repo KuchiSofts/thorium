@@ -78,10 +78,10 @@ index 0f7d54fe9798d8726656c6cd8f30ea2194b8c4e1..908235300b443a23bea4c2a9b39d0715
        "//sandbox:sandbox_unittests",
 diff --git a/components/thoron_adblock/BUILD.gn b/components/thoron_adblock/BUILD.gn
 new file mode 100644
-index 0000000000000000000000000000000000000000..fcf915debcce6d2ec3532af65d80c25c57f82e17
+index 0000000000000000000000000000000000000000..666039fe534cca52595be702cca22eac4e7f7d29
 --- /dev/null
 +++ b/components/thoron_adblock/BUILD.gn
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,220 @@
 +# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
 +
@@ -99,6 +99,7 @@ index 0000000000000000000000000000000000000000..fcf915debcce6d2ec3532af65d80c25c
 +    "engine_core.rs",
 +    "procedural.rs",
 +    "query.rs",
++    "urlskip.rs",
 +  ]
 +
 +  # The page-side runner for procedural hide rules, and the settings page
@@ -112,6 +113,8 @@ index 0000000000000000000000000000000000000000..fcf915debcce6d2ec3532af65d80c25c
 +  cxx_bindings = [ crate_root ]
 +  deps = [
 +    "//third_party/rust/adblock/v0_13:lib",
++    "//third_party/rust/base64/v0_22:lib",
++    "//third_party/rust/regex/v1:lib",
 +    "//third_party/rust/serde_json/v1:lib",
 +  ]
 +  build_native_rust_unit_tests = true
@@ -255,8 +258,13 @@ index 0000000000000000000000000000000000000000..fcf915debcce6d2ec3532af65d80c25c
 +    crate_root,
 +    "engine_core.rs",
 +    "query.rs",
++    "urlskip.rs",
 +  ]
-+  deps = [ "//third_party/rust/adblock/v0_13:lib" ]
++  deps = [
++    "//third_party/rust/adblock/v0_13:lib",
++    "//third_party/rust/base64/v0_22:lib",
++    "//third_party/rust/regex/v1:lib",
++  ]
 +}
 +
 +# Build-machine tool: feeds changed copies of real filter list lines to the
@@ -271,10 +279,13 @@ index 0000000000000000000000000000000000000000..fcf915debcce6d2ec3532af65d80c25c
 +    "engine_core.rs",
 +    "procedural.rs",
 +    "query.rs",
++    "urlskip.rs",
 +  ]
 +  inputs = [ "procedural.js" ]
 +  deps = [
 +    "//third_party/rust/adblock/v0_13:lib",
++    "//third_party/rust/base64/v0_22:lib",
++    "//third_party/rust/regex/v1:lib",
 +    "//third_party/rust/serde_json/v1:lib",
 +  ]
 +}
@@ -489,10 +500,10 @@ index 0000000000000000000000000000000000000000..9a8463187282205213e69cf31f75289e
 +#endif  // COMPONENTS_THORON_ADBLOCK_BLOCKED_COUNT_H_
 diff --git a/components/thoron_adblock/compile_engine.rs b/components/thoron_adblock/compile_engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..e562e2a23440586970b0dd49c333f09d4a7928b7
+index 0000000000000000000000000000000000000000..033e90c355575efa9e4f68ade9c2cb58e63c20a1
 --- /dev/null
 +++ b/components/thoron_adblock/compile_engine.rs
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,84 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -508,6 +519,8 @@ index 0000000000000000000000000000000000000000..e562e2a23440586970b0dd49c333f09d
 +mod engine_core;
 +#[allow(dead_code)]
 +mod query;
++#[allow(dead_code)]
++mod urlskip;
 +
 +use std::process::ExitCode;
 +
@@ -515,6 +528,9 @@ index 0000000000000000000000000000000000000000..e562e2a23440586970b0dd49c333f09d
 +    let args: Vec<String> = std::env::args().collect();
 +    if args.len() == 4 && args[1] == "--document" {
 +        return document(&args[2], &args[3]);
++    }
++    if args.len() == 4 && args[1] == "--skip" {
++        return skip(&args[2], &args[3]);
 +    }
 +    if args.len() != 3 {
 +        eprintln!("usage: compile_engine <lists.txt> <engine.dat>");
@@ -538,6 +554,20 @@ index 0000000000000000000000000000000000000000..e562e2a23440586970b0dd49c333f09d
 +        eprintln!("compile_engine: cannot write {}: {e}", args[2]);
 +        return ExitCode::FAILURE;
 +    }
++    ExitCode::SUCCESS
++}
++
++/// How many `$urlskip` rules of the lists are understood, and where a navigation to `url` goes.
++fn skip(lists: &str, url: &str) -> ExitCode {
++    let Ok(rules) = std::fs::read_to_string(lists) else {
++        eprintln!("compile_engine: cannot read filter lists from {lists}");
++        return ExitCode::FAILURE;
++    };
++    let filters = engine_core::build(&rules);
++    let written = rules.lines().filter(|l| l.contains("urlskip") && !l.trim_start().starts_with('!')).count();
++    println!("urlskip: {} of {written} rules of the lists are taken", filters.skips.text.lines().count());
++    let to = engine_core::skip(&filters, url, url);
++    println!("{url} -> {}", if to.is_empty() { "(stays)" } else { &to });
 +    ExitCode::SUCCESS
 +}
 +
@@ -1341,10 +1371,10 @@ index 0000000000000000000000000000000000000000..bc172c09dcfab5376a6cb3a397be1df8
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_H_
 diff --git a/components/thoron_adblock/document_request_interceptor.cc b/components/thoron_adblock/document_request_interceptor.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..4ec5b2d8420f5f22abd4f6ed37913fd3cded92ff
+index 0000000000000000000000000000000000000000..f2365b56a15f03a64073ad177b24382e4dcba6d2
 --- /dev/null
 +++ b/components/thoron_adblock/document_request_interceptor.cc
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,170 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1365,6 +1395,7 @@ index 0000000000000000000000000000000000000000..4ec5b2d8420f5f22abd4f6ed37913fd3
 +#include "components/thoron_adblock/proxying_url_loader_factory.h"
 +#include "content/public/browser/web_contents.h"
 +#include "net/base/net_errors.h"
++#include "net/http/http_request_headers.h"
 +#include "net/http/http_response_headers.h"
 +#include "net/http/http_status_code.h"
 +#include "net/http/http_util.h"
@@ -1415,8 +1446,15 @@ index 0000000000000000000000000000000000000000..4ec5b2d8420f5f22abd4f6ed37913fd3
 +
 +  GURL clean;
 +  if (document->main_frame) {
-+    // A page's own request is never blocked; its address is still cleaned.
-+    clean = EngineService::Get().CleanUrl(url, url, /*main_frame=*/true);
++    // A page's own request is never blocked. A navigation to a redirector goes
++    // straight to the address written inside its own address ($urlskip); any
++    // other address is still cleaned.
++    if (tentative_resource_request.method == net::HttpRequestHeaders::kGetMethod) {
++      clean = EngineService::Get().SkipUrl(url);
++    }
++    if (!clean.is_valid()) {
++      clean = EngineService::Get().CleanUrl(url, url, /*main_frame=*/true);
++    }
 +  } else {
 +    const EngineService::Decision decision = EngineService::Get().Check(
 +        url, document->SourceFor(url), tentative_resource_request.destination);
@@ -1613,10 +1651,10 @@ index 0000000000000000000000000000000000000000..43051154413e4f2354bc088827e16717
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_INTERCEPTOR_H_
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..8879ed8ef355cecf902a7fb6cc747df29b178929
+index 0000000000000000000000000000000000000000..c961bbb3c8aa83baf24c1e2d5b47d088a82e00c3
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,732 @@
+@@ -0,0 +1,766 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1630,6 +1668,7 @@ index 0000000000000000000000000000000000000000..8879ed8ef355cecf902a7fb6cc747df2
 +mod engine_core;
 +mod procedural;
 +mod query;
++mod urlskip;
 +
 +#[cxx::bridge(namespace = "thoron_adblock")]
 +mod ffi {
@@ -1710,6 +1749,11 @@ index 0000000000000000000000000000000000000000..8879ed8ef355cecf902a7fb6cc747df2
 +        /// is the page a frame is in; for a page itself, its own address. Empty: none.
 +        fn document_policy(self: &Engine, url: &str, source_url: &str, main_frame: bool) -> String;
 +
++        /// Where a navigation of the main frame to `url` should go instead, by a `$urlskip` rule of
++        /// a trusted list: the address written inside the address of a redirector. "" when the
++        /// navigation stays as it is. Only a suggestion: the caller checks the address it gets.
++        fn skip_url(self: &Engine, url: &str, source_url: &str) -> String;
++
 +        /// What the document at `url` needs. Empty for an invalid URL.
 +        fn document_resources(self: &Engine, url: &str) -> DocumentResources;
 +
@@ -1755,6 +1799,10 @@ index 0000000000000000000000000000000000000000..8879ed8ef355cecf902a7fb6cc747df2
 +impl Engine {
 +    fn is_valid(&self) -> bool {
 +        self.0.is_some()
++    }
++
++    fn skip_url(&self, url: &str, source_url: &str) -> String {
++        self.0.as_ref().map(|f| engine_core::skip(f, url, source_url)).unwrap_or_default()
 +    }
 +
 +    fn serialize(&self) -> Vec<u8> {
@@ -2116,6 +2164,30 @@ index 0000000000000000000000000000000000000000..8879ed8ef355cecf902a7fb6cc747df2
 +    }
 +
 +    #[test]
++    fn urlskip_rules_count_only_in_trusted_lists_and_survive_saving() {
++        let rule = "||out.example/go^$doc,urlskip=?url\n";
++        let url = "https://out.example/go?url=https%3A%2F%2Fshop.example%2Fp";
++        let trusted = engine_from_rules(&format!("! thoron-list: ublock-privacy\n{rule}"));
++        assert_eq!(trusted.skip_url(url, url), "https://shop.example/p");
++        assert_eq!(trusted.skip_url("https://out.example/other", "https://out.example/other"), "");
++        for id in ["easylist", "custom-0123456789abcdef", "my-filters"] {
++            let other = engine_from_rules(&format!("! thoron-list: {id}\n{rule}"));
++            assert_eq!(other.skip_url(url, url), "", "{id}");
++        }
++        assert_eq!(engine_from_rules(rule).skip_url(url, url), "", "no list id");
++        let saved = trusted.serialize();
++        assert_eq!(engine_from_serialized(&saved).skip_url(url, url), "https://shop.example/p");
++        // a redirector the lists block is skipped only by a rule that says so
++        let blocked = engine_from_rules(
++            "! thoron-list: ublock-privacy\n||out.example^$doc\n||out.example/go^$doc,urlskip=?url\n\
++             ||out.example/strict^$doc,urlskip=?url -blocked\n",
++        );
++        assert_eq!(blocked.skip_url(url, url), "");
++        let strict = "https://out.example/strict?url=https%3A%2F%2Fshop.example%2Fp";
++        assert_eq!(blocked.skip_url(strict, strict), "https://shop.example/p");
++    }
++
++    #[test]
 +    fn a_saved_engine_keeps_selectors_and_trust_but_not_resources() {
 +        let rules = "! thoron-list: ublock-filters\nnews.example##+js(trusted-set-cookie, a=b)\nnews.example##.ad-box\n";
 +        let mut restored = engine_from_serialized(&engine_from_rules(rules).serialize());
@@ -2351,10 +2423,10 @@ index 0000000000000000000000000000000000000000..8879ed8ef355cecf902a7fb6cc747df2
 +}
 diff --git a/components/thoron_adblock/engine_core.rs b/components/thoron_adblock/engine_core.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..59c306c6d58d7fb7343b7fd161a5e25f6dcab644
+index 0000000000000000000000000000000000000000..de34195869333db29f7f8d7611aca73a9d280829
 --- /dev/null
 +++ b/components/thoron_adblock/engine_core.rs
-@@ -0,0 +1,266 @@
+@@ -0,0 +1,303 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2363,6 +2435,7 @@ index 0000000000000000000000000000000000000000..59c306c6d58d7fb7343b7fd161a5e25f
 +//! one built in the browser treat every list the same way.
 +
 +use crate::query::{Pattern, Query, Special};
++use crate::urlskip::SkipRules;
 +use adblock::lists::{FilterSet, ParseOptions};
 +use adblock::request::Request;
 +use adblock::resources::PermissionMask;
@@ -2378,11 +2451,31 @@ index 0000000000000000000000000000000000000000..59c306c6d58d7fb7343b7fd161a5e25f
 +/// uBlock Origin lets only its own lists use trusted scriptlets, and so does Thoron: a list gets the
 +/// permission by its id, never by anything written inside the list.
 +pub fn list_permissions(id: &str) -> PermissionMask {
-+    if id.starts_with("ublock-") {
++    if is_trusted(id) {
 +        TRUSTED
 +    } else {
 +        PermissionMask::default()
 +    }
++}
++
++/// True for uBlock Origin's own lists: the only ones that may use trusted scriptlets and the options
++/// that send a navigation somewhere else (`$urlskip`).
++pub fn is_trusted(id: &str) -> bool {
++    id.starts_with("ublock-")
++}
++
++/// The `$urlskip` rules of the trusted lists (urlskip.rs).
++fn skip_rules(rules: &str) -> SkipRules {
++    let mut lines = String::new();
++    for (id, text) in split_lists(rules) {
++        if is_trusted(id) {
++            for line in text.lines().filter(|l| l.contains("urlskip")) {
++                lines.push_str(line);
++                lines.push('\n');
++            }
++        }
++    }
++    SkipRules::from_trusted_text(&lines)
 +}
 +
 +/// The lists file by list, as (id, text). Text before the first marker has the id "".
@@ -2521,20 +2614,33 @@ index 0000000000000000000000000000000000000000..59c306c6d58d7fb7343b7fd161a5e25f
 +pub struct Filters {
 +    pub engine: adblock::Engine,
 +    pub params: ParamRules,
++    /// The `$urlskip` rules of the trusted lists.
++    pub skips: SkipRules,
 +    /// Hide rules for every site that are written with a procedural operator; found by the
 +    /// engine (engine.rs) the first time a document asks, and never applied.
 +    pub siteless: std::sync::OnceLock<std::collections::HashSet<String>>,
 +}
 +
 +impl Filters {
-+    fn new(engine: adblock::Engine, params: ParamRules) -> Filters {
-+        Filters { engine, params, siteless: std::sync::OnceLock::new() }
++    fn new(engine: adblock::Engine, params: ParamRules, skips: SkipRules) -> Filters {
++        Filters { engine, params, skips, siteless: std::sync::OnceLock::new() }
 +    }
 +}
 +
 +/// Builds the filters from the lists file.
 +pub fn build(rules: &str) -> Filters {
-+    Filters::new(adblock::Engine::new_with_filter_set(filter_set(rules)), ParamRules::from_rules(rules))
++    Filters::new(
++        adblock::Engine::new_with_filter_set(filter_set(rules)),
++        ParamRules::from_rules(rules),
++        skip_rules(rules),
++    )
++}
++
++/// Where a navigation to `url` should go instead (`$urlskip`), or "" when it stays as it is.
++pub fn skip(filters: &Filters, url: &str, source_url: &str) -> String {
++    let Ok(request) = Request::new(url, source_url, "document", "GET") else { return String::new() };
++    let blocked = filters.engine.check_network_request(&request).should_block();
++    filters.skips.skip(url, source_url, blocked).unwrap_or_default()
 +}
 +
 +/// What to do with one request (the fields of the bridge's `RequestDecision`).
@@ -2594,10 +2700,12 @@ index 0000000000000000000000000000000000000000..59c306c6d58d7fb7343b7fd161a5e25f
 +/// A saved engine starts with this: a name and the version of this layout. After it: the length
 +/// of the special `$removeparam` rules (four bytes, little endian), those rules as text, then the
 +/// engine as adblock-rust saves it.
-+const SAVED: &[u8; 8] = b"THRNAB\x00\x01";
++const SAVED: &[u8; 8] = b"THRNAB\x00\x02";
 +
 +pub fn save(filters: &Filters) -> Vec<u8> {
-+    let text = filters.params.text.as_bytes();
++    // The rules adblock-rust does not keep: `$removeparam` specials and `$urlskip`, one per line.
++    let text = format!("{}{}", filters.params.text, filters.skips.text);
++    let text = text.as_bytes();
 +    let engine = filters.engine.serialize();
 +    let mut data = Vec::with_capacity(SAVED.len() + 4 + text.len() + engine.len());
 +    data.extend_from_slice(SAVED);
@@ -2619,14 +2727,15 @@ index 0000000000000000000000000000000000000000..59c306c6d58d7fb7343b7fd161a5e25f
 +    let text = std::str::from_utf8(text).ok()?;
 +    let mut engine = adblock::Engine::default();
 +    engine.deserialize(saved_engine).ok()?;
-+    Some(Filters::new(engine, ParamRules::from_rules(text)))
++    // The saved lines were taken from trusted lists when the engine was built.
++    Some(Filters::new(engine, ParamRules::from_rules(text), SkipRules::from_trusted_text(text)))
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..542b109efd48b536db4312ccdd9f440069e7a55b
+index 0000000000000000000000000000000000000000..91fe4e0aef76b1ee9545de01504e93bdfb811a0f
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,422 @@
+@@ -0,0 +1,439 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2828,6 +2937,23 @@ index 0000000000000000000000000000000000000000..542b109efd48b536db4312ccdd9f4400
 +      url, std::string((*engine_)->clean_url(rust::Str(u.data(), u.size()),
 +                                             rust::Str(s.data(), s.size()),
 +                                             rust::Str(t.data(), t.size()))));
++}
++
++GURL EngineService::SkipUrl(const GURL& url) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!engine_ || !url.SchemeIsHTTPOrHTTPS()) {
++    return GURL();
++  }
++  const std::string& u = url.spec();
++  const GURL target(std::string((*engine_)->skip_url(
++      rust::Str(u.data(), u.size()), rust::Str(u.data(), u.size()))));
++  // The engine found the address inside `url`, which anyone can write. It is
++  // only ever followed to a plain web address.
++  if (!target.is_valid() || !target.SchemeIsHTTPOrHTTPS() || target == url ||
++      target.has_username() || target.has_password() || !target.has_host()) {
++    return GURL();
++  }
++  return target;
 +}
 +
 +std::string EngineService::DocumentPolicy(const GURL& url,
@@ -3051,10 +3177,10 @@ index 0000000000000000000000000000000000000000..542b109efd48b536db4312ccdd9f4400
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..11e0bde090055244f8a3581344e16fec73dfff03
+index 0000000000000000000000000000000000000000..7c671b7276e955d5ce0210d6ff1d19fb85b40154
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,170 @@
+@@ -0,0 +1,177 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3132,6 +3258,13 @@ index 0000000000000000000000000000000000000000..11e0bde090055244f8a3581344e16fec
 +  // when nothing is to be removed. `source` is the page's own address for a
 +  // page, and for a frame who asked or the page it is in.
 +  GURL CleanUrl(const GURL& url, const GURL& source, bool main_frame) const;
++
++  // Where a navigation of the main frame to `url` should go instead, when a
++  // `$urlskip` rule of a trusted list finds the destination written inside
++  // the address of a redirector. Empty when the navigation stays as it is. The
++  // result is always a plain http or https address without a user name, and
++  // never `url` itself.
++  GURL SkipUrl(const GURL& url) const;
 +
 +  // The content security policy `$csp` rules add to a document: the value of
 +  // a Content-Security-Policy header, or empty.
@@ -3433,10 +3566,10 @@ index 0000000000000000000000000000000000000000..1e9ac4ba59dde97b1c62b1e15042525b
 +#endif  // COMPONENTS_THORON_ADBLOCK_FEATURES_H_
 diff --git a/components/thoron_adblock/fuzz_lists.rs b/components/thoron_adblock/fuzz_lists.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..2956fae7eba24767f4e169251b59f71744d72ad4
+index 0000000000000000000000000000000000000000..f80c48ce79a22ba9ad0a569887711c065abc9af0
 --- /dev/null
 +++ b/components/thoron_adblock/fuzz_lists.rs
-@@ -0,0 +1,281 @@
+@@ -0,0 +1,283 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3465,6 +3598,8 @@ index 0000000000000000000000000000000000000000..2956fae7eba24767f4e169251b59f717
 +mod procedural;
 +#[allow(dead_code)]
 +mod query;
++#[allow(dead_code)]
++mod urlskip;
 +
 +use adblock::resources::Resource;
 +use std::process::ExitCode;
@@ -7785,6 +7920,536 @@ index 0000000000000000000000000000000000000000..6918512f49ca06d07e767dec3c953341
 +});
 +
 +refresh();
+diff --git a/components/thoron_adblock/urlskip.rs b/components/thoron_adblock/urlskip.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..77c734fc59d4530b77fcba7b2ce91fdf1e749fbf
+--- /dev/null
++++ b/components/thoron_adblock/urlskip.rs
+@@ -0,0 +1,524 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++//! `$urlskip`: a navigation to a tracking redirector goes straight to the address that is written
++//! inside the redirector's own address.
++//!
++//! uBlock Origin's lists write `||out.example/go^$doc,urlskip=?url`: the page a person is sent to
++//! is the value of the parameter `url`. The steps after `urlskip=` say how the address is found
++//! and decoded, one after the other, each working on the result of the one before:
++//!
++//! - `?name`: the value of the parameter `name`
++//! - `&2`: the name of the second parameter
++//! - `#`: what follows the `#`
++//! - `/re/`: the first group of a regular expression
++//! - `+https`: put `https://` in front (in place of `http://` when that is there)
++//! - `-base64`, `-safebase64`, `-uricomponent`: decode
++//! - `-blocked`: the rule also applies to a redirector that the lists block
++//!
++//! adblock-rust does not know the option, so the rules are kept here: an engine of their own says
++//! which rule matches a navigation, and the steps are carried out here. Only rules of trusted
++//! lists are taken (engine_core.rs), as uBlock Origin asks for its own lists. The result is only
++//! ever a suggestion: the browser checks that it is a plain http or https address before it goes
++//! there (engine_service.cc), and the new address is checked like any other navigation.
++
++use crate::query::Query;
++use adblock::lists::{FilterSet, ParseOptions};
++use adblock::request::Request;
++use base64::Engine as _;
++use std::collections::HashMap;
++
++/// A rule that names more steps than this is not taken: no list comes near it.
++const MAX_STEPS: usize = 8;
++/// The longest address a step may produce.
++const MAX_LENGTH: usize = 8192;
++
++pub enum Step {
++    Parameter(String),
++    ParameterName(usize),
++    Fragment,
++    Expression(regex::Regex),
++    Https,
++    Base64,
++    SafeBase64,
++    UriComponent,
++}
++
++/// What a rule does with an address it matches.
++pub struct Plan {
++    steps: Vec<Step>,
++    /// `-blocked`: also for a redirector the lists block.
++    pub even_blocked: bool,
++}
++
++/// "%41" and friends to text; `plus_as_space` for the value of a parameter. `None` when the result
++/// is not text.
++fn decode(text: &str, plus_as_space: bool) -> Option<String> {
++    let bytes = text.as_bytes();
++    let mut out = Vec::with_capacity(bytes.len());
++    let mut i = 0;
++    while i < bytes.len() {
++        let hex = |b: u8| (b as char).to_digit(16);
++        match bytes[i] {
++            b'%' if i + 2 < bytes.len() && hex(bytes[i + 1]).is_some() && hex(bytes[i + 2]).is_some() => {
++                out.push((hex(bytes[i + 1])? * 16 + hex(bytes[i + 2])?) as u8);
++                i += 3;
++            }
++            b'+' if plus_as_space => {
++                out.push(b' ');
++                i += 1;
++            }
++            b => {
++                out.push(b);
++                i += 1;
++            }
++        }
++    }
++    String::from_utf8(out).ok()
++}
++
++/// The parameters of an address as (name, value), decoded the way a browser reads a query.
++fn parameters(url: &str) -> Vec<(String, String)> {
++    let Some(query) = Query::split(url) else { return Vec::new() };
++    query
++        .parameters
++        .iter()
++        .filter(|p| !p.is_empty())
++        .filter_map(|p| {
++            let (name, value) = p.split_once('=').unwrap_or((p, ""));
++            Some((decode(name, true)?, decode(value, true)?))
++        })
++        .collect()
++}
++
++fn from_base64(text: &str, safe: bool) -> Option<String> {
++    let mut clean: String = text.chars().filter(|c| !c.is_ascii_whitespace()).collect();
++    if safe {
++        clean = clean.replace('-', "+").replace('_', "/");
++    }
++    let clean = clean.trim_end_matches('=');
++    let bytes = base64::engine::general_purpose::STANDARD_NO_PAD.decode(clean).ok()?;
++    String::from_utf8(bytes).ok()
++}
++
++/// True for text that starts like "scheme://".
++fn has_scheme(text: &str) -> bool {
++    match text.find("://") {
++        Some(at) if at > 0 => text[..at].chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.'),
++        _ => false,
++    }
++}
++
++impl Plan {
++    /// The steps of a rule, as written after `urlskip=`. `None` for anything that is not
++    /// understood in full: a rule is carried out as written or not at all.
++    pub fn parse(steps: &str) -> Option<Plan> {
++        let mut plan = Plan { steps: Vec::new(), even_blocked: false };
++        for word in steps.split(' ').filter(|w| !w.is_empty()) {
++            let step = match word {
++                "-blocked" => {
++                    plan.even_blocked = true;
++                    continue;
++                }
++                "+https" => Step::Https,
++                "-base64" => Step::Base64,
++                "-safebase64" => Step::SafeBase64,
++                "-uricomponent" => Step::UriComponent,
++                "#" => Step::Fragment,
++                _ if word.len() > 1 && word.starts_with('?') => Step::Parameter(word[1..].to_string()),
++                _ if word.starts_with('&') => match word[1..].parse::<usize>() {
++                    Ok(n) if n >= 1 => Step::ParameterName(n - 1),
++                    _ => return None,
++                },
++                _ if word.len() > 2 && word.starts_with('/') && word.ends_with('/') => {
++                    Step::Expression(regex::Regex::new(&word[1..word.len() - 1]).ok()?)
++                }
++                _ => return None,
++            };
++            plan.steps.push(step);
++        }
++        (!plan.steps.is_empty() && plan.steps.len() <= MAX_STEPS).then_some(plan)
++    }
++
++    /// The address the steps find in `url`, or `None` when one of them finds nothing.
++    pub fn apply(&self, url: &str) -> Option<String> {
++        let mut text = url.to_string();
++        for step in &self.steps {
++            text = match step {
++                Step::Parameter(name) => {
++                    parameters(&text).into_iter().find(|(n, _)| n == name)?.1.replace(' ', "%20")
++                }
++                Step::ParameterName(index) => parameters(&text).into_iter().nth(*index)?.0,
++                Step::Fragment => text.split_once('#')?.1.to_string(),
++                Step::Expression(expression) => expression.captures(&text)?.get(1)?.as_str().to_string(),
++                Step::Https => {
++                    let lower = text.to_ascii_lowercase();
++                    let rest = if lower.starts_with("https://") {
++                        &text[8..]
++                    } else if lower.starts_with("http://") {
++                        &text[7..]
++                    } else {
++                        &text[..]
++                    };
++                    if has_scheme(rest) {
++                        return None;
++                    }
++                    format!("https://{rest}")
++                }
++                Step::Base64 => from_base64(&text, false)?,
++                Step::SafeBase64 => from_base64(&text, true)?,
++                Step::UriComponent => decode(&text, false)?,
++            };
++            if text.is_empty() || text.len() > MAX_LENGTH {
++                return None;
++            }
++        }
++        let lower = text.to_ascii_lowercase();
++        let plain = !text.chars().any(|c| c.is_control() || c == ' ');
++        ((lower.starts_with("https://") || lower.starts_with("http://")) && plain && text != url).then_some(text)
++    }
++}
++
++/// The steps of a rule and the options written after them: the steps end at a comma that is not
++/// inside a regular expression ("?url -base64,doc"; an expression may hold commas, "{0,2}").
++fn split_steps(value: &str) -> (String, &str) {
++    let mut steps = Vec::new();
++    let mut from = 0;
++    for word in value.split(' ') {
++        let cut = if word.starts_with('/') {
++            // an expression runs to its last "/"; a comma right after it starts the options
++            word.rfind('/').filter(|&end| end > 0 && word[end + 1..].starts_with(',')).map(|end| end + 1)
++        } else {
++            word.find(',')
++        };
++        if let Some(cut) = cut {
++            steps.push(&word[..cut]);
++            return (steps.join(" "), &value[from + cut + 1..]);
++        }
++        steps.push(word);
++        from += word.len() + 1;
++    }
++    (steps.join(" "), "")
++}
++
++/// A `$urlskip` line of a list, taken apart.
++pub struct Rule {
++    /// The line as adblock-rust reads it: the pattern as a filter for documents, without the
++    /// options it does not know. An exception line ("@@...$urlskip") stays an exception.
++    pub filter: String,
++    /// `to=`: the rule only holds for these hosts and the hosts below them. Empty: any host.
++    pub to: Vec<String>,
++    /// `None` for an exception.
++    pub plan: Option<Plan>,
++}
++
++/// The rule in a line that has the `urlskip` option; `None` for every other line and for a rule
++/// that is not understood in full.
++pub fn rule(line: &str) -> Option<Rule> {
++    let line = line.trim();
++    if line.is_empty() || line.starts_with('!') || line.contains("##") || line.contains("#@#") {
++        return None;
++    }
++    // The option, not the word inside a pattern or inside another option's name.
++    let (at, dollar) = line.match_indices("urlskip").find_map(|(at, _)| {
++        let dollar = line[..at].rfind('$')?;
++        (dollar + 1 == at || line[..at].ends_with(',')).then_some((at, dollar))
++    })?;
++    let pattern = &line[..dollar];
++    let exception = pattern.starts_with("@@");
++    let rest = &line[at + "urlskip".len()..];
++    let (steps, after) = match rest.strip_prefix('=') {
++        Some(value) => {
++            let (steps, after) = split_steps(value);
++            (Some(steps), after)
++        }
++        None if rest.is_empty() => (None, ""),
++        None => (None, rest.strip_prefix(',')?),
++    };
++    if exception == steps.is_some() || pattern.len() <= if exception { 2 } else { 0 } {
++        return None; // a rule needs steps, an exception has none
++    }
++    let mut kept = vec!["document".to_string()];
++    let mut to = Vec::new();
++    for option in line[dollar + 1..at].split(',').chain(after.split(',')).filter(|o| !o.is_empty()) {
++        match option {
++            "doc" | "document" => {}
++            "match-case" | "1p" | "3p" | "first-party" | "third-party" | "important" => kept.push(option.to_string()),
++            _ if option.starts_with("to=") => {
++                for host in option[3..].split('|').filter(|h| !h.is_empty()) {
++                    if host.starts_with('~') {
++                        return None;
++                    }
++                    to.push(host.to_ascii_lowercase());
++                }
++            }
++            _ if option.starts_with("from=") => kept.push(format!("domain={}", &option[5..])),
++            _ if option.starts_with("domain=") => kept.push(option.to_string()),
++            // any other option (a type other than documents, or one not known here)
++            _ => return None,
++        }
++    }
++    let plan = match steps {
++        Some(steps) => Some(Plan::parse(&steps)?),
++        None => None,
++    };
++    Some(Rule { filter: format!("{pattern}${}", kept.join(",")), to, plan })
++}
++
++/// True when `host` is one of `hosts` or below one of them ("com" covers "shop.example.com").
++fn host_is_in(host: &str, hosts: &[String]) -> bool {
++    hosts.iter().any(|h| host == h || (host.len() > h.len() && host.ends_with(h) && host[..host.len() - h.len()].ends_with('.')))
++}
++
++/// Every `$urlskip` rule of the trusted lists.
++#[derive(Default)]
++pub struct SkipRules {
++    /// The rules as filters for documents; it says which rule matches a navigation.
++    engine: Option<adblock::Engine>,
++    /// By the filter the engine names: where the rule holds and what it does.
++    plans: HashMap<String, Vec<(Vec<String>, Plan)>>,
++    /// The rules as the lists wrote them, one per line: what is saved with the engine.
++    pub text: String,
++}
++
++impl SkipRules {
++    /// From lines of trusted lists; every line that is not a `$urlskip` rule is skipped.
++    pub fn from_trusted_text(lines: &str) -> SkipRules {
++        let mut rules = SkipRules::default();
++        let mut filters = Vec::new();
++        for line in lines.lines().filter(|l| l.contains("urlskip")) {
++            let Some(found) = rule(line) else { continue };
++            rules.text.push_str(line.trim());
++            rules.text.push('\n');
++            if let Some(plan) = found.plan {
++                rules.plans.entry(found.filter.clone()).or_default().push((found.to, plan));
++            }
++            filters.push(found.filter);
++        }
++        if !rules.plans.is_empty() {
++            // Debug mode: the engine then names the rule that matched, and fuses no rules.
++            let mut set = FilterSet::new(true);
++            set.add_filter_list(filters.join("\n"), ParseOptions::default());
++            rules.engine = Some(adblock::Engine::new_with_filter_set_no_optimize(set));
++        }
++        rules
++    }
++
++    /// Where a navigation to `url` should go instead, or `None`. `blocked`: the lists block the
++    /// navigation, so only a rule with `-blocked` applies.
++    pub fn skip(&self, url: &str, source_url: &str, blocked: bool) -> Option<String> {
++        let engine = self.engine.as_ref()?;
++        let request = Request::new(url, source_url, "document", "GET").ok()?;
++        let result = engine.check_network_request(&request);
++        if result.exception.is_some() {
++            return None;
++        }
++        let filter = result.filter?.raw_line?;
++        let host = request.hostname.to_ascii_lowercase();
++        self.plans
++            .get(filter.trim())?
++            .iter()
++            .filter(|(to, plan)| (!blocked || plan.even_blocked) && (to.is_empty() || host_is_in(&host, to)))
++            .find_map(|(_, plan)| plan.apply(url))
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn skip(steps: &str, url: &str) -> Option<String> {
++        Plan::parse(steps).expect(steps).apply(url)
++    }
++
++    #[test]
++    fn a_parameter_holds_the_address() {
++        let url = "https://out.example/go?id=7&url=https%3A%2F%2Fshop.example%2Fitem%3Fa%3D1%26b%3D2&x=y";
++        assert_eq!(skip("?url", url).as_deref(), Some("https://shop.example/item?a=1&b=2"));
++        assert_eq!(skip("?missing", url), None);
++        // a space in the value is written the way an address writes it
++        assert_eq!(skip("?u", "https://o.example/?u=https://s.example/a+b").as_deref(), Some("https://s.example/a%20b"));
++    }
++
++    #[test]
++    fn the_name_of_a_parameter_or_the_fragment_holds_it() {
++        assert_eq!(skip("&1", "https://o.example/?https%3A%2F%2Fs.example%2F").as_deref(), Some("https://s.example/"));
++        assert_eq!(skip("&2", "https://o.example/?a=1&https://s.example/x").as_deref(), Some("https://s.example/x"));
++        assert_eq!(skip("&3", "https://o.example/?a=1&b=2"), None);
++        assert_eq!(skip("#", "https://o.example/out#https://s.example/p").as_deref(), Some("https://s.example/p"));
++        assert_eq!(skip("#", "https://o.example/out"), None);
++    }
++
++    #[test]
++    fn the_decoders_work_in_the_order_given() {
++        // aHR0cHM6Ly9zLmV4YW1wbGUvcA== is https://s.example/p
++        assert_eq!(skip("?t -base64", "https://o.example/?t=aHR0cHM6Ly9zLmV4YW1wbGUvcA%3D%3D").as_deref(), Some("https://s.example/p"));
++        assert_eq!(skip("?t -base64", "https://o.example/?t=aHR0cHM6Ly9zLmV4YW1wbGUvcA").as_deref(), Some("https://s.example/p"));
++        // the web-safe alphabet: "~~" is "fn5-" plain and "fn5+" in the usual alphabet
++        assert_eq!(skip("?t -safebase64", "https://o.example/?t=aHR0cHM6Ly9zLmV4YW1wbGUvP34-").as_deref(), Some("https://s.example/?~>"));
++        assert_eq!(skip("?t -base64", "https://o.example/?t=not%20base64!"), None);
++        assert_eq!(skip("?u -uricomponent", "https://o.example/?u=https%253A%252F%252Fs.example%252F").as_deref(), Some("https://s.example/"));
++    }
++
++    #[test]
++    fn https_is_put_in_front() {
++        assert_eq!(skip("?u +https", "https://o.example/?u=s.example/p").as_deref(), Some("https://s.example/p"));
++        assert_eq!(skip("?u +https", "https://o.example/?u=http://s.example/p").as_deref(), Some("https://s.example/p"));
++        assert_eq!(skip("?u +https", "https://o.example/?u=https://s.example/p").as_deref(), Some("https://s.example/p"));
++        // never in front of another scheme
++        assert_eq!(skip("?u +https", "https://o.example/?u=ftp://s.example/p"), None);
++    }
++
++    #[test]
++    fn an_expression_takes_its_first_group() {
++        let steps = r"/\bo\.example\/[^\/]+\/https?%3A%2F%2F([^\/?#]+)/ -uricomponent +https";
++        assert_eq!(skip(steps, "https://o.example/abc/https%3A%2F%2Fs.example%2Fp").as_deref(), Some("https://s.example/p"));
++        assert_eq!(skip(steps, "https://o.example/abc/other"), None);
++        // an expression without a group finds nothing
++        assert_eq!(skip(r"/o\.example/", "https://o.example/"), None);
++        // a token inside a token, as two lists do it
++        let token = r#"/\?k=ey[^.]+\.(ey[^.]+)\./ -base64 /"link":"([^"]+)"/"#;
++        // eyJsaW5rIjoiaHR0cHM6Ly9zLmV4YW1wbGUvcCJ9 is {"link":"https://s.example/p"}
++        assert_eq!(
++            skip(token, "https://o.example/c?k=eyJhIjoxfQ.eyJsaW5rIjoiaHR0cHM6Ly9zLmV4YW1wbGUvcCJ9.sig").as_deref(),
++            Some("https://s.example/p")
++        );
++    }
++
++    #[test]
++    fn only_a_plain_web_address_that_differs_comes_out() {
++        for bad in ["javascript:alert(1)", "data:text/html,x", "file:///c:/x", "//s.example/", "s.example", "ftp://s.example/"] {
++            let url = format!("https://o.example/?u={}", bad.replace(':', "%3A").replace('/', "%2F"));
++            assert_eq!(skip("?u", &url), None, "{bad}");
++        }
++        assert_eq!(skip("?u", "https://o.example/?u=https://s.example/%0d%0aX"), None, "a line break");
++        // the address itself is not a destination
++        assert_eq!(skip("#", "https://o.example/#https://o.example/#https://o.example/"), Some("https://o.example/#https://o.example/".to_string()));
++        assert_eq!(skip("/^(.*)$/", "https://o.example/"), None);
++        let long = format!("https://o.example/?u=https://s.example/{}", "a".repeat(9000));
++        assert_eq!(skip("?u", &long), None);
++    }
++
++    #[test]
++    fn steps_that_are_not_understood_make_no_plan() {
++        for bad in ["", "?", "&0", "&x", "-rot13", "+http", "/(/", "//", "?a ?b ?c ?d ?e ?f ?g ?h ?i"] {
++            assert!(Plan::parse(bad).is_none(), "{bad}");
++        }
++        assert!(Plan::parse("-blocked").is_none(), "nothing to do");
++        let plan = Plan::parse("?u  -blocked").unwrap();
++        assert!(plan.even_blocked);
++    }
++
++    #[test]
++    fn a_rule_becomes_a_filter_for_documents() {
++        let r = rule("||out.example/go^$doc,urlskip=?url").unwrap();
++        assert_eq!(r.filter, "||out.example/go^$document");
++        assert!(r.to.is_empty() && r.plan.is_some());
++        // no type written: documents all the same
++        assert_eq!(rule("||out.example^$urlskip=?u").unwrap().filter, "||out.example^$document");
++        // the word in the pattern is not the option
++        assert_eq!(rule("||out.example/urlskip?$doc,urlskip=?u").unwrap().filter, "||out.example/urlskip?$document");
++        let r = rule(r"/^https?:\/\/www\.[a-z]+\.(?:com|net)\/click-\d+.*?[?&]URL=http/$doc,to=com|net,match-case,urlskip=?URL").unwrap();
++        assert_eq!(r.filter, r"/^https?:\/\/www\.[a-z]+\.(?:com|net)\/click-\d+.*?[?&]URL=http/$document,match-case");
++        assert_eq!(r.to, vec!["com".to_string(), "net".to_string()]);
++        // an expression with a comma in it runs to the end of the line
++        let r = rule(r"||p.example/*/$doc,to=click.p.example,urlskip=/\.p\.example\/[23][mst]{0,2}\/([^\/?#]+)/ -uricomponent +https").unwrap();
++        assert_eq!(r.to, vec!["click.p.example".to_string()]);
++        assert!(r.plan.is_some());
++    }
++
++    #[test]
++    fn options_may_follow_the_steps() {
++        let r = rule("/r.cfm*^link=$document,urlskip=?link +https,to=a.example|b.example").unwrap();
++        assert_eq!(r.filter, "/r.cfm*^link=$document");
++        assert_eq!(r.to, vec!["a.example".to_string(), "b.example".to_string()]);
++        assert_eq!(r.plan.unwrap().apply("https://a.example/r.cfm?link=s.example/p").as_deref(), Some("https://s.example/p"));
++        let r = rule("||short.example/api?key=*&url=$urlskip=?url -base64,doc").unwrap();
++        assert_eq!(r.filter, "||short.example/api?key=*&url=$document");
++        // a comma inside an expression is not the end of the steps; one after it is
++        let r = rule(r"||p.example/*/$urlskip=/\/[23]{1,2}\/([^\/?#]+)/ -uricomponent +https,match-case").unwrap();
++        assert_eq!(r.filter, "||p.example/*/$document,match-case");
++        assert_eq!(
++            r.plan.unwrap().apply("https://p.example/x/22/s.example%2Fp").as_deref(),
++            Some("https://s.example/p")
++        );
++        assert_eq!(split_steps("?a -base64"), ("?a -base64".to_string(), ""));
++        assert_eq!(split_steps("/a,b/ +https"), ("/a,b/ +https".to_string(), ""));
++        assert_eq!(split_steps("/a,b/,doc,to=x"), ("/a,b/".to_string(), "doc,to=x"));
++        // an option that is not known still drops the rule
++        assert!(rule("||out.example^$urlskip=?u,media").is_none());
++    }
++
++    #[test]
++    fn an_exception_and_other_lines() {
++        let e = rule("@@||g.example/*^dp=app%3A%2F%2F$doc,urlskip").unwrap();
++        assert_eq!(e.filter, "@@||g.example/*^dp=app%3A%2F%2F$document");
++        assert!(e.plan.is_none());
++        for not_a_rule in [
++            "||out.example^$doc",
++            "! ||out.example^$urlskip=?u",
++            "out.example##.urlskip",
++            "||out.example^$media,urlskip=?u",        // not for documents
++            "||out.example^$doc,to=~a.example,urlskip=?u",
++            "||out.example^$doc,urlskip=-rot13",
++            "||out.example^$doc,urlskip",             // a rule needs steps
++            "@@||out.example^$doc,urlskip=?u",        // an exception has none
++            "||out.example^$doc,nourlskip=?u",
++            "||out.example/urlskip^$doc",
++            "$urlskip=?u",
++        ] {
++            assert!(rule(not_a_rule).is_none(), "{not_a_rule}");
++        }
++    }
++
++    const LIST: &str = "||out.example/go^$doc,urlskip=?url\n\
++                        ||c.example/c?$urlskip=?t -base64\n\
++                        ||strict.example^$doc,urlskip=?u -blocked\n\
++                        ||multi.example/out$doc,to=shop.example|com,urlskip=?u\n\
++                        @@||out.example/go^keep=1$doc,urlskip\n\
++                        ||ads.example^\n";
++
++    #[test]
++    fn the_rule_that_matches_the_navigation_is_carried_out() {
++        let rules = SkipRules::from_trusted_text(LIST);
++        let at = "https://news.example/";
++        assert_eq!(rules.skip("https://out.example/go?url=https%3A%2F%2Fs.example%2Fp", at, false).as_deref(), Some("https://s.example/p"));
++        assert_eq!(rules.skip("https://c.example/c?t=aHR0cHM6Ly9zLmV4YW1wbGUvcA", at, false).as_deref(), Some("https://s.example/p"));
++        // another page of the same site, another site, and a rule that is not a urlskip rule
++        assert_eq!(rules.skip("https://out.example/home?url=https://s.example/", at, false), None);
++        assert_eq!(rules.skip("https://other.example/go?url=https://s.example/", at, false), None);
++        assert_eq!(rules.skip("https://ads.example/?url=https://s.example/", at, false), None);
++        // the exception
++        assert_eq!(rules.skip("https://out.example/go?keep=1&url=https://s.example/", at, false), None);
++        // not an address
++        assert_eq!(rules.skip("not a url", at, false), None);
++    }
++
++    #[test]
++    fn a_blocked_redirector_is_only_skipped_when_the_rule_says_so() {
++        let rules = SkipRules::from_trusted_text(LIST);
++        let at = "https://news.example/";
++        assert_eq!(rules.skip("https://out.example/go?url=https://s.example/p", at, true), None);
++        assert_eq!(rules.skip("https://strict.example/?u=https://s.example/p", at, true).as_deref(), Some("https://s.example/p"));
++        assert_eq!(rules.skip("https://strict.example/?u=https://s.example/p", at, false).as_deref(), Some("https://s.example/p"));
++    }
++
++    #[test]
++    fn to_names_the_hosts_a_rule_holds_for() {
++        assert!(host_is_in("shop.example", &["shop.example".to_string()]));
++        assert!(host_is_in("www.shop.example", &["shop.example".to_string()]));
++        assert!(host_is_in("a.b.com", &["com".to_string()]));
++        assert!(!host_is_in("notshop.example", &["shop.example".to_string()]));
++        assert!(!host_is_in("example", &["shop.example".to_string()]));
++    }
++
++    #[test]
++    fn the_saved_text_gives_the_same_rules() {
++        let rules = SkipRules::from_trusted_text(LIST);
++        assert_eq!(rules.text.lines().count(), 5, "{}", rules.text);
++        let again = SkipRules::from_trusted_text(&rules.text);
++        assert_eq!(again.text, rules.text);
++        assert_eq!(again.skip("https://out.example/go?url=https://s.example/p", "https://n.example/", false).as_deref(), Some("https://s.example/p"));
++        assert!(SkipRules::from_trusted_text("||ads.example^\n").skip("https://ads.example/?u=https://s.example/", "https://n.example/", false).is_none());
++    }
++}
 diff --git a/components/thoron_adblock/websocket.cc b/components/thoron_adblock/websocket.cc
 new file mode 100644
 index 0000000000000000000000000000000000000000..4bc7eda90caa0ebb3a33a4838fafb0e499e3ddff

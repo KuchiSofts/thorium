@@ -528,7 +528,8 @@ smart. This replaces the hybrid of section 3 and decision 1 of section 11.
 | A redirected request checked again at each hop | a watcher on every request; an interceptor on every navigation | done (P5.25, section 12.10) |
 | The scripts workers and service workers are started from | the request proxy sits in front of those loaders too | done (P5.27, section 12.11) |
 | WebSocket connections | the browser is asked before each connection of a frame | done (P5.29, section 12.12) |
-| `$urlskip`, `$replace`, `$header`, `$uritransform`, `$permissions`, `:shadow()` | see 12.9 | P5.26 |
+| `$urlskip`: a navigation to a redirector goes straight to the destination | a module of the engine and the navigation interceptor (12.14) | done (P5.26, first part) |
+| `$replace`, `$header`, `$uritransform`, `$permissions`, `:shadow()` | see 12.9 | P5.26 |
 | List updates | 4.6 | done |
 | Scriptlet and resource updates | 12.4 | P5.23 |
 | Per-site switch, blocked count | 4.7 | done |
@@ -1011,6 +1012,50 @@ cover the trust of added lists and own rules and that the page holds no inline s
 
 Still to do: a link to the page from Settings (today: the flag's text and the address bar), translations,
 and the element picker (12.6).
+
+### 12.14 `$urlskip` (P5.26, 2026-11-12)
+
+Many links do not lead to a page but to a tracker that notes the click and then sends the browser on. The
+lists know these redirectors and where the real address is written inside theirs:
+`||out.example/go^$doc,urlskip=?url` says that the destination is the value of the parameter `url`. With
+the rule, a navigation to the redirector goes straight to the destination, and the redirector is never
+contacted. The bundled lists hold 241 such lines, all in uBlock Origin's own lists.
+
+How it is built:
+
+- adblock-rust does not know the option, so the rules are kept in a module of the engine (`urlskip.rs`).
+  An engine of their own, with the rules as filters for documents, says which rule matches a navigation;
+  it is built without fusing rules, so that it can name the one that matched.
+- The steps after `urlskip=` are carried out one after the other: `?name` (a parameter's value), `&2` (the
+  name of the second parameter), `#` (what follows the `#`), `/re/` (the first group of a regular
+  expression), `+https`, `-base64`, `-safebase64`, `-uricomponent`. `-blocked` lets a rule apply to a
+  redirector the lists block. A rule whose steps or options are not understood in full is not used.
+- Only rules of trusted lists count, as for the trusted scriptlets: a list a person added, or a rule of
+  their own, cannot send a navigation somewhere else.
+- It applies to navigations of the main frame made with GET, in the navigation interceptor (12.10), before
+  the address is cleaned. A frame and a form sent with POST go to the redirector as they are. The guard
+  against going in circles is the one of the address cleaning.
+- What the steps find is only a suggestion. The browser follows it only when it is a valid http or https
+  address without a user name, and not the address it came from. The new address is then a navigation like
+  any other: it is checked, cleaned, and may be skipped again.
+- With ads allowed on the redirector's site (the per-site switch), nothing is skipped.
+- The rules are saved with the engine (the saved layout is now 2; an engine saved in layout 1 is refused
+  and the shipped one is used).
+- The regular expressions use the `regex` crate, which matches in linear time. It is now a direct
+  dependency in Chromium's crate lists, so that the engine's own code may use it.
+
+Coverage: 240 of the 241 lines. The one left out is a rule for a podcast's audio files (`$media`), which
+is not a navigation.
+
+Checked: 15 engine tests (every step, the parsing of rules with options before and after the steps, trust
+by list id, saving, `-blocked`), and `tools/qa/adblock_urlskip_check.py`, offline, with two real rules of
+the lists: one that reads the destination from a parameter and one that also decodes it from base64. With
+native blocking on, the destination is reached and the redirector is never asked; a form sent with POST and
+a frame go to the redirector; with native blocking off nothing is skipped.
+
+Security review. The destination is one the redirector itself would send the browser to, so the rule
+opens no door the link did not already have; it is limited to http and https, never carries a user name,
+is at most 8,192 characters long after at most 8 steps, and comes only from rules of trusted lists.
 
 ## 13. Credits
 

@@ -17,6 +17,7 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** runs uBlock Origin's scriptlets before any page script and answers blocked requests with stand-ins.
 - **Ad blocking:** hides page elements by specific, generic and procedural rules and supports `$removeparam` and `$csp`.
 - **Ad blocking:** rechecks every redirect, stops blocked targets and strips the tracking parameters the lists name.
+- **Ad blocking:** a link to a tracking redirector goes straight to its destination (`$urlskip`, 240 list rules).
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.
 - **Ad blocking:** every change on that page is in use at once and survives a restart and a browser update.
@@ -50,6 +51,7 @@ Explanations live in the design docs under `docs/design/`.
 - **QA tools:** `adblock_proof.py`, `adblock_breakage.py` and `mv2_check.py` compare blocking with uBlock Origin.
 - **QA tools:** offline checks cover filter syntax, redirects, workers, hide rules, the site switch and list updates.
 - **QA tools:** `adblock_settings_check.py` works the settings page like a person, offline, in 14 steps.
+- **QA tools:** `adblock_urlskip_check.py` checks `$urlskip` offline with real rules of the lists.
 - **QA tools:** `fuzz_lists` feeds changed filter list lines to the engine to check that list reading survives any text.
 - **Docs:** README, `ROADMAP.md`, `SECURITY.md` and `CONTRIBUTING.md` describe Thoron; designs live in `docs/design/`.
 - **Docs:** build guides cover Windows 11 and Linux with measured build times; `win_env.ps1` prepares a build window.
