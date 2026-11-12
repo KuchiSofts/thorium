@@ -48,9 +48,9 @@ class ProblemsTests(unittest.TestCase):
 
     def test_each_switch_has_its_effect_and_only_while_on(self):
         on = {"fonts": {"font": False}, "media": {"sound": "error"}, "cosmetic": {"generic": "shown"},
-              "power": {"ad": True}}
+              "power": {"ad": True}, "3p-script": {"3p-script": False}, "3p-frame": {"3p-frame": False}}
         off = {"fonts": {"font": True}, "media": {"sound": "loaded"}, "cosmetic": {"generic": "hidden"},
-               "power": {"ad": False}}
+               "power": {"ad": False}, "3p-script": {"3p-script": True}, "3p-frame": {"3p-frame": True}}
         for name in on:
             self.assertEqual(mc.switch_problems(name, True, on[name]), [], name)
             self.assertEqual(mc.switch_problems(name, False, off[name]), [], name)

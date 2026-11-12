@@ -1390,6 +1390,34 @@ reload; the zapper removes one element and keeps the rest.
   is right-clicked on an element of a test page, the item is chosen with UI Automation, Enter creates the
   rule, and after a reload the element is hidden.
 
+### 12.29 The logger, as uBlock Origin's (P5.42, 2026-11-12)
+
+- **What.** The logger on `chrome://adblock` listed the blocked requests of the open tabs. Now, while it is
+  open, it also lists the requests let through, marked as such, with a choice to show all, the blocked or
+  the let-through ones. Each row has a button that makes a rule, as uBlock Origin's logger does: "Block" on
+  a request let through adds `||host^` to My filters; "Allow" on a blocked one adds
+  `@@||host^$domain=<the tab's site>`, which lets that host through on that site only.
+- **How.** Requests let through are kept with their page only while the logger asks: every two seconds,
+  also from a tab in the background, where Chromium may slow it to about once a minute; 90 seconds after
+  the last question nothing more is kept, so pages carry no extra memory once the logger is closed. A rule from a button goes into My filters the way the element picker's does: one
+  line, at most 2,000 characters, and it is in use at once.
+- **Checked** by `tools/qa/adblock_logger_check.py`: an ad image is listed as blocked and a plain one as let
+  through, the filter shows one kind, "Allow" makes the ad host asked again, and "Block" stops the plain one.
+
+### 12.30 Third-party scripts and frames: uBlock Origin's "medium mode" (P5.43, 2026-11-12)
+
+- **What.** Two more switches in the menu, "3rd-party scripts" and "3rd-party frames": on a site, no script
+  and no frame is loaded from another site than the page's. Both can be on for every site (Settings,
+  Default behavior), which is what uBlock Origin's "medium mode" does with its dynamic rules
+  `* * 3p-script block` and `* * 3p-frame block`; a site that needs them is then let through from the
+  menu, as uBlock Origin's `noop` rules do.
+- **How.** They are switches like the others (12.25): stored by host, with defaults in `options.json`
+  (`default-3p-script`, `default-3p-frame`). "Another site" means another registered name (`example.co.uk`),
+  or another host where there is none. A script is checked in the request proxy, a frame where its
+  document is asked for; either ends like any blocked request (a frame leaves no empty box).
+- **Checked** by the menu check: with each switch on, the script or the frame of another site on the test
+  page is never asked for; off again, it is. The options check reads the two defaults back.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

@@ -44,7 +44,8 @@ SETTINGS_URL = "chrome://adblock/"
 MENU_URL = "chrome://adblock-menu.top-chrome/"
 SETTLE_S = 3.0
 OPTIONS = ("badge", "prefetch", "hyperlink-auditing", "webrtc", "block-csp-reports", "default-cosmetic",
-           "default-media", "default-fonts", "javascript", "ignore-generic")
+           "default-media", "default-fonts", "javascript", "ignore-generic", "default-3p-script",
+           "default-3p-frame")
 # the ones the steps turn on and check by what the page does; the rest are checked as read back
 TURNED_ON = ("prefetch", "hyperlink-auditing", "webrtc", "block-csp-reports", "ignore-generic", "default-fonts")
 POLICY = "img-src 'none'; report-uri /csp-report"

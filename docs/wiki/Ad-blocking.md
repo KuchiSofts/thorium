@@ -52,10 +52,12 @@ It is **off by default** until its last correctness checks are done.
     Create. The rule goes into My filters and works at once;
   - **Zapper:** click things to remove them until the page reloads; Esc stops;
   - or right-click the thing on the page and choose **Block element...**: the picker opens on it;
-  - **Logger:** every blocked request of your open tabs;
+  - **Logger:** the requests of your open tabs, blocked and let through; "Block" or "Allow" on a row
+    makes a rule for that host;
   - **Settings:** the full page, `chrome://adblock`;
   - switches for this site: pop-ups (no window the site opens, also from a click), large media (sound
-    and video over 50 KB), no hiding, remote fonts, JavaScript. A blue switch means it is on.
+    and video over 50 KB), no hiding, remote fonts, JavaScript, 3rd-party scripts and 3rd-party frames
+    (nothing of that kind from other sites). A blue switch means it is on.
 
 - **Pop-ups:** ad windows and tabs a page tries to open are not opened at all, and count on the shield.
 - **Blocked pages:** a page your lists name as harmful (malware, phishing) or as an ad site is not
@@ -76,7 +78,8 @@ Open `chrome://adblock`.
 
 - **Settings:** as in uBlock Origin. Show the count on the shield; privacy options (no pre-fetching, no
   hyperlink auditing, WebRTC without local IP addresses, no CSP reports); what every site gets by default
-  (no hiding, no large media, no remote fonts, no JavaScript), which the menu's switches change for one
+  (no hiding, no large media, no remote fonts, no JavaScript, no third-party scripts or frames: uBlock
+  Origin's "medium mode"), which the menu's switches change for one
   site; and ignoring hide rules written for every site.
 - **Backup:** "Back up to file" saves your lists, own rules, allowed sites, switches and settings in a
   file; "Restore from file" brings them back, on this or another computer; "Reset to default settings"

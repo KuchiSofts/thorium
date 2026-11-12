@@ -1302,10 +1302,10 @@ index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d
 +#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_THORON_ADBLOCK_BUTTON_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..92e0b6f811ac5e0004343872bc0afcc5772c7cf9
+index 0000000000000000000000000000000000000000..d8684ca9afad4ae7e50673da144c7749b85e533f
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
-@@ -0,0 +1,300 @@
+@@ -0,0 +1,301 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1486,7 +1486,8 @@ index 0000000000000000000000000000000000000000..92e0b6f811ac5e0004343872bc0afcc5
 +                   Settings()->GetContentSetting(
 +                       site, site, ContentSettingsType::JAVASCRIPT) ==
 +                       CONTENT_SETTING_BLOCK);
-+      for (const char* name : {"popups", "media", "cosmetic", "fonts"}) {
++      for (const char* name :
++           {"popups", "media", "cosmetic", "fonts", "3p-script", "3p-frame"}) {
 +        switches.Set(name,
 +                     thoron_adblock::EngineService::Get().SiteSwitch(site, name));
 +      }
@@ -1530,7 +1531,7 @@ index 0000000000000000000000000000000000000000..92e0b6f811ac5e0004343872bc0afcc5
 +          site, GURL(), chrome_type,
 +          on ? CONTENT_SETTING_BLOCK : CONTENT_SETTING_DEFAULT);
 +    } else if (name == "popups" || name == "media" || name == "cosmetic" ||
-+               name == "fonts") {
++               name == "fonts" || name == "3p-script" || name == "3p-frame") {
 +      thoron_adblock::EngineService::Get().SetSiteSwitch(site, name, on);
 +    } else {
 +      return;
@@ -1665,10 +1666,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..02b4d5f854b2aab761c78502c2bb270d9df6b382
+index 0000000000000000000000000000000000000000..92b58d44b3b47c57627892fd2eeeec11b663817e
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,476 @@
+@@ -0,0 +1,496 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1780,6 +1781,7 @@ index 0000000000000000000000000000000000000000..02b4d5f854b2aab761c78502c2bb270d
 +    Register("getSettings", &ThoronAdblockHandler::GetSettings);
 +    Register("allowPattern", &ThoronAdblockHandler::AllowPattern);
 +    Register("setHostSwitches", &ThoronAdblockHandler::SetHostSwitches);
++    Register("addFilter", &ThoronAdblockHandler::AddFilter);
 +    Register("setSetting", &ThoronAdblockHandler::SetSetting);
 +  }
 +
@@ -1893,6 +1895,22 @@ index 0000000000000000000000000000000000000000..02b4d5f854b2aab761c78502c2bb270d
 +    Answer(*id, std::string());
 +  }
 +
++  // One rule the logger made (its "Block" and "Allow" buttons), added to the
++  // person's own rules: one line, as long as a rule may be.
++  void AddFilter(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 1);
++    if (!id || !args[1].is_string()) {
++      return;
++    }
++    const std::string& rule = args[1].GetString();
++    if (rule.empty() || rule.size() > 2000 ||
++        rule.find_first_of("\r\n") != std::string::npos) {
++      Answer(*id, "This is not one rule.");
++      return;
++    }
++    Service().AddToMyFilters(rule, Changed(*id));
++  }
++
 +  // A site of a restored backup, as the site settings wrote it
 +  // ("[*.]example.com", "https://example.com:443"). Never every site at once.
 +  void AllowPattern(const base::ListValue& args) {
@@ -1971,7 +1989,8 @@ index 0000000000000000000000000000000000000000..02b4d5f854b2aab761c78502c2bb270d
 +    base::DictValue settings;
 +    for (const char* name : {"badge", "block-csp-reports", "ignore-generic",
 +                             "default-media", "default-cosmetic",
-+                             "default-fonts"}) {
++                             "default-fonts", "default-3p-script",
++                             "default-3p-frame"}) {
 +      settings.Set(name, Service().Option(name));
 +    }
 +    settings.Set("javascript", SiteSettings()->GetDefaultContentSetting(
@@ -2037,6 +2056,7 @@ index 0000000000000000000000000000000000000000..02b4d5f854b2aab761c78502c2bb270d
 +    if (!id) {
 +      return;
 +    }
++    thoron_adblock::BlockedCount::LoggerAsked();
 +    Profile* profile = Profile::FromWebUI(web_ui());
 +    base::ListValue tabs;
 +    for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
@@ -2055,7 +2075,8 @@ index 0000000000000000000000000000000000000000..02b4d5f854b2aab761c78502c2bb270d
 +        for (const auto& entry : entries) {
 +          list.Append(base::DictValue()
 +                          .Set("time", entry.time.InMillisecondsFSinceUnixEpoch())
-+                          .Set("url", entry.url));
++                          .Set("url", entry.url)
++                          .Set("blocked", entry.blocked));
 +        }
 +        tabs.Append(base::DictValue()
 +                        .Set("title", base::UTF16ToUTF8(tab->GetTitle()))

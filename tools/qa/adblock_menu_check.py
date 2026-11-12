@@ -13,6 +13,8 @@ the large-media limit, an element to pick and one to zap. Steps:
               blocked and the domains connected out of all
     collapse  a blocked 300x250 ad image and ad frame take up no space on the page
     fonts     with "Remote fonts" on, the font is never asked for; off again, it is
+    3p        with "3rd-party scripts" or "3rd-party frames" on, the script or frame of another site is never
+              asked for; off again, it is
     media     with "Large media" on, the sound fails to load; off again, it loads
     cosmetic  with "No hiding" on, the generic hide rule hides nothing; off again, it hides
     power     with the big switch off, the ad host is asked for; on again, it is not
@@ -46,6 +48,7 @@ from tools.qa.adblock_syntax_check import _launch  # noqa: E402
 from tools.qa.cdp import WebSocket  # noqa: E402
 
 PAGE_HOST = "menu-check.test"
+THIRD_HOST = "third-menu.test"   # a plain host of another site: its script and frame for the third-party switches
 MENU_URL = "chrome://adblock-menu.top-chrome/"
 MEDIA_LIMIT = 50 * 1024
 SETTLE_S = 3.0
@@ -93,7 +96,10 @@ def page_html(host: str, generic: str) -> str:
             "const s = document.getElementById('sound');"
             "s.addEventListener('loadeddata', () => { window.report.sound = 'loaded'; });"
             "s.addEventListener('error', () => { window.report.sound = 'error'; });"
-            "</script></body></html>")
+            # after the script that listens to the sound, which a script before it would hold up
+            f'</script><script src="http://{THIRD_HOST}/lib.js"></script>'
+            f'<iframe id="third-frame" src="http://{THIRD_HOST}/frame3.html" width="20" height="20"></iframe>'
+            "</body></html>")
 
 
 def menu_problems(menu: dict, host: str) -> list[str]:
@@ -125,6 +131,10 @@ def switch_problems(name: str, on: bool, seen: dict) -> list[str]:
         return [f"with Remote fonts {state}, the font was " + ("asked for" if on else "not asked for")]
     if name == "media" and seen.get("sound") != ("error" if on else "loaded"):
         return [f"with Large media {state}, the sound is {seen.get('sound')!r}"]
+    if name in ("3p-script", "3p-frame") and seen.get(name) == on:
+        what = "script" if name == "3p-script" else "frame"
+        return [f"with third-party {what}s {state}, the {what} of the other site was "
+                + ("asked for" if on else "not asked for")]
     if name == "cosmetic" and seen.get("generic") != ("shown" if on else "hidden"):
         return [f"with No hiding {state}, the generic ad is {seen.get('generic')!r}"]
     if name == "power" and seen.get("ad") != on:
@@ -224,7 +234,7 @@ class Run:
     def __init__(self, browser: Path, work: Path, server: Server, host: str):
         self.server, self.host = server, host
         self.profile = Path(tempfile.mkdtemp(prefix="menu-", dir=work))
-        self.proc = _launch(browser, self.profile, server.port, [PAGE_HOST, host], native=True)
+        self.proc = _launch(browser, self.profile, server.port, [PAGE_HOST, THIRD_HOST, host], native=True)
         self.port = _devtools_port(self.profile)
         _open(self.port, f"http://127.0.0.1:{server.port}/warm.html")
         time.sleep(4)
@@ -254,6 +264,8 @@ class Run:
         seen = self.read_page()
         seen["font"] = (PAGE_HOST, "/check.woff2") in self.server.asked
         seen["ad"] = any(name == self.host for name, _ in self.server.asked)
+        seen["3p-script"] = (THIRD_HOST, "/lib.js") in self.server.asked
+        seen["3p-frame"] = (THIRD_HOST, "/frame3.html") in self.server.asked
         return seen
 
     def click_page(self, element_id: str) -> None:
@@ -300,7 +312,9 @@ def run(browser: Path, work: Path, host: str, generic: str) -> list[str]:
             print(f"{'PASS' if not found else 'FAIL'}  collapse: image {seen.get('box')} px, frame {seen.get('frame')} px")
             problems += [f"collapse: {p}" for p in found]
             for name, selector in (("fonts", "[data-switch=fonts]"), ("media", "[data-switch=media]"),
-                                   ("cosmetic", "[data-switch=cosmetic]"), ("power", "#power")):
+                                   ("cosmetic", "[data-switch=cosmetic]"),
+                                   ("3p-script", '[data-switch="3p-script"]'),
+                                   ("3p-frame", '[data-switch="3p-frame"]'), ("power", "#power")):
                 for on in (True, False):
                     r.click_menu(selector)
                     seen = r.after_reload()
