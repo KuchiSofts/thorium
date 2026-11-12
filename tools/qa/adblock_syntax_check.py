@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be found in the LICENSE file.
 """Native ad blocking, the rest of the filter syntax, checked end to end and offline (ROADMAP P5.22):
-procedural hide rules, `$removeparam`, `$csp` and `$permissions`.
+procedural hide rules, `$removeparam`, `$csp`, `$permissions` and `method=`.
 
 The check uses the browser's own bundled lists. For each kind of rule it takes the first real rule that is
 simple enough to build a page for, serves that page under the rule's site name from a local server
@@ -20,6 +20,7 @@ profiles:
     permissions    every browser feature the lists switch off for all sites is off for the page, also
                    when the site's own header keeps it
     permissions-kept   on a site with an exception for one of them, that one stays and the others are off
+    method         a rule for requests sent with POST stops such a request and lets one with GET through
 
 in four modes:
 
@@ -82,6 +83,7 @@ CSP_NEEDS = "worker-src 'none'"
 # of its own.
 PERMISSIONS_HOST = "perm-check.test"
 PERMISSIONS_RE = re.compile(r"\*\$permissions=([a-z][a-z0-9-]*)=\(\),from=~[^,|]+(?:\|~[^,|]+)*")
+METHOD_RE = re.compile(r"\|\|([a-z0-9.-]+)((?:/[a-z0-9._-]+)+)\$method=(?:post|POST)")
 PERMISSIONS_KEPT_RE = re.compile(r"@@\|\|([a-z0-9.-]+)\^\$permissions=([a-z][a-z0-9-]*)=\(\)")
 CSP_NOT = ("script-src", "default-src", "sandbox")
 # A value the style page starts from, other than the rule's.
@@ -163,6 +165,8 @@ def cases(lists_text: str) -> dict:
             out[kind] = case
         if "removeparam" not in out and (m := PARAM_RE.fullmatch(line)):
             out["removeparam"] = {"host": PARAM_HOST, "name": m.group(1)}
+        if "method" not in out and (m := METHOD_RE.fullmatch(line)) and _fit(m.group(1)):
+            out["method"] = {"host": m.group(1), "path": m.group(2), "method": "POST"}
     if csp := _csp_case(lines):
         out["csp"] = csp
     features = [m.group(1) for line in lines if (m := PERMISSIONS_RE.fullmatch(line))]
@@ -227,6 +231,14 @@ def page_html(kind: str, case: dict) -> str:
                   "let worker = 'started';"
                   "try { new Worker('/worker.js'); } catch (e) { worker = 'refused'; }")
         report = "{worker, violations}"
+    elif kind == "method":
+        body = "<p>method check</p>"
+        path = case["path"]
+        script = ("const sent = {};"
+                  f"fetch('{path}', {{method: 'POST', body: 'x'}})"
+                  ".then(() => { sent.post = 'loaded'; }, () => { sent.post = 'blocked'; });"
+                  f"fetch('{path}').then(() => {{ sent.get = 'loaded'; }}, () => {{ sent.get = 'blocked'; }});")
+        report = "sent"
     elif kind in ("permissions", "permissions-kept"):
         body = "<p>features check</p>"
         # only a feature this browser has can be on or off
@@ -331,6 +343,12 @@ def problems(mode: str, kind: str, case: dict, result: dict | None) -> list[str]
             out.append(f"nothing was refused under the rule's policy {case['policy']!r}: {result}")
         if not on and (result.get("violations") or result.get("worker") != "started"):
             out.append(f"the page is under a policy {off}: {result}")
+    elif kind == "method":
+        want = "blocked" if on else "loaded"
+        if result.get("post") != want:
+            out.append("a request with POST was let through" if on else f"a request with POST was stopped {off}")
+        if result.get("get") != "loaded":
+            out.append("a request with GET was stopped")
     elif kind in ("permissions", "permissions-kept"):
         known = [feature for feature in case["features"] if feature in (result.get("known") or [])]
         allowed = result.get("allowed") or []
@@ -469,8 +487,17 @@ class PageServer:
                 self.end_headers()
                 self.wfile.write(body)
 
+            def _is_method_target(self) -> bool:
+                case = found.get("method")
+                host = (self.headers.get("Host") or "").split(":")[0]
+                return bool(case) and host == case["host"] and self.path == case["path"]
+
             def do_POST(self):
                 length = int(self.headers.get("Content-Length") or 0)
+                if self._is_method_target() and length <= 65536:
+                    self.rfile.read(length)
+                    self._send(200, "text/plain", b"ok")
+                    return
                 kind = self.path.removeprefix("/result/")
                 if not self.path.startswith("/result/") or kind not in found or length > 65536:
                     self._send(404, "text/plain", b"refused")
@@ -503,6 +530,8 @@ class PageServer:
                 kind = url.path.removeprefix("/").removesuffix(".html")
                 if url.path.endswith(".html") and kind in found and kind != "removeparam" and host == found[kind]["host"]:
                     self._send(200, html, page_html(kind, found[kind]).encode(), page_headers(kind, found[kind]))
+                elif self._is_method_target():
+                    self._send(200, "text/plain", b"ok")
                 elif url.path == "/worker.js":
                     self._send(200, "text/javascript", b"// a worker that does nothing\n")
                 elif url.path == "/parent.html" and host == "127.0.0.1":

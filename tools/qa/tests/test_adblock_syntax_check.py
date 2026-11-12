@@ -21,6 +21,9 @@ odd.example##.content:style(margin: 0 auto !important)
 $removeparam=_hsenc
 $removeparam=mtm_source
 ||msn.example^$doc,removeparam=ei
+||xxxrec.example/rec$method=POST
+||rec.example/api/rec$method=POST
+||other.example/rec$method=get|post
 $csp=child-src 'none'; frame-src 'self' *; worker-src 'none',domain=file.example|other.example
 ! thoron-list: ublock-privacy
 *$permissions=idle-detection=(),from=~localhost|~127.0.0.1|~[::1]|~local
@@ -90,6 +93,9 @@ class CaseTests(unittest.TestCase):
                                   "@@||shop.example^$permissions=browsing-topics=()\n"))
         self.assertNotIn("permissions", sc.cases("@@||shop.example^$permissions=browsing-topics=()\n"))
 
+    def test_method_takes_the_first_rule_for_post_alone(self):
+        self.assertEqual(self.cases["method"], {"host": "rec.example", "path": "/api/rec", "method": "POST"})
+
     def test_hosts_not_fit_for_a_report_are_skipped(self):
         self.assertNotIn("xxxtube.example", [c.get("host") for c in self.cases.values()])
         self.assertNotIn("has-text", sc.cases("xxxtube.example##.card:has-text(Advert)\n"))
@@ -104,7 +110,8 @@ class CaseTests(unittest.TestCase):
     def test_hosts_of_all_cases(self):
         self.assertEqual(sc.hosts(self.cases),
                          sorted(["blog.example", "files.example", "games.example", "news.example", "shop.example",
-                                 sc.PARAM_HOST, sc.PERMISSIONS_HOST, "video.example", "wall.example"]))
+                                 sc.PARAM_HOST, sc.PERMISSIONS_HOST, "rec.example", "video.example",
+                                 "wall.example"]))
 
 
 class PageTests(unittest.TestCase):
@@ -131,6 +138,11 @@ class PageTests(unittest.TestCase):
         html = sc.page_html("removeparam", self.cases["removeparam"])
         for path in ("/data.json?_hsenc=abc&keep=1", "/shape.gif?_hsenc=abc&keep=1", "/inner.html?_hsenc=abc&keep=1"):
             self.assertIn(path, html)
+
+    def test_the_method_page_asks_both_ways(self):
+        html = sc.page_html("method", self.cases["method"])
+        self.assertIn("fetch('/api/rec', {method: 'POST'", html)
+        self.assertIn("fetch('/api/rec')", html)
 
     def test_the_permissions_pages_ask_about_every_feature(self):
         for kind in ("permissions", "permissions-kept"):
@@ -173,6 +185,7 @@ class ProblemTests(unittest.TestCase):
             "removeparam": {"search": "?keep=1", "seen": {"/clean.html": "keep=1", "/data.json": "keep=1",
                                                          "/inner.html": "keep=1", "/shape.gif": "_hsenc=abc&keep=1"}},
             "csp": {"worker": "refused", "violations": [{"directive": "worker-src", "policy": "worker-src 'none'"}]},
+            "method": {"post": "blocked", "get": "loaded"},
             "permissions": {"known": FEATURES, "allowed": []},
             "permissions-kept": {"known": FEATURES, "allowed": ["browsing-topics"]},
         }[kind]
@@ -189,6 +202,7 @@ class ProblemTests(unittest.TestCase):
             "removeparam": {"search": "?" + dirty, "seen": {"/clean.html": dirty, "/data.json": dirty,
                                                            "/inner.html": dirty, "/shape.gif": dirty}},
             "csp": {"worker": "started", "violations": []},
+            "method": {"post": "loaded", "get": "loaded"},
             "permissions": {"known": FEATURES, "allowed": FEATURES},
             "permissions-kept": {"known": FEATURES, "allowed": FEATURES},
         }[kind]
@@ -236,6 +250,13 @@ class ProblemTests(unittest.TestCase):
         case = self.cases["csp"]
         other = {"worker": "refused", "violations": [{"directive": "worker-src", "policy": "worker-src 'self'"}]}
         self.assertTrue(sc.problems("native", "csp", case, other))
+
+    def test_a_rule_for_one_method_must_leave_the_other_alone(self):
+        case = self.cases["method"]
+        found = sc.problems("native", "method", case, {"post": "blocked", "get": "blocked"})
+        self.assertEqual(found, ["a request with GET was stopped"])
+        found = sc.problems("native", "method", case, {"post": "loaded"})
+        self.assertEqual(len(found), 2)
 
     def test_permissions_are_judged_feature_by_feature(self):
         case = self.cases["permissions"]
