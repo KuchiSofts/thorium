@@ -15,6 +15,8 @@ other is built into the browser itself and is meant to replace the extension onc
   identifiers. A list that looks wrong is refused and the previous one stays.
 - **Blocks before the request leaves.** A request for an ad or a tracker is stopped inside the browser.
   This covers pages, frames, redirects, web workers and WebSocket connections.
+- **Sees through disguised ad servers.** Some ad servers change their names all the time. When a
+  server's answer gives it away, the answer is thrown away before the page sees it.
 - **Skips tracking detours.** A link that leads to a tracker first, which then sends you on, goes straight
   to the real page.
 - **Switches off ad-tech features.** Browser features that were built for ad targeting, or that help to

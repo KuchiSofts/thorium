@@ -19,6 +19,7 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** rechecks every redirect, stops blocked targets and strips the tracking parameters the lists name.
 - **Ad blocking:** a link to a tracking redirector goes straight to its destination (`$urlskip`, 240 list rules).
 - **Ad blocking:** switches off the browser features the lists name for ad targeting and fingerprinting (`$permissions`).
+- **Ad blocking:** stops a request when the server's answer gives an ad server away (`$header`, 50 list rules).
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.
 - **Ad blocking:** every change on that page is in use at once and survives a restart and a browser update.
@@ -53,6 +54,7 @@ Explanations live in the design docs under `docs/design/`.
 - **QA tools:** offline checks cover filter syntax, redirects, workers, hide rules, the site switch and list updates.
 - **QA tools:** `adblock_settings_check.py` works the settings page like a person, offline, in 14 steps.
 - **QA tools:** `adblock_urlskip_check.py` checks `$urlskip` offline with real rules of the lists.
+- **QA tools:** `adblock_header_check.py` checks `$header` offline with real rules of the lists.
 - **QA tools:** `fuzz_lists` feeds changed filter list lines to the engine to check that list reading survives any text.
 - **Docs:** README, `ROADMAP.md`, `SECURITY.md` and `CONTRIBUTING.md` describe Thoron; designs live in `docs/design/`.
 - **Docs:** build guides cover Windows 11 and Linux with measured build times; `win_env.ps1` prepares a build window.
@@ -79,6 +81,7 @@ Explanations live in the design docs under `docs/design/`.
 ### Fixed
 
 - **Ad blocking:** ads in frames are blocked; a frame's own document was loaded without being checked.
+- **Ad blocking:** rules for one request method (`method=post`) now apply; every request was checked as a GET.
 - **Build:** two small patches fix the Chromium 158 build (FFmpeg duplicate sources, a Rust compiler flag).
 - **Build:** `rebase_report.py` no longer reports a patch that changes an upstream overlay file as rejected.
 - **QA tools:** `profile_check.py` no longer reports lost tabs for a profile that does not continue where it left off.
