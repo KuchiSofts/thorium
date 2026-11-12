@@ -52,6 +52,7 @@ Explanations live in the design docs under `docs/design/`.
 - **Docs:** build guides cover Windows 11 and Linux with measured build times; `win_env.ps1` prepares a build window.
 - **Docs:** `check_docs.py` checks the docs for broken links, house style and private data.
 - **Docs:** release program: Thoron versions from 0.1.1, GitHub releases, self-update, one installer, first run.
+- **Docs:** the project wiki is written in `docs/wiki/` and published by `publish_wiki.py`.
 
 ### Changed
 
@@ -67,6 +68,7 @@ Explanations live in the design docs under `docs/design/`.
 - **Docs:** README and `SECURITY.md` separate what is in place from what is planned; the design background is neutral.
 - **Docs:** this changelog is now one line per change; the roadmap opens with the road to Thoron 0.1.1.
 - **Repository:** merged branches are gone and delete themselves; `main` cannot be force-pushed or deleted.
+- **Repository:** every push runs the tests and linters and verifies the browser source against upstream.
 
 ### Fixed
 

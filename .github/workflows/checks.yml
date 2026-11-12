@@ -1,0 +1,55 @@
+# Runs on every push to main and on every pull request (ROADMAP P2.26).
+# Actions are pinned to a full commit, the token can only read, and no secret is used.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests and linters
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Tests
+        run: python -m unittest discover -s tools -t .
+      - name: Docs and privacy linter
+        run: python -I tools/docs/check_docs.py --private
+      - name: No prebuilt or proprietary binaries
+        run: python -I tools/audit/binary_policy.py
+
+  source:
+    name: Browser source verifies against the pinned upstream commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Fetch the pinned upstream commit (trees only)
+        shell: bash
+        run: |
+          repository=$(python -c "import json; print(json.load(open('source/UPSTREAM.json'))['repository'])")
+          commit=$(python -c "import json; print(json.load(open('source/UPSTREAM.json'))['commit'])")
+          git init -q upstream
+          git -C upstream fetch -q --depth 1 --filter=blob:none "$repository" "$commit"
+      - name: Verify
+        run: python -I tools/build/source_tree.py verify --upstream upstream --source source
