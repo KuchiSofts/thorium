@@ -391,10 +391,10 @@ index a4c1c51327f52619864f9b13f7fd78162d131cd2..86ab7c825de3fe7010699c6892f58ba5
      if (info.type == type)
        return l10n_util::GetStringUTF16(info.string_id_mid_sentence);
 diff --git a/components/site_settings_strings.grdp b/components/site_settings_strings.grdp
-index ab3c100b747f5ec6244fa719272e29427f723280..42db30cd536b271fe2deb9ac33112c1a724a85df 100644
+index ab3c100b747f5ec6244fa719272e29427f723280..a1f64733a126d1e120aed0df17b14a50554d20d8 100644
 --- a/components/site_settings_strings.grdp
 +++ b/components/site_settings_strings.grdp
-@@ -325,4 +325,54 @@
+@@ -325,4 +325,57 @@
      Offer writing help
    </message>
    </if>
@@ -444,6 +444,9 @@ index ab3c100b747f5ec6244fa719272e29427f723280..42db30cd536b271fe2deb9ac33112c1a
 +  </message>
 +  <message name="IDS_THORON_ADBLOCK_MENU" desc="Name of the menu of Thoron's built-in ad blocking (opened from its shield in the toolbar), as the task manager lists it.">
 +    Ad blocking menu
++  </message>
++  <message name="IDS_THORON_ADBLOCK_BLOCK_ELEMENT" desc="Item of the page's context menu that starts Thoron's element picker on what was clicked, as uBlock Origin's item of that name.">
++    Block element...
 +  </message>
 +  <message name="IDS_THORON_ADBLOCK_BUBBLE_ALLOW" desc="Checkbox in that bubble that turns the blocking off for the site (the page then reloads).">
 +    Always allow ads and trackers on this site
@@ -919,6 +922,131 @@ index a1a37ae476db8cfafbe6947ba77064b3f4eb25cf..eac99c995ef10b4ebc27306a5028e090
        kChromeUIAuthorsHost,
  #if !BUILDFLAG(IS_ANDROID)
        kChromeUIAppServiceInternalsHost,
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+index 2ffedc1aad1f2c0145bbfbd1e4a24d06ffd8f474..96cd12786a0ad9d8b5ff13b0ac706a151273c636 100644
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -394,6 +394,8 @@
+ #define IDC_CONTENT_CONTEXT_USE_PASSKEY_FROM_ANOTHER_DEVICE 50194
+ // Listen to this page context menu.
+ #define IDC_CONTENT_CONTEXT_LISTEN_TO_THIS_PAGE 50195
++// Thoron: the built-in ad blocker's element picker on what was clicked.
++#define IDC_CONTENT_CONTEXT_THORON_BLOCK_ELEMENT 50196
+ // Open with items.
+ #define IDC_CONTENT_CONTEXT_OPEN_WITH1 50200
+ // Context menu items that provide fast access to input methods.
+diff --git a/chrome/browser/renderer_context_menu/BUILD.gn b/chrome/browser/renderer_context_menu/BUILD.gn
+index fe5a6b11df6f45e6f3044cdce3da805c1412c1ac..661cb793341e740e7c089de1ba00db7b3e006c60 100644
+--- a/chrome/browser/renderer_context_menu/BUILD.gn
++++ b/chrome/browser/renderer_context_menu/BUILD.gn
+@@ -187,6 +187,8 @@ source_set("impl") {
+       "//components/sessions",
+       "//components/shared_highlighting/core/common",
+       "//components/spellcheck/browser",
++      "//components/thoron_adblock",
++      "//components/thoron_adblock:features",
+       "//components/user_prefs",
+       "//mojo/public/cpp/bindings",
+       "//pdf:features",
+diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.cc b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+index b26070424f8c8954d3d0ca18305bcdec7b541265..5316cb33fea1bc7966df8eb73592b5f6120f0e1b 100644
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -226,6 +226,8 @@
+ #include "components/strings/grit/components_strings.h"
+ #include "components/supervised_user/core/browser/supervised_user_preferences.h"
+ #include "components/supervised_user/core/browser/supervised_user_url_filtering_service.h"
++#include "components/thoron_adblock/features.h"
++#include "components/thoron_adblock/picker.h"
+ #include "components/translate/core/browser/translate_download_manager.h"
+ #include "components/translate/core/browser/translate_manager.h"
+ #include "components/translate/core/browser/translate_prefs.h"
+@@ -237,6 +239,7 @@
+ #include "content/public/browser/browser_context.h"
+ #include "content/public/browser/child_process_security_policy.h"
+ #include "content/public/browser/download_manager.h"
++#include "content/public/browser/host_zoom_map.h"
+ #include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/navigation_details.h"
+ #include "content/public/browser/navigation_entry.h"
+@@ -270,6 +273,7 @@
+ #include "third_party/blink/public/common/context_menu_data/edit_flags.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/common/loader/network_utils.h"
++#include "third_party/blink/public/common/page/page_zoom.h"
+ #include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
+ #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
+ #include "third_party/blink/public/mojom/forms/form_control_type.mojom-shared.h"
+@@ -687,13 +691,14 @@ int UmaEnumForCommand(int key, UmaEnumIdLookupType type) {
+        {IDC_CONTENT_CONTEXT_GLIC_SMART_SUGGESTION, 172},
+        {IDC_CONTENT_CONTEXT_INDIGO, 173},
+        {IDC_CONTENT_CONTEXT_OPENLINKSAMETAB, 174},
++       {IDC_CONTENT_CONTEXT_THORON_BLOCK_ELEMENT, 175},
+        // To add new items:
+        //   - Add one more line above this comment block, using the UMA value
+        //     from the line below this comment block.
+        //   - Increment the UMA value in that latter line.
+        //   - Add the new item to the RenderViewContextMenuItem enum in
+        //     tools/metrics/histograms/metadata/ui/enums.xml.
+-       {kUmaMaxValueKey, 175}});
++       {kUmaMaxValueKey, 176}});
+   // LINT.ThenChange(//tools/metrics/histograms/metadata/ui/enums.xml:RenderViewContextMenuItem)
+ 
+   // LINT.IfChange(ContextMenuOptionDesktop)
+@@ -1936,6 +1941,13 @@ void RenderViewContextMenu::AppendDeveloperItems() {
+     }
+   }
+ 
++  // Thoron's ad blocker: the element picker on what was clicked, as uBlock
++  // Origin's "Block element..." item.
++  if (base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock) &&
++      params_.page_url.SchemeIsHTTPOrHTTPS()) {
++    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_THORON_BLOCK_ELEMENT,
++                                    IDS_THORON_ADBLOCK_BLOCK_ELEMENT);
++  }
+   menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_INSPECTELEMENT,
+                                   IDS_CONTENT_CONTEXT_INSPECTELEMENT);
+ }
+@@ -3612,6 +3624,9 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
+     case IDC_CONTENT_CONTEXT_RESTART_PACKAGED_APP:
+       return IsDevCommandEnabled(id);
+ 
++    case IDC_CONTENT_CONTEXT_THORON_BLOCK_ELEMENT:
++      return true;
++
+     case IDC_CONTENT_CONTEXT_TRANSLATE:
+       return navigation_allowed && IsTranslateEnabled();
+ 
+@@ -4322,6 +4337,17 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
+       ExecInspectElement();
+       break;
+ 
++    case IDC_CONTENT_CONTEXT_THORON_BLOCK_ELEMENT: {
++      // The menu's point is in the view's pixels; the page's are larger by
++      // its zoom.
++      const double zoom = blink::ZoomLevelToZoomFactor(
++          content::HostZoomMap::GetZoomLevel(source_web_contents_));
++      thoron_adblock::StartPickerAt(
++          source_web_contents_, static_cast<int>(params_.x / zoom),
++          static_cast<int>(params_.y / zoom));
++      break;
++    }
++
+     case IDC_CONTENT_CONTEXT_INSPECTBACKGROUNDPAGE:
+       ExecInspectBackgroundPage();
+       break;
+diff --git a/tools/metrics/histograms/metadata/ui/enums.xml b/tools/metrics/histograms/metadata/ui/enums.xml
+index 8fd509761c46c149bba8fd2bd80606ab65927c32..7060dba40678b1a05af3182240c04d1c16df5e38 100644
+--- a/tools/metrics/histograms/metadata/ui/enums.xml
++++ b/tools/metrics/histograms/metadata/ui/enums.xml
+@@ -454,6 +454,7 @@ chromium-metrics-reviews@google.com.
+   <int value="172" label="IDC_CONTENT_CONTEXT_GLIC_SMART_SUGGESTION"/>
+   <int value="173" label="IDC_CONTENT_CONTEXT_INDIGO"/>
+   <int value="174" label="IDC_CONTENT_CONTEXT_OPENLINKSAMETAB"/>
++  <int value="175" label="IDC_CONTENT_CONTEXT_THORON_BLOCK_ELEMENT"/>
+ </enum>
+ 
+ <!-- LINT.ThenChange(//chrome/browser/renderer_context_menu/render_view_context_menu.cc:RenderViewContextMenuItem) -->
 diff --git a/chrome/browser/ui/views/toolbar/thoron_adblock_button.cc b/chrome/browser/ui/views/toolbar/thoron_adblock_button.cc
 new file mode 100644
 index 0000000000000000000000000000000000000000..a31a90935ed3cc0fef6e649777d81cbe68c29477

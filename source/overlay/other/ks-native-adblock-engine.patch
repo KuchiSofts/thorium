@@ -7981,10 +7981,10 @@ index 0000000000000000000000000000000000000000..00523ed2ab49618d8acc12bcd40a1fdc
 +}
 diff --git a/components/thoron_adblock/picker.cc b/components/thoron_adblock/picker.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..0c73bdaa7262d06a1f5fa67fcef4fd013fe6f059
+index 0000000000000000000000000000000000000000..bb2638a2c8f7b2944c7e92e571b625bf9e797573
 --- /dev/null
 +++ b/components/thoron_adblock/picker.cc
-@@ -0,0 +1,89 @@
+@@ -0,0 +1,103 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7994,6 +7994,7 @@ index 0000000000000000000000000000000000000000..0c73bdaa7262d06a1f5fa67fcef4fd01
 +
 +#include "base/no_destructor.h"
 +#include "base/strings/string_util.h"
++#include "base/strings/stringprintf.h"
 +#include "base/time/time.h"
 +#include "components/thoron_adblock/document_agent.mojom.h"
 +#include "components/thoron_adblock/engine.rs.h"
@@ -8037,7 +8038,10 @@ index 0000000000000000000000000000000000000000..0c73bdaa7262d06a1f5fa67fcef4fd01
 +
 +}  // namespace
 +
-+void StartPicker(content::WebContents* tab, bool zapper) {
++namespace {
++
++// Sends the picker to the tab's page, followed by its arguments.
++void Start(content::WebContents* tab, const std::string& arguments) {
 +  if (!tab) {
 +    return;
 +  }
@@ -8048,10 +8052,20 @@ index 0000000000000000000000000000000000000000..0c73bdaa7262d06a1f5fa67fcef4fd01
 +  }
 +  Opened()[frame->GetGlobalId()] = base::TimeTicks::Now();
 +  std::string script(picker_js());
-+  script += zapper ? "(\"zapper\");\n" : "(\"picker\");\n";
++  script += arguments;
 +  mojo::AssociatedRemote<mojom::DocumentAgent> agent;
 +  frame->GetRemoteAssociatedInterfaces()->GetInterface(&agent);
 +  agent->StartPicker(script);
++}
++
++}  // namespace
++
++void StartPicker(content::WebContents* tab, bool zapper) {
++  Start(tab, zapper ? "(\"zapper\");\n" : "(\"picker\");\n");
++}
++
++void StartPickerAt(content::WebContents* tab, int x, int y) {
++  Start(tab, base::StringPrintf("(\"picker\", {x: %d, y: %d});\n", x, y));
 +}
 +
 +std::string AcceptPickedRule(content::RenderFrameHost& frame,
@@ -8076,10 +8090,10 @@ index 0000000000000000000000000000000000000000..0c73bdaa7262d06a1f5fa67fcef4fd01
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/picker.h b/components/thoron_adblock/picker.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..eb775d7e5d83f2dfb776d1b055533648a96e0ef9
+index 0000000000000000000000000000000000000000..312772150b64523b7d2df30c95f579bb25217068
 --- /dev/null
 +++ b/components/thoron_adblock/picker.h
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,38 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -8103,6 +8117,10 @@ index 0000000000000000000000000000000000000000..eb775d7e5d83f2dfb776d1b055533648
 +// nothing for a tab that shows no web page.
 +void StartPicker(content::WebContents* tab, bool zapper);
 +
++// The picker on the element at (x, y), in CSS pixels of the page's viewport:
++// the page's context menu ("Block element...") opens its panel at once.
++void StartPickerAt(content::WebContents* tab, int x, int y);
++
 +// The rule the picker in `frame` made, before it is added to "My filters":
 +// accepted only from a page the person opened the picker in during the last
 +// ten minutes (once per opening), only as one line of at most 2,000
@@ -8116,10 +8134,10 @@ index 0000000000000000000000000000000000000000..eb775d7e5d83f2dfb776d1b055533648
 +#endif  // COMPONENTS_THORON_ADBLOCK_PICKER_H_
 diff --git a/components/thoron_adblock/picker.js b/components/thoron_adblock/picker.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..013be9a45a1f8a8e6908f32bc1e893680a0aa462
+index 0000000000000000000000000000000000000000..85c1cfde2c6da4169e22f414dcd10aa4b3d2ec17
 --- /dev/null
 +++ b/components/thoron_adblock/picker.js
-@@ -0,0 +1,342 @@
+@@ -0,0 +1,350 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +//
@@ -8134,8 +8152,9 @@ index 0000000000000000000000000000000000000000..013be9a45a1f8a8e6908f32bc1e89368
 +//   zapper  hover shows the element; a click takes it out of the page until it is loaded again; Esc
 +//           or the button ends.
 +//
-+// The browser sends this file followed by ("picker") or ("zapper").
-+(function(mode) {
++// The browser sends this file followed by ("picker") or ("zapper"); from the page's context menu by ("picker",
++// {x, y}), the point that was clicked, whose element the panel opens on at once.
++(function(mode, at) {
 +  'use strict';
 +  if (window.__thoronPicker) {
 +    window.__thoronPicker();
@@ -8461,6 +8480,13 @@ index 0000000000000000000000000000000000000000..013be9a45a1f8a8e6908f32bc1e89368
 +    window.__thoronPicker = null;
 +  }
 +  window.__thoronPicker = stop;
++
++  if (!zapper && at && Number.isFinite(at.x) && Number.isFinite(at.y)) {
++    const element = target({clientX: at.x, clientY: at.y});
++    if (element) {
++      openPanel(element);
++    }
++  }
 +})
 diff --git a/components/thoron_adblock/popup.rs b/components/thoron_adblock/popup.rs
 new file mode 100644

@@ -51,6 +51,7 @@ It is **off by default** until its last correctness checks are done.
   - **Block element:** click the thing you want gone, choose or edit the rule, press Enter or
     Create. The rule goes into My filters and works at once;
   - **Zapper:** click things to remove them until the page reloads; Esc stops;
+  - or right-click the thing on the page and choose **Block element...**: the picker opens on it;
   - **Logger:** every blocked request of your open tabs;
   - **Settings:** the full page, `chrome://adblock`;
   - switches for this site: pop-ups (no window the site opens, also from a click), large media (sound

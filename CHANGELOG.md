@@ -38,6 +38,7 @@ Explanations live in the design docs under `docs/design/`.
   uBlock Origin's.
 - **Ad blocking:** back up the ad blocking setup to a file, restore it from the file, or reset it to the
   defaults, on `chrome://adblock`.
+- **Ad blocking:** "Block element..." in the page's right-click menu opens the picker on what was clicked.
 - **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.
