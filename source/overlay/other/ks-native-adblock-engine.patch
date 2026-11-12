@@ -3455,10 +3455,10 @@ index 0000000000000000000000000000000000000000..ed67bfcf044d144278258384cbe99530
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..070a8bb12f0e84d2a555343d18792017541114d9
+index 0000000000000000000000000000000000000000..49fe97228095de0d64c385398d3014feb31194d7
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,865 @@
+@@ -0,0 +1,881 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3815,6 +3815,22 @@ index 0000000000000000000000000000000000000000..070a8bb12f0e84d2a555343d18792017
 +  if (site_switches_.erase(host)) {
 +    SaveSiteSwitches();
 +  }
++}
++
++void EngineService::SetHostSwitches(const std::string& host,
++                                    const std::vector<std::string>& names) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  std::set<std::string> known;
++  for (const std::string& name : names) {
++    if (KnownSwitch(name)) {
++      known.insert(name);
++    }
++  }
++  site_switches_.erase(host);
++  if (!known.empty() && (site_switches_.size() < kMaxSwitchHosts)) {
++    site_switches_.emplace(host, std::move(known));
++  }
++  SaveSiteSwitches();
 +}
 +
 +void EngineService::SaveSiteSwitches() {
@@ -4326,10 +4342,10 @@ index 0000000000000000000000000000000000000000..070a8bb12f0e84d2a555343d18792017
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..afe65114c568577b03ec95e52027ea17d454d585
+index 0000000000000000000000000000000000000000..0316d7bdf8878b701f3e144715036afa8159dd8c
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,281 @@
+@@ -0,0 +1,285 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4538,6 +4554,10 @@ index 0000000000000000000000000000000000000000..afe65114c568577b03ec95e52027ea17
 +    return site_switches_;
 +  }
 +  void ClearSiteSwitches(const std::string& host);
++  // The switches of one host as given (a restored backup): only known names;
++  // none clears them.
++  void SetHostSwitches(const std::string& host,
++                       const std::vector<std::string>& names);
 +
 +  // The settings of chrome://adblock, as in uBlock Origin, by name: "badge"
 +  // (the shield shows what was blocked; on unless switched off),
@@ -11397,10 +11417,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..4c754c774e2f795ffcf55e4813696842fc6bf165
+index 0000000000000000000000000000000000000000..e2e3b7245012620af66cc05fecbb1f3e0642e0a3
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,231 @@
+@@ -0,0 +1,240 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -11554,6 +11574,15 @@ index 0000000000000000000000000000000000000000..4c754c774e2f795ffcf55e4813696842
 +    <h3>Filtering</h3>
 +    <label class="option"><input type="checkbox" data-setting="ignore-generic">
 +      <span>Ignore generic cosmetic filters (hide rules written for every site)</span></label>
++    <h3>Backup</h3>
++    <p>A file with your lists, your own rules, allowed sites, switches and these settings. It stays where
++      you save it; nothing is sent anywhere.</p>
++    <div class="row">
++      <button id="backup" type="button">Back up to file</button>
++      <button id="restore" type="button">Restore from file</button>
++      <input id="restore-file" type="file" accept=".json,application/json" hidden>
++      <button id="reset" type="button">Reset to default settings</button>
++    </div>
 +  </section>
 +
 +  <section id="lists-section">
@@ -11634,10 +11663,10 @@ index 0000000000000000000000000000000000000000..4c754c774e2f795ffcf55e4813696842
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..d9f92294ee06b5714f3a2aaa4432ac1e5c7e53e5
+index 0000000000000000000000000000000000000000..2d05261a8518ffaa35baaabf55c4f54a2e25fe2e
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,414 @@
+@@ -0,0 +1,579 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -11846,6 +11875,171 @@ index 0000000000000000000000000000000000000000..d9f92294ee06b5714f3a2aaa4432ac1e
 +    box.checked = !!settings[box.dataset.setting];
 +  }
 +}
++
++// --- Backup, restore, reset (as uBlock Origin's) ---
++const BACKUP_FORMAT = 'thoron-adblock-backup';
++const SETTING_DEFAULTS = {badge: true, prefetch: false, 'hyperlink-auditing': false, webrtc: false,
++                          'block-csp-reports': false, 'default-cosmetic': false, 'default-media': false,
++                          'default-fonts': false, javascript: false, 'ignore-generic': false};
++
++async function makeBackup() {
++  const [state, sites, settings] = await Promise.all(
++      [sendWithPromise('getState'), sendWithPromise('getSites'), sendWithPromise('getSettings')]);
++  const switches = {};
++  for (const {host, names} of sites.switches) {
++    switches[host] = names;
++  }
++  return {
++    format: BACKUP_FORMAT,
++    version: 1,
++    created: new Date().toISOString(),
++    lists: {
++      disabled: state.lists.filter((l) => l.builtin && !l.enabled).map((l) => l.id),
++      added: state.lists.filter((l) => !l.builtin).map((l) => l.url),
++    },
++    myFilters: state.myFilters,
++    allowed: sites.allowed,
++    switches,
++    settings: Object.fromEntries(Object.keys(SETTING_DEFAULTS).map((name) => [name, !!settings[name]])),
++  };
++}
++
++// The checked parts of a backup; anything else is left out. Throws for a file that is not one.
++function readBackup(data) {
++  if (!data || data.format !== BACKUP_FORMAT || data.version !== 1) {
++    throw new Error('This file is not a backup of Thoron\'s ad blocking.');
++  }
++  const strings = (list) => (Array.isArray(list) ? list.filter((x) => typeof x === 'string') : []);
++  const switches = {};
++  if (data.switches && typeof data.switches === 'object') {
++    for (const [host, names] of Object.entries(data.switches)) {
++      switches[host] = strings(names);
++    }
++  }
++  const settings = {};
++  for (const name of Object.keys(SETTING_DEFAULTS)) {
++    if (data.settings && typeof data.settings[name] === 'boolean') {
++      settings[name] = data.settings[name];
++    }
++  }
++  return {
++    disabled: new Set(strings(data.lists && data.lists.disabled)),
++    added: strings(data.lists && data.lists.added).filter((url) => url.startsWith('https://')),
++    myFilters: typeof data.myFilters === 'string' ? data.myFilters : '',
++    allowed: strings(data.allowed),
++    switches,
++    settings,
++  };
++}
++
++// Makes everything as `wanted` has it, one change at a time; the problems, if any.
++async function apply(wanted) {
++  const problems = [];
++  const step = async (name, ...args) => {
++    const error = await sendWithPromise(name, ...args);
++    if (error) {
++      problems.push(error);
++    }
++  };
++  for (const [name, on] of Object.entries(wanted.settings)) {
++    await step('setSetting', name, on);
++  }
++  const state = await sendWithPromise('getState');
++  for (const list of state.lists) {
++    if (list.builtin && list.enabled === wanted.disabled.has(list.id)) {
++      await step('setListEnabled', list.id, !wanted.disabled.has(list.id));
++    } else if (!list.builtin && !wanted.added.includes(list.url)) {
++      await step('removeList', list.id);
++    }
++  }
++  const have = new Set(state.lists.filter((l) => !l.builtin).map((l) => l.url));
++  for (const url of wanted.added) {
++    if (!have.has(url)) {
++      await step('addList', url);
++    }
++  }
++  if (state.myFilters !== wanted.myFilters) {
++    await step('setMyFilters', wanted.myFilters);
++  }
++  const sites = await sendWithPromise('getSites');
++  for (const pattern of sites.allowed) {
++    if (!wanted.allowed.includes(pattern)) {
++      await sendWithPromise('forgetSite', pattern);
++    }
++  }
++  for (const pattern of wanted.allowed) {
++    if (!sites.allowed.includes(pattern)) {
++      await step('allowPattern', pattern);
++    }
++  }
++  for (const {host} of sites.switches) {
++    if (!(host in wanted.switches)) {
++      await sendWithPromise('clearSwitches', host);
++    }
++  }
++  for (const [host, names] of Object.entries(wanted.switches)) {
++    await step('setHostSwitches', host, names);
++  }
++  return problems;
++}
++
++async function finish(problems, done) {
++  await refresh();
++  await showSettings();
++  await refreshSites();
++  if (problems.length) {
++    say(`${done} Some parts could not be: ${problems.join(' ')}`, true);
++  } else {
++    say(done);
++  }
++}
++
++$('backup').addEventListener('click', async () => {
++  const backup = await makeBackup();
++  const blob = new Blob([JSON.stringify(backup, null, 2)], {type: 'application/json'});
++  const link = make('a');
++  link.href = URL.createObjectURL(blob);
++  link.download = `thoron-adblock-backup-${backup.created.slice(0, 10)}.json`;
++  document.body.append(link);
++  link.click();
++  link.remove();
++  setTimeout(() => URL.revokeObjectURL(link.href), 10000);
++  say('The backup was saved as a file.');
++});
++
++$('restore').addEventListener('click', () => $('restore-file').click());
++$('restore-file').addEventListener('change', async () => {
++  const file = $('restore-file').files[0];
++  $('restore-file').value = '';
++  if (!file) {
++    return;
++  }
++  let wanted;
++  try {
++    if (file.size > 4 * 1024 * 1024) {
++      throw new Error('This file is too large to be a backup.');
++    }
++    wanted = readBackup(JSON.parse(await file.text()));
++  } catch (error) {
++    say(error instanceof SyntaxError ? 'This file is not a backup of Thoron\'s ad blocking.' : error.message,
++        true);
++    return;
++  }
++  say('Restoring...');
++  await finish(await apply(wanted), 'The backup was restored.');
++});
++
++$('reset').addEventListener('click', async () => {
++  if (!window.confirm('Reset ad blocking to its defaults? Your own rules, the lists you added, allowed sites ' +
++                      'and switches are removed, and every setting goes back to its default. ' +
++                      'Back up first if you may want them again.')) {
++    return;
++  }
++  say('Resetting...');
++  const defaults = {disabled: new Set(), added: [], myFilters: '', allowed: [], switches: {},
++                    settings: SETTING_DEFAULTS};
++  await finish(await apply(defaults), 'Ad blocking is back to its defaults.');
++});
 +
 +for (const box of document.querySelectorAll('[data-setting]')) {
 +  box.addEventListener('change', async () => {

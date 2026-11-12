@@ -77,6 +77,9 @@ Open `chrome://adblock`.
   hyperlink auditing, WebRTC without local IP addresses, no CSP reports); what every site gets by default
   (no hiding, no large media, no remote fonts, no JavaScript), which the menu's switches change for one
   site; and ignoring hide rules written for every site.
+- **Backup:** "Back up to file" saves your lists, own rules, allowed sites, switches and settings in a
+  file; "Restore from file" brings them back, on this or another computer; "Reset to default settings"
+  starts over (back up first).
 
 - **More lists:** cookie notices, annoyances, more privacy and lists for your region or language, as
   uBlock Origin offers them. Tick a list to add it; untick it to remove it.

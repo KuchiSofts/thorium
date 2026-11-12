@@ -77,7 +77,7 @@ changed in each version is in the [changelog](CHANGELOG.md), one line per change
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `████████░░░░░░░░░░░░` 63 of 168 tasks done (38%) · roadmap updated 2026-11-12
+**Overall:** `████████░░░░░░░░░░░░` 64 of 169 tasks done (38%) · roadmap updated 2026-11-12
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -87,7 +87,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/21 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `███████████░░░░░░░░░` | 22/39 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `████████████░░░░░░░░` | 23/40 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `██████████░░░░░░░░░░` | 8/16 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `████████░░░░░░░░░░░░` | 4/10 | 🔄 In progress |
@@ -248,6 +248,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **P5.37** Native ad blocking, strict blocking as in uBlock Origin: a page a rule for whole pages (`$doc`, `$all`) or a rule for its whole host blocks is not opened, and a page says why
 - [x] **P5.38** Native ad blocking, Settings as uBlock Origin's on `chrome://adblock`: the badge, the privacy options, the default behavior for every site with exceptions from the menu, ignoring generic hide rules
 - [x] **P5.39** Native ad blocking, the menu's counts as uBlock Origin's: the share of the page's requests blocked, and the domains connected out of all
+- [x] **P5.40** Native ad blocking, back up to a file, restore from it and reset to the defaults, as in uBlock Origin
 - [ ] **P5.30** Native ad blocking, a page in Settings that a person can work with: one switch for the blocker; the filter lists with a checkbox each; add a list by its address and remove it again; "My filters", the person's own rules in the syntax of the lists; the sites where blocking is off
 
 **Security (S)**

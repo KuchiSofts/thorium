@@ -1537,10 +1537,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..cd446b132bc23d66c6bfee21c8d385c5298fff47
+index 0000000000000000000000000000000000000000..02b4d5f854b2aab761c78502c2bb270d9df6b382
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,431 @@
+@@ -0,0 +1,476 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1650,6 +1650,8 @@ index 0000000000000000000000000000000000000000..cd446b132bc23d66c6bfee21c8d385c5
 +    Register("clearSwitches", &ThoronAdblockHandler::ClearSwitches);
 +    Register("getLog", &ThoronAdblockHandler::GetLog);
 +    Register("getSettings", &ThoronAdblockHandler::GetSettings);
++    Register("allowPattern", &ThoronAdblockHandler::AllowPattern);
++    Register("setHostSwitches", &ThoronAdblockHandler::SetHostSwitches);
 +    Register("setSetting", &ThoronAdblockHandler::SetSetting);
 +  }
 +
@@ -1760,6 +1762,49 @@ index 0000000000000000000000000000000000000000..cd446b132bc23d66c6bfee21c8d385c5
 +        ContentSettingsPattern::FromString("[*.]" + host),
 +        ContentSettingsPattern::Wildcard(), ContentSettingsType::ADS,
 +        CONTENT_SETTING_ALLOW);
++    Answer(*id, std::string());
++  }
++
++  // A site of a restored backup, as the site settings wrote it
++  // ("[*.]example.com", "https://example.com:443"). Never every site at once.
++  void AllowPattern(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 1);
++    if (!id || !args[1].is_string()) {
++      return;
++    }
++    const ContentSettingsPattern pattern =
++        ContentSettingsPattern::FromString(args[1].GetString());
++    if (args[1].GetString().size() > kMaxUrlLength || !pattern.IsValid() ||
++        pattern.MatchesAllHosts()) {
++      Answer(*id, "This is not a site.");
++      return;
++    }
++    SiteSettings()->SetContentSettingCustomScope(
++        pattern, ContentSettingsPattern::Wildcard(), ContentSettingsType::ADS,
++        CONTENT_SETTING_ALLOW);
++    Answer(*id, std::string());
++  }
++
++  // The menu's switches of one host, as a restored backup has them.
++  void SetHostSwitches(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 2);
++    if (!id || !args[1].is_string() || !args[2].is_list()) {
++      return;
++    }
++    const std::string& host = args[1].GetString();
++    const GURL url("https://" + host + "/");
++    if (host.empty() || host.size() > 253 || !url.is_valid() ||
++        url.host() != host || args[2].GetList().size() > 16) {
++      Answer(*id, "This is not the name of a site.");
++      return;
++    }
++    std::vector<std::string> names;
++    for (const base::Value& name : args[2].GetList()) {
++      if (name.is_string()) {
++        names.push_back(name.GetString());
++      }
++    }
++    Service().SetHostSwitches(host, names);
 +    Answer(*id, std::string());
 +  }
 +
