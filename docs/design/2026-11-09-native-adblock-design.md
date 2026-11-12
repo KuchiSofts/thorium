@@ -1268,6 +1268,31 @@ reload; the zapper removes one element and keeps the rest.
   proxy, to redirects and to frames. Checked by `tools/qa/adblock_menu_check.py`: a blocked 300x250 ad image
   and ad frame take up no space.
 
+### 12.23 Pop-ups (P5.36, 2026-11-12)
+
+- **`$popup` rules.** adblock-rust does not read the option and leaves such rules out, so the 3,112 pop-up
+  rules of the bundled lists (nearly all EasyList's) did nothing, and neither did the pop-up part of the
+  8,970 `$all` rules (uBlock Origin's badware list uses `$all`, which covers pop-ups). `popup.rs` reads them:
+  each becomes a `$document` rule in a small engine of its own, keeping `domain=`, `from=`, `denyallow=`,
+  first or third party, `important`, `match-case` and `badfilter`. A rule with anything else (`~popup`,
+  `popunder`, `redirect=`, `csp=`...) is left out, as is any rule adblock-rust would not read as written. As
+  in uBlock Origin, a rule without `$popup` or `$all` never blocks a window, and `domain=` and first or third
+  party are read against the page of the tab that opens it. The rules are saved with the engine (layout 6);
+  an engine saved in the old layout is built again from the stored lists.
+- **Where.** In `ChromeContentBrowserClient::CanCreateWindow`, before Chromium's own pop-up blocker: a window
+  the rules block is never created (`window.open()` returns null, a link with a target opens nothing). A page
+  can also open a blank window and send it to the ad afterwards; the first navigation of a window that has
+  an opener and holds only its first blank document is checked too, and the window is closed. Each is
+  counted on the page, so the shield and the logger show it. Nothing happens on a site where ads are allowed.
+- **"No pop-ups".** The menu's switch was Chromium's pop-up setting, which still lets a click open a window.
+  It is now the blocker's own, as in uBlock Origin: every window the site opens is stopped, also one a click
+  opens. It is kept with the other switches (site-switches.json) and listed under Sites on `chrome://adblock`.
+- **Checked** by `tools/qa/adblock_popup_check.py`: with blocking off the ad window opens; with it on,
+  `window.open()` of the ad address returns null and the ad host is never asked, a link to it opens nothing,
+  a blank window sent to it is closed, a plain window opens, the menu counts the three, and with "no pop-ups"
+  on neither a window nor a link to the plain host opens; with ads allowed on the site the ad window opens.
+  Seven engine tests cover the rules.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

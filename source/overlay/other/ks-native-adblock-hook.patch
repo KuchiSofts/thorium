@@ -84,10 +84,10 @@ index cf314780497655d91f67ab18ba0eb2d6f487284e..970a02a1af2b433d565b5eb7e27d3556
       flag_descriptions::kEnableBenchmarkingDescription, kOsAll,
       MULTI_VALUE_TYPE(kEnableBenchmarkingChoices)},
 diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
-index 694f60ad604933cb33d6a7167d41278270e88a05..2b470cbce8784632e279c9e2b804aa90b97dfca7 100644
+index 694f60ad604933cb33d6a7167d41278270e88a05..357a0481b1d1511e4b72fff7b24872acbf2ba5b2 100644
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -350,6 +350,13 @@
+@@ -350,6 +350,14 @@
  #include "components/site_token_provider/features.h"
  #include "components/supervised_user/core/common/features.h"
  #include "components/sync_tab_context/http_rpc_constants.h"
@@ -95,13 +95,30 @@ index 694f60ad604933cb33d6a7167d41278270e88a05..2b470cbce8784632e279c9e2b804aa90
 +#include "components/thoron_adblock/document_request_interceptor.h"
 +#include "components/thoron_adblock/engine_service.h"
 +#include "components/thoron_adblock/features.h"
++#include "components/thoron_adblock/new_window.h"
 +#include "components/thoron_adblock/proxying_url_loader_factory.h"
 +#include "components/thoron_adblock/subresource_loader_throttle.h"
 +#include "components/thoron_adblock/websocket.h"
  #include "components/translate/core/common/translate_switches.h"
  #include "components/user_prefs/user_prefs.h"
  #include "components/variations/variations_associated_data.h"
-@@ -6291,6 +6298,25 @@ ChromeContentBrowserClient::CreateURLLoaderThrottles(
+@@ -4656,6 +4664,15 @@ bool ChromeContentBrowserClient::CanCreateWindow(
+     }
+   }
+ 
++  // Thoron's ad blocker: a window its lists' `$popup` rules block, or any
++  // window of a site where the person switched pop-ups off, is never opened;
++  // window.open() returns null.
++  if (thoron_adblock::BlocksNewWindow(
++          *opener, target_url,
++          HostContentSettingsMapFactory::GetForProfile(profile))) {
++    return false;
++  }
++
+   const BlockedWindowParams blocked_params(
+       target_url, opener->GetGlobalFrameToken(), source_origin,
+       opener->GetSiteInstance(), referrer, frame_name, disposition, features,
+@@ -6291,6 +6308,25 @@ ChromeContentBrowserClient::CreateURLLoaderThrottles(
              GetNoStatePrefetchCanceler(wc_getter)));
    }
  
@@ -127,7 +144,7 @@ index 694f60ad604933cb33d6a7167d41278270e88a05..2b470cbce8784632e279c9e2b804aa90
  #if BUILDFLAG(IS_ANDROID)
    auto [client_data_header, is_custom_tab] =
        GetClientDataHeader(frame_tree_node_id);
-@@ -6956,6 +6982,27 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
+@@ -6956,6 +6992,27 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
      network::mojom::URLLoaderFactoryOverridePtr* factory_override,
      scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner,
      bool is_for_network_service) {
@@ -155,7 +172,7 @@ index 694f60ad604933cb33d6a7167d41278270e88a05..2b470cbce8784632e279c9e2b804aa90
  #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
    auto* web_request_api =
        extensions::BrowserContextKeyedAPIFactory<extensions::WebRequestAPI>::Get(
-@@ -7097,6 +7144,21 @@ ChromeContentBrowserClient::WillCreateURLLoaderRequestInterceptors(
+@@ -7097,6 +7154,21 @@ ChromeContentBrowserClient::WillCreateURLLoaderRequestInterceptors(
      }
    }
  
@@ -177,7 +194,7 @@ index 694f60ad604933cb33d6a7167d41278270e88a05..2b470cbce8784632e279c9e2b804aa90
    return interceptors;
  }
  
-@@ -7127,6 +7189,12 @@ ChromeContentBrowserClient::
+@@ -7127,6 +7199,12 @@ ChromeContentBrowserClient::
  
  bool ChromeContentBrowserClient::WillInterceptWebSocket(
      content::RenderFrameHost* frame) {
@@ -190,7 +207,7 @@ index 694f60ad604933cb33d6a7167d41278270e88a05..2b470cbce8784632e279c9e2b804aa90
  #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
    if (!frame) {
      return false;
-@@ -7169,6 +7237,33 @@ void ChromeContentBrowserClient::CreateWebSocket(
+@@ -7169,6 +7247,33 @@ void ChromeContentBrowserClient::CreateWebSocket(
      mojo::PendingRemote<network::mojom::WebSocketHandshakeClient>
          handshake_client,
      content::ContentBrowserClient::WebSocketOptions options) {
@@ -1120,10 +1137,10 @@ index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d
 +#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_THORON_ADBLOCK_BUTTON_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..6a76857b5de62b97fb8de1fb7735769487fcbbcc
+index 0000000000000000000000000000000000000000..f80e9adcf1b20575ec0b9b4526a5b6d32e33f226
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
-@@ -0,0 +1,296 @@
+@@ -0,0 +1,294 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1196,12 +1213,10 @@ index 0000000000000000000000000000000000000000..6a76857b5de62b97fb8de1fb77357694
 +  }
 +};
 +
-+// The switches of the menu that are Chrome's own site settings: "on" means
-+// the thing is blocked on the site.
++// The switch of the menu that is Chrome's own site setting: "on" means
++// JavaScript is blocked on the site. "popups" is the blocker's own, as in
++// uBlock Origin: Chrome's pop-up setting still lets a click open a window.
 +ContentSettingsType ChromeSwitch(const std::string& name) {
-+  if (name == "popups") {
-+    return ContentSettingsType::POPUPS;
-+  }
 +  if (name == "javascript") {
 +    return ContentSettingsType::JAVASCRIPT;
 +  }
@@ -1296,12 +1311,11 @@ index 0000000000000000000000000000000000000000..6a76857b5de62b97fb8de1fb77357694
 +                                thoron_adblock::BlockedCount::Total()));
 +    base::DictValue switches;
 +    if (site.is_valid()) {
-+      for (const char* name : {"popups", "javascript"}) {
-+        switches.Set(name, Settings()->GetContentSetting(
-+                               site, site, ChromeSwitch(name)) ==
-+                               CONTENT_SETTING_BLOCK);
-+      }
-+      for (const char* name : {"media", "cosmetic", "fonts"}) {
++      switches.Set("javascript",
++                   Settings()->GetContentSetting(
++                       site, site, ContentSettingsType::JAVASCRIPT) ==
++                       CONTENT_SETTING_BLOCK);
++      for (const char* name : {"popups", "media", "cosmetic", "fonts"}) {
 +        switches.Set(name,
 +                     thoron_adblock::EngineService::Get().SiteSwitch(site, name));
 +      }
@@ -1344,7 +1358,8 @@ index 0000000000000000000000000000000000000000..6a76857b5de62b97fb8de1fb77357694
 +      Settings()->SetContentSettingDefaultScope(
 +          site, GURL(), chrome_type,
 +          on ? CONTENT_SETTING_BLOCK : CONTENT_SETTING_DEFAULT);
-+    } else if (name == "media" || name == "cosmetic" || name == "fonts") {
++    } else if (name == "popups" || name == "media" || name == "cosmetic" ||
++               name == "fonts") {
 +      thoron_adblock::EngineService::Get().SetSiteSwitch(site, name, on);
 +    } else {
 +      return;
