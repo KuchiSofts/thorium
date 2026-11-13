@@ -77,7 +77,7 @@ changed in each version is in the [changelog](CHANGELOG.md), one line per change
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `████████░░░░░░░░░░░░` 73 of 178 tasks done (41%) · roadmap updated 2026-11-12
+**Overall:** `████████░░░░░░░░░░░░` 74 of 179 tasks done (41%) · roadmap updated 2026-11-12
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -87,7 +87,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/21 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `█████████████░░░░░░░` | 32/49 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `█████████████░░░░░░░` | 33/50 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `██████████░░░░░░░░░░` | 8/16 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `████████░░░░░░░░░░░░` | 4/10 | 🔄 In progress |
@@ -258,6 +258,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **P5.47** Native ad blocking, the logger's "Why?": the rule and list that blocked a request or let it through, as uBlock Origin's logger shows them
 - [x] **P5.48** Native ad blocking, My filters as uBlock Origin's: "Allow custom filters requiring trust", import and export
 - [x] **P5.49** Native ad blocking, opening a page strict blocking stopped, as uBlock Origin's "Proceed" and "Don't warn me again"
+- [x] **P5.50** Native ad blocking, uBlock Origin's keyboard shortcuts (picker, zapper, logger, settings, blocking, hiding and JavaScript for the site)
 - [ ] **P5.30** Native ad blocking, a page in Settings that a person can work with: one switch for the blocker; the filter lists with a checkbox each; add a list by its address and remove it again; "My filters", the person's own rules in the syntax of the lists; the sites where blocking is off
 
 **Security (S)**

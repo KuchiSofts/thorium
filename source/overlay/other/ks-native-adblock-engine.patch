@@ -4191,10 +4191,10 @@ index 0000000000000000000000000000000000000000..b12baf0b2b0f73c0a9748a0e8d7086e7
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..67782020cd432a67a824de39852ed2f75b3cce27
+index 0000000000000000000000000000000000000000..429b2502b7d63ff9410fda762c2f7f64546e9d13
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,1241 @@
+@@ -0,0 +1,1324 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4433,6 +4433,14 @@ index 0000000000000000000000000000000000000000..67782020cd432a67a824de39852ed2f7
 +      if (kb && *kb >= 1 && *kb <= kMaxMediaKb) {
 +        out.media_kb = *kb;
 +      }
++      if (const base::DictValue* keys = value->GetDict().FindDict("shortcuts")) {
++        for (const auto [command, combo] : *keys) {
++          if (combo.is_string() && KnownShortcut(command) &&
++              ValidKeys(combo.GetString())) {
++            out.shortcuts[command] = combo.GetString();
++          }
++        }
++      }
 +    }
 +  }
 +  text.clear();
@@ -4459,6 +4467,10 @@ index 0000000000000000000000000000000000000000..67782020cd432a67a824de39852ed2f7
 +  }
 +  if (media_kb_ == 0) {
 +    media_kb_ = state.media_kb;
++  }
++  // shortcuts set before the file was read win
++  if (shortcuts_.empty()) {
++    shortcuts_ = std::move(state.shortcuts);
 +  }
 +  // rules set before the file was read win
 +  if (!my_rules_ && !state.my_rules.empty()) {
@@ -4499,6 +4511,70 @@ index 0000000000000000000000000000000000000000..67782020cd432a67a824de39852ed2f7
 +  }
 +  options_[std::string(name)] = on;
 +  SaveOptions();
++}
++
++// static
++bool EngineService::KnownShortcut(std::string_view command) {
++  return command == "picker" || command == "zapper" || command == "logger" ||
++         command == "dashboard" || command == "power" ||
++         command == "cosmetic" || command == "javascript";
++}
++
++// static
++bool EngineService::ValidKeys(std::string_view keys) {
++  // "Ctrl+", "Alt+", "Shift+" in this order (Ctrl or Alt at least, so typing
++  // is never taken), then a letter, a digit or F1 to F12.
++  bool modifier = false;
++  for (std::string_view prefix : {"Ctrl+", "Alt+", "Shift+"}) {
++    if (keys.starts_with(prefix)) {
++      modifier = modifier || prefix != "Shift+";
++      keys.remove_prefix(prefix.size());
++    }
++  }
++  if (!modifier) {
++    return false;
++  }
++  if (keys.size() == 1) {
++    return (keys[0] >= 'A' && keys[0] <= 'Z') || (keys[0] >= '0' && keys[0] <= '9');
++  }
++  if (keys.size() >= 2 && keys.size() <= 3 && keys[0] == 'F') {
++    int n = 0;
++    for (char c : keys.substr(1)) {
++      if (c < '0' || c > '9') {
++        return false;
++      }
++      n = n * 10 + (c - '0');
++    }
++    return n >= 1 && n <= 12 && keys[1] != '0';
++  }
++  return false;
++}
++
++bool EngineService::SetShortcut(const std::string& command,
++                                const std::string& keys) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (!KnownShortcut(command) || (!keys.empty() && !ValidKeys(keys))) {
++    return false;
++  }
++  // one command per key combination: it moves to this one
++  std::erase_if(shortcuts_, [&](const auto& entry) {
++    return entry.first == command || (!keys.empty() && entry.second == keys);
++  });
++  if (!keys.empty()) {
++    shortcuts_[command] = keys;
++  }
++  SaveOptions();
++  return true;
++}
++
++std::string EngineService::ShortcutCommand(std::string_view keys) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  for (const auto& [command, combo] : shortcuts_) {
++    if (combo == keys) {
++      return command;
++    }
++  }
++  return std::string();
 +}
 +
 +int EngineService::large_media_kb() const {
@@ -4789,6 +4865,13 @@ index 0000000000000000000000000000000000000000..67782020cd432a67a824de39852ed2f7
 +  }
 +  if (media_kb_ != 0) {
 +    dict.Set("media-kb", media_kb_);
++  }
++  if (!shortcuts_.empty()) {
++    base::DictValue keys;
++    for (const auto& [command, combo] : shortcuts_) {
++      keys.Set(command, combo);
++    }
++    dict.Set("shortcuts", std::move(keys));
 +  }
 +  file_runner_->PostTask(
 +      FROM_HERE, base::BindOnce(&WriteJson, store_dir_.Append(kOptionsFile),
@@ -5438,10 +5521,10 @@ index 0000000000000000000000000000000000000000..67782020cd432a67a824de39852ed2f7
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..0f34de1cb652c398dce1ff69264ec19bebbf9d21
+index 0000000000000000000000000000000000000000..a7f1e28716d1a01f9fd829b6d08d3cd28d85fea8
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,378 @@
+@@ -0,0 +1,395 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -5726,6 +5809,21 @@ index 0000000000000000000000000000000000000000..0f34de1cb652c398dce1ff69264ec19b
 +  // a number out of range (1 to 1,048,576).
 +  int large_media_kb() const;
 +  bool SetLargeMediaKb(int kb);
++  // uBlock Origin's keyboard shortcuts, set on chrome://adblock: command ->
++  // keys ("Ctrl+Shift+E"). The commands: "picker", "zapper", "logger",
++  // "dashboard", "power" (blocking off or on for the site), "cosmetic" (hiding
++  // off or on for the site), "javascript" (off or on for the site). Kept in
++  // options.json.
++  static bool KnownShortcut(std::string_view command);
++  static bool ValidKeys(std::string_view keys);
++  const std::map<std::string, std::string>& shortcuts() const {
++    return shortcuts_;
++  }
++  // "" clears; keys another command had move to this one. False when refused.
++  bool SetShortcut(const std::string& command, const std::string& keys);
++  // The command for `keys`, or "".
++  std::string ShortcutCommand(std::string_view keys) const;
++
 +  // True once the saved switches, settings and rules were read (or there are
 +  // none to read): before, a setting reads as its default.
 +  bool saved_state_read() const { return saved_state_read_; }
@@ -5757,6 +5855,7 @@ index 0000000000000000000000000000000000000000..0f34de1cb652c398dce1ff69264ec19b
 +    std::map<std::string, std::set<std::string>> switches;
 +    std::map<std::string, bool> options;
 +    int media_kb = 0;
++    std::map<std::string, std::string> shortcuts;
 +    std::string my_rules;
 +    int64_t total = 0;
 +  };
@@ -5789,6 +5888,7 @@ index 0000000000000000000000000000000000000000..0f34de1cb652c398dce1ff69264ec19b
 +  std::set<std::string> strict_off_for_now_;
 +  // 0: the default (kDefaultMediaKb).
 +  int media_kb_ = 0;
++  std::map<std::string, std::string> shortcuts_;
 +  // "My rules" as saved, and the rules in force (with what the menu's grid
 +  // changed for now); `my_rules_` is read from the second.
 +  std::string my_rules_text_;
@@ -12958,10 +13058,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..4731dad2de7cf0d1f18f82c5d9d8a00b12db6406
+index 0000000000000000000000000000000000000000..aef7625da3687b42a46af07112debf93ac8e2bfd
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,296 @@
+@@ -0,0 +1,305 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -13041,6 +13141,11 @@ index 0000000000000000000000000000000000000000..4731dad2de7cf0d1f18f82c5d9d8a00b
 +  .option { display: flex; gap: 10px; align-items: flex-start; padding: 5px 0; }
 +  .option input { margin-top: 3px; accent-color: var(--accent); }
 +  div.option { align-items: center; gap: 6px; }
++  .shortcuts { display: grid; grid-template-columns: minmax(0, 1fr) 12em auto; gap: 6px 10px; align-items: center;
++               padding: 4px 0 8px; }
++  .shortcuts input { font: inherit; color: inherit; background: transparent; border: 1px solid var(--line);
++                     border-radius: 4px; padding: 2px 6px; text-align: center; }
++  .shortcuts input:focus { outline: 2px solid var(--accent); }
 +  div.option label { display: flex; gap: 10px; align-items: flex-start; }
 +  #media-kb { inline-size: 7em; margin-top: 0; font: inherit; color: inherit; background: transparent;
 +              border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
@@ -13135,6 +13240,10 @@ index 0000000000000000000000000000000000000000..4731dad2de7cf0d1f18f82c5d9d8a00b
 +    <h3>Filtering</h3>
 +    <label class="option"><input type="checkbox" data-setting="ignore-generic">
 +      <span>Ignore generic cosmetic filters (hide rules written for every site)</span></label>
++    <h3>Shortcuts</h3>
++    <p>As in uBlock Origin: click a box and press the keys (Ctrl or Alt with a letter, a digit or F1 to F12).
++      They work while a page has the focus.</p>
++    <div id="shortcuts" class="shortcuts"></div>
 +    <h3>Advanced</h3>
 +    <label class="option"><input type="checkbox" data-setting="advanced">
 +      <span>I am an advanced user: the menu of the shield shows the grid of rules for the page</span></label>
@@ -13260,10 +13369,10 @@ index 0000000000000000000000000000000000000000..4731dad2de7cf0d1f18f82c5d9d8a00b
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..71ecf4874d5f30ee8ca48bc41dfece9e423a9c82
+index 0000000000000000000000000000000000000000..39989664db328e0de2b2d1fb6de47e6e53685804
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,753 @@
+@@ -0,0 +1,815 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -13476,6 +13585,7 @@ index 0000000000000000000000000000000000000000..71ecf4874d5f30ee8ca48bc41dfece9e
 +  for (const box of document.querySelectorAll('[data-setting]')) {
 +    box.checked = !!settings[box.dataset.setting];
 +  }
++  showShortcuts(settings.shortcuts || {});
 +  if (document.activeElement !== $('media-kb')) {
 +    $('media-kb').value = String(settings['media-kb'] || SETTING_DEFAULTS['media-kb']);
 +  }
@@ -13677,6 +13787,67 @@ index 0000000000000000000000000000000000000000..71ecf4874d5f30ee8ca48bc41dfece9e
 +                    settings: SETTING_DEFAULTS};
 +  await finish(await apply(defaults), 'Ad blocking is back to its defaults.');
 +});
++
++// --- Keyboard shortcuts (uBlock Origin's commands) ---
++const SHORTCUTS = [['picker', 'Block an element (the picker)'], ['zapper', 'Remove elements (the zapper)'],
++                   ['logger', 'Open the logger'], ['dashboard', 'Open these settings'],
++                   ['power', 'Blocking off or on for the site'], ['cosmetic', 'Hiding off or on for the site'],
++                   ['javascript', 'JavaScript off or on for the site']];
++
++// The keys of a key press as the browser writes a shortcut: "Ctrl+Alt+Shift+K"; '' for one that cannot be.
++function shortcutKeys(event) {
++  const code = event.code || '';
++  let key = '';
++  if (/^Key[A-Z]$/.test(code)) {
++    key = code.slice(3);
++  } else if (/^Digit[0-9]$/.test(code)) {
++    key = code.slice(5);
++  } else if (/^F([1-9]|1[0-2])$/.test(code)) {
++    key = code;
++  }
++  if (!key || event.metaKey || !(event.ctrlKey || event.altKey)) {
++    return '';
++  }
++  return `${event.ctrlKey ? 'Ctrl+' : ''}${event.altKey ? 'Alt+' : ''}${event.shiftKey ? 'Shift+' : ''}${key}`;
++}
++
++function showShortcuts(keys) {
++  const box = $('shortcuts');
++  if (box.contains(document.activeElement)) {
++    return;  // never while one is being set
++  }
++  box.replaceChildren(...SHORTCUTS.flatMap(([command, label]) => {
++    const input = make('input');
++    input.readOnly = true;
++    input.value = keys[command] || '';
++    input.placeholder = 'None';
++    input.dataset.command = command;
++    input.setAttribute('aria-label', `Shortcut: ${label}`);
++    input.addEventListener('keydown', async (event) => {
++      if (event.key === 'Tab') {
++        return;
++      }
++      event.preventDefault();
++      const combo = shortcutKeys(event);
++      if (!combo) {
++        return;  // a modifier alone, or a key that cannot end one
++      }
++      input.value = combo;
++      const error = await sendWithPromise('setShortcut', command, combo);
++      say(error || `${combo}: ${label}.`, !!error);
++      input.blur();
++      showSettings();
++    });
++    const clear = make('button', '', 'Clear');
++    clear.type = 'button';
++    clear.addEventListener('click', async () => {
++      await sendWithPromise('setShortcut', command, '');
++      say(`No shortcut for: ${label}.`);
++      showSettings();
++    });
++    return [make('span', '', label), input, clear];
++  }));
++}
 +
 +$('media-kb').addEventListener('change', async () => {
 +  const error = await sendWithPromise('setSetting', 'media-kb', Math.round(Number($('media-kb').value)));

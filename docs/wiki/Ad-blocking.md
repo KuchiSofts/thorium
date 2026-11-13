@@ -90,6 +90,9 @@ Open `chrome://adblock`.
   site; ignoring hide rules written for every site; the size of "large media"; "Block element..." in
   the right-click menu; the grid of rules in the menu ("I am an advanced user"); and, under the lists,
   whether they update on their own (otherwise only "Update now" downloads them).
+- **Shortcuts:** under Settings, click a box and press Ctrl or Alt with a letter, a digit or F1 to F12
+  to open the picker, the zapper or the logger, or to switch blocking, hiding or JavaScript for the site,
+  with the keyboard. They work while a page has the focus.
 - **My rules:** uBlock Origin's dynamic filtering, one rule per line: `* * 3p-script block` blocks
   scripts from other sites everywhere, `example.com * 3p-script noop` gives them back to the lists on
   example.com, `example.com cdn.example.net * allow` lets a host through on a site (also when the menu's
