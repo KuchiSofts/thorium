@@ -56,7 +56,7 @@ It is **off by default** until its last correctness checks are done.
     makes a rule for that host;
   - **Settings:** the full page, `chrome://adblock`;
   - switches for this site: pop-ups (no window the site opens, also from a click), large media (sound
-    and video over 50 KB), no hiding, remote fonts, JavaScript, 3rd-party scripts and 3rd-party frames
+    and video over 50 KB, or the size you set), no hiding, remote fonts, JavaScript, 3rd-party scripts and 3rd-party frames
     (nothing of that kind from other sites). A blue switch means it is on;
   - **Rules for this page** (open it once, it stays open): uBlock Origin's grid. A row for each kind
     of request and for each domain the page used, with how many requests went there and how many
@@ -86,7 +86,9 @@ Open `chrome://adblock`.
   hyperlink auditing, WebRTC without local IP addresses, no CSP reports); what every site gets by default
   (no hiding, no large media, no remote fonts, no JavaScript, no third-party scripts or frames: uBlock
   Origin's "medium mode"), which the menu's switches change for one
-  site; and ignoring hide rules written for every site.
+  site; ignoring hide rules written for every site; the size of "large media"; "Block element..." in
+  the right-click menu; the grid of rules in the menu ("I am an advanced user"); and, under the lists,
+  whether they update on their own (otherwise only "Update now" downloads them).
 - **My rules:** uBlock Origin's dynamic filtering, one rule per line: `* * 3p-script block` blocks
   scripts from other sites everywhere, `example.com * 3p-script noop` gives them back to the lists on
   example.com, `example.com cdn.example.net * allow` lets a host through on a site (also when the menu's

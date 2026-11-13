@@ -7,7 +7,8 @@ A context menu is a window of its own, which a headless browser never shows, so 
 with a window, placed off the screen. It right-clicks an element of a local test page (host-resolver rules;
 every other name fails, so nothing leaves the PC), chooses "Block element..." in the menu with Windows UI
 Automation, and checks that the picker opened on that very element: Enter puts a rule for it in My filters,
-and after a reload the element is hidden.
+and after a reload the element is hidden. Then, with "Make use of the context menu" off on chrome://adblock
+(P5.46), a right-click opens the menu without the item.
 
     py -3 -I tools/qa/adblock_context_check.py --browser <out>\\thoron.exe --work <scratch dir>
 Exit status 0 when the step passes (or the check does not apply, on another system).
@@ -22,6 +23,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 if __package__ in (None, ""):  # running as a script under `py -3 -I`: make `tools` importable
@@ -60,6 +62,33 @@ if (-not $item) { 'no item'; exit 1 }
 $item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 'chosen'
 """ % ITEM
+# The names of the menu items of the test browser once a menu is open (waits a few seconds for one).
+LIST = """
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+$root = [System.Windows.Automation.AutomationElement]::RootElement
+$mine = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ProcessIdProperty, [int]$env:THORON_PID)
+$items = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+    [System.Windows.Automation.ControlType]::MenuItem)
+$cond = New-Object System.Windows.Automation.AndCondition($mine, $items)
+$names = @()
+for ($i = 0; $i -lt 24 -and $names.Count -eq 0; $i++) {
+  $names = @($root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond) | ForEach-Object { $_.Current.Name })
+  if ($names.Count -eq 0) { Start-Sleep -Milliseconds 250 }
+}
+$names -join "`n"
+"""
+
+
+def off_problems(names: list[str]) -> list[str]:
+    """With "Make use of the context menu" off: the menu opens, without the item."""
+    if not names:
+        return ["off: the context menu did not open"]
+    if any(name.startswith(ITEM) for name in names):
+        return [f"off: {ITEM!r} is still in the menu with its setting off"]
+    return []
 
 
 def rule_problems(my_filters: str, hidden: str | None) -> list[str]:
@@ -126,18 +155,26 @@ def run(browser: Path, work: Path) -> list[str]:
             port = _devtools_port(profile)
             _open(port, f"http://127.0.0.1:{server.port}/warm.html")
             time.sleep(3)
-            page = WebSocket(_open(port, f"http://{PAGE_HOST}/page.html")["webSocketDebuggerUrl"])
-            try:
-                time.sleep(SETTLE_S)
-                box = json.loads(_eval(page, "JSON.stringify(document.getElementById('promo-box')"
+            page_target = _open(port, f"http://{PAGE_HOST}/page.html")
+            page = WebSocket(page_target["webSocketDebuggerUrl"])
+
+            def right_click(element_id: str) -> None:
+                box = json.loads(_eval(page, f"JSON.stringify(document.getElementById({json.dumps(element_id)})"
                                              ".getBoundingClientRect())"))
                 x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
                 for kind in ("mouseMoved", "mousePressed", "mouseReleased"):
                     page.call("Input.dispatchMouseEvent", type=kind, x=x, y=y, button="right", clickCount=1)
                     time.sleep(0.2)
-                chosen = subprocess.run(["powershell.exe", "-NoProfile", "-Command", INVOKE], capture_output=True,
-                                        text=True, encoding="utf-8", errors="replace", timeout=60,
-                                        env=dict(os.environ, THORON_PID=str(proc.pid))).stdout.strip()
+
+            def uia(script: str) -> str:
+                return subprocess.run(["powershell.exe", "-NoProfile", "-Command", script], capture_output=True,
+                                      text=True, encoding="utf-8", errors="replace", timeout=60,
+                                      env=dict(os.environ, THORON_PID=str(proc.pid))).stdout.strip()
+
+            try:
+                time.sleep(SETTLE_S)
+                right_click("promo-box")
+                chosen = uia(INVOKE)
                 if chosen != "chosen":
                     problems.append(f"the menu item {ITEM!r} was not found ({chosen!r})")
                 else:
@@ -157,6 +194,24 @@ def run(browser: Path, work: Path) -> list[str]:
                     problems += rule_problems(mine, hidden)
                     print(f"{'PASS' if not problems else 'FAIL'}  context menu: My filters {mine.strip()!r}, "
                           f"element {hidden}")
+                # "Make use of the context menu" off on chrome://adblock: the item is gone
+                settings = WebSocket(_open(port, "chrome://adblock/")["webSocketDebuggerUrl"])
+                try:
+                    time.sleep(1.5)
+                    _eval(settings, "document.querySelector('[data-setting=\"context-menu\"]').click(); 1")
+                    time.sleep(1)
+                    off = _eval(settings, "document.querySelector('[data-setting=\"context-menu\"]').checked")
+                finally:
+                    settings.close()
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/json/activate/{page_target['id']}",
+                                       timeout=10).read()
+                time.sleep(1)
+                right_click("keep")
+                names = [n for n in uia(LIST).splitlines() if n.strip()]
+                found = off_problems(names) + (["off: the setting did not turn off"] if off is not False else [])
+                print(f"{'PASS' if not found else 'FAIL'}  off: {len(names)} menu items, none {ITEM!r}"
+                      if not found else f"FAIL  off: {names}")
+                problems += found
             finally:
                 page.close()
         except (OSError, RuntimeError, ValueError, KeyError, subprocess.TimeoutExpired) as e:

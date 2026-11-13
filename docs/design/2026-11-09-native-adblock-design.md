@@ -1474,6 +1474,27 @@ reload; the zapper removes one element and keeps the rest.
   in the cell for this site; with the saved rule taken out and saved, the script is asked for again.
   Three new engine tests (116 in all).
 
+### 12.33 The last of uBlock Origin's settings (P5.46, 2026-11-13)
+
+- **What.** Four settings of uBlock Origin that `chrome://adblock` did not have yet, in the places uBlock
+  Origin has them: "Auto-update filter lists" (under the lists, on), "Make use of the context menu"
+  ("Block element..." on a right-click, on), "I am an advanced user" (the menu's grid of rules; on here,
+  off in uBlock Origin, as the grid is what this browser offers instead of a separate advanced mode), and
+  the size in "Block media elements larger than N kB" (50 unless changed, 1 to 1,048,576). A backup holds
+  them; a reset takes them back.
+- **How.** The three switches are options in `options.json`; the size is `media-kb` there, written only when
+  it is not 50. With auto-update off the updater looks again every hour whether it was switched back on,
+  and "Update now" still downloads every list. The updater does not decide before the saved settings are
+  read. The proxy takes the size from the setting instead of a fixed 50 kB; the menu's "Large media"
+  button names it.
+- **Not taken over.** "Purge all caches": "Update now" already downloads every list in use, checks each and
+  keeps the previous copy of one that fails, which is what uBlock Origin's purge and update do together.
+  Color-blind colors, a theme of its own and an accent color: the pages follow the browser's theme.
+- **Checked** by `tools/qa/adblock_advanced_check.py` (with auto-update off no list is downloaded on its
+  own and "Update now" downloads them; the grid hides and shows with its setting; an 86 kB sound is
+  blocked at 50 kB and loads at 200 kB; `options.json` has both) and by `adblock_context_check.py` (with
+  the setting off, a right-click opens the menu without "Block element...").
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

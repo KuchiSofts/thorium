@@ -949,19 +949,20 @@ index fe5a6b11df6f45e6f3044cdce3da805c1412c1ac..661cb793341e740e7c089de1ba00db7b
        "//mojo/public/cpp/bindings",
        "//pdf:features",
 diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.cc b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-index b26070424f8c8954d3d0ca18305bcdec7b541265..5316cb33fea1bc7966df8eb73592b5f6120f0e1b 100644
+index b26070424f8c8954d3d0ca18305bcdec7b541265..44349ad730c20b269249bdda318dbfee4216cf89 100644
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -226,6 +226,8 @@
+@@ -226,6 +226,9 @@
  #include "components/strings/grit/components_strings.h"
  #include "components/supervised_user/core/browser/supervised_user_preferences.h"
  #include "components/supervised_user/core/browser/supervised_user_url_filtering_service.h"
++#include "components/thoron_adblock/engine_service.h"
 +#include "components/thoron_adblock/features.h"
 +#include "components/thoron_adblock/picker.h"
  #include "components/translate/core/browser/translate_download_manager.h"
  #include "components/translate/core/browser/translate_manager.h"
  #include "components/translate/core/browser/translate_prefs.h"
-@@ -237,6 +239,7 @@
+@@ -237,6 +240,7 @@
  #include "content/public/browser/browser_context.h"
  #include "content/public/browser/child_process_security_policy.h"
  #include "content/public/browser/download_manager.h"
@@ -969,7 +970,7 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..5316cb33fea1bc7966df8eb73592b5f6
  #include "content/public/browser/navigation_controller.h"
  #include "content/public/browser/navigation_details.h"
  #include "content/public/browser/navigation_entry.h"
-@@ -270,6 +273,7 @@
+@@ -270,6 +274,7 @@
  #include "third_party/blink/public/common/context_menu_data/edit_flags.h"
  #include "third_party/blink/public/common/features.h"
  #include "third_party/blink/public/common/loader/network_utils.h"
@@ -977,7 +978,7 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..5316cb33fea1bc7966df8eb73592b5f6
  #include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
  #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
  #include "third_party/blink/public/mojom/forms/form_control_type.mojom-shared.h"
-@@ -687,13 +691,14 @@ int UmaEnumForCommand(int key, UmaEnumIdLookupType type) {
+@@ -687,13 +692,14 @@ int UmaEnumForCommand(int key, UmaEnumIdLookupType type) {
         {IDC_CONTENT_CONTEXT_GLIC_SMART_SUGGESTION, 172},
         {IDC_CONTENT_CONTEXT_INDIGO, 173},
         {IDC_CONTENT_CONTEXT_OPENLINKSAMETAB, 174},
@@ -993,21 +994,23 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..5316cb33fea1bc7966df8eb73592b5f6
    // LINT.ThenChange(//tools/metrics/histograms/metadata/ui/enums.xml:RenderViewContextMenuItem)
  
    // LINT.IfChange(ContextMenuOptionDesktop)
-@@ -1936,6 +1941,13 @@ void RenderViewContextMenu::AppendDeveloperItems() {
+@@ -1936,6 +1942,15 @@ void RenderViewContextMenu::AppendDeveloperItems() {
      }
    }
  
 +  // Thoron's ad blocker: the element picker on what was clicked, as uBlock
-+  // Origin's "Block element..." item.
++  // Origin's "Block element..." item (unless its setting "Make use of context
++  // menu" is off).
 +  if (base::FeatureList::IsEnabled(thoron_adblock::kThoronNativeAdblock) &&
-+      params_.page_url.SchemeIsHTTPOrHTTPS()) {
++      params_.page_url.SchemeIsHTTPOrHTTPS() &&
++      thoron_adblock::EngineService::Get().Option("context-menu")) {
 +    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_THORON_BLOCK_ELEMENT,
 +                                    IDS_THORON_ADBLOCK_BLOCK_ELEMENT);
 +  }
    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_INSPECTELEMENT,
                                    IDS_CONTENT_CONTEXT_INSPECTELEMENT);
  }
-@@ -3612,6 +3624,9 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
+@@ -3612,6 +3627,9 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
      case IDC_CONTENT_CONTEXT_RESTART_PACKAGED_APP:
        return IsDevCommandEnabled(id);
  
@@ -1017,7 +1020,7 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..5316cb33fea1bc7966df8eb73592b5f6
      case IDC_CONTENT_CONTEXT_TRANSLATE:
        return navigation_allowed && IsTranslateEnabled();
  
-@@ -4322,6 +4337,17 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
+@@ -4322,6 +4340,17 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
        ExecInspectElement();
        break;
  
@@ -1302,10 +1305,10 @@ index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d
 +#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_THORON_ADBLOCK_BUTTON_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..06e109775d77eff091f3ed9eac8c1c2a216b48f8
+index 0000000000000000000000000000000000000000..b7b6986e47e5eb0b86500cc9f42b26440e60738b
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
-@@ -0,0 +1,471 @@
+@@ -0,0 +1,476 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1509,7 +1512,10 @@ index 0000000000000000000000000000000000000000..06e109775d77eff091f3ed9eac8c1c2a
 +      }
 +    }
 +    state.Set("switches", std::move(switches));
-+    if (site.is_valid()) {
++    state.Set("mediaKb", thoron_adblock::EngineService::Get().large_media_kb());
++    // the grid of rules, unless "I am an advanced user" is off
++    if (site.is_valid() &&
++        thoron_adblock::EngineService::Get().Option("advanced")) {
 +      state.Set("grid", Grid(site, tab->GetPrimaryPage()));
 +    }
 +    ResolveJavascriptCallback(args[0], state);
@@ -1616,7 +1622,9 @@ index 0000000000000000000000000000000000000000..06e109775d77eff091f3ed9eac8c1c2a
 +  void SetGridCell(const base::ListValue& args) {
 +    content::WebContents* tab = Tab();
 +    const GURL site = Site(tab);
-+    if (!site.is_valid() || args.size() != 4 || !args[0].is_string() ||
++    if (!site.is_valid() ||
++        !thoron_adblock::EngineService::Get().Option("advanced") ||
++        args.size() != 4 || !args[0].is_string() ||
 +        !args[1].is_string() || !args[2].is_string() || !args[3].is_int()) {
 +      return;
 +    }
@@ -1836,10 +1844,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..f931ef85eba84c557cf051252798bf75938985d8
+index 0000000000000000000000000000000000000000..5f1e75c28dd8d69ec2c20193ee46656f8ae08547
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,519 @@
+@@ -0,0 +1,530 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2180,12 +2188,13 @@ index 0000000000000000000000000000000000000000..f931ef85eba84c557cf051252798bf75
 +    }
 +    PrefService* prefs = Profile::FromWebUI(web_ui())->GetPrefs();
 +    base::DictValue settings;
-+    for (const char* name : {"badge", "block-csp-reports", "ignore-generic",
-+                             "default-media", "default-cosmetic",
-+                             "default-fonts", "default-3p-script",
-+                             "default-3p-frame"}) {
++    for (const char* name :
++         {"badge", "block-csp-reports", "ignore-generic", "default-media",
++          "default-cosmetic", "default-fonts", "default-3p-script",
++          "default-3p-frame", "auto-update", "context-menu", "advanced"}) {
 +      settings.Set(name, Service().Option(name));
 +    }
++    settings.Set("media-kb", Service().large_media_kb());
 +    settings.Set("javascript", SiteSettings()->GetDefaultContentSetting(
 +                                   ContentSettingsType::JAVASCRIPT) ==
 +                                   CONTENT_SETTING_BLOCK);
@@ -2206,10 +2215,20 @@ index 0000000000000000000000000000000000000000..f931ef85eba84c557cf051252798bf75
 +
 +  void SetSetting(const base::ListValue& args) {
 +    const std::string* id = AnswerId(args, 2);
-+    if (!id || !args[1].is_string() || !args[2].is_bool()) {
++    if (!id || !args[1].is_string()) {
 +      return;
 +    }
 +    const std::string& name = args[1].GetString();
++    // "Block media elements larger than N kB": a whole number
++    if (name == "media-kb") {
++      Answer(*id, args[2].is_int() && Service().SetLargeMediaKb(args[2].GetInt())
++                      ? std::string()
++                      : std::string("Give a whole number of kB, from 1 to 1048576."));
++      return;
++    }
++    if (!args[2].is_bool()) {
++      return;
++    }
 +    const bool on = args[2].GetBool();
 +    PrefService* prefs = Profile::FromWebUI(web_ui())->GetPrefs();
 +    if (thoron_adblock::EngineService::KnownOption(name)) {

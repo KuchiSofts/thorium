@@ -4070,10 +4070,10 @@ index 0000000000000000000000000000000000000000..ed67bfcf044d144278258384cbe99530
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..90b4ed9e4433644e1c439b82b2904b6021694d33
+index 0000000000000000000000000000000000000000..6c6933c48bcd46c1a0697fd320d58d003ab63d33
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,1065 @@
+@@ -0,0 +1,1098 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4226,7 +4226,15 @@ index 0000000000000000000000000000000000000000..90b4ed9e4433644e1c439b82b2904b60
 +    {"ignore-generic", false}, {"default-media", false},
 +    {"default-cosmetic", false}, {"default-fonts", false},
 +    {"default-3p-script", false}, {"default-3p-frame", false},
++    // uBlock Origin's "Auto-update filter lists", "Make use of context menu"
++    // and "I am an advanced user" (the menu's grid of rules; on here)
++    {"auto-update", true},       {"context-menu", true},
++    {"advanced", true},
 +};
++// "Block media elements larger than N kB": what N is unless changed, and the
++// most it may be.
++constexpr int kDefaultMediaKb = 50;
++constexpr int kMaxMediaKb = 1024 * 1024;
 +
 +// The switches that can be on for every site.
 +bool HasDefault(std::string_view name) {
@@ -4300,6 +4308,10 @@ index 0000000000000000000000000000000000000000..90b4ed9e4433644e1c439b82b2904b60
 +          out.options[name] = on.GetBool();
 +        }
 +      }
++      std::optional<int> kb = value->GetDict().FindInt("media-kb");
++      if (kb && *kb >= 1 && *kb <= kMaxMediaKb) {
++        out.media_kb = *kb;
++      }
 +    }
 +  }
 +  text.clear();
@@ -4323,6 +4335,9 @@ index 0000000000000000000000000000000000000000..90b4ed9e4433644e1c439b82b2904b60
 +  }
 +  for (const auto& [name, on] : state.options) {
 +    options_.emplace(name, on);
++  }
++  if (media_kb_ == 0) {
++    media_kb_ = state.media_kb;
 +  }
 +  // rules set before the file was read win
 +  if (!my_rules_ && !state.my_rules.empty()) {
@@ -4363,6 +4378,21 @@ index 0000000000000000000000000000000000000000..90b4ed9e4433644e1c439b82b2904b60
 +  }
 +  options_[std::string(name)] = on;
 +  SaveOptions();
++}
++
++int EngineService::large_media_kb() const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  return media_kb_ != 0 ? media_kb_ : kDefaultMediaKb;
++}
++
++bool EngineService::SetLargeMediaKb(int kb) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (kb < 1 || kb > kMaxMediaKb) {
++    return false;
++  }
++  media_kb_ = kb == kDefaultMediaKb ? 0 : kb;
++  SaveOptions();
++  return true;
 +}
 +
 +std::vector<std::string> EngineService::SetMyRules(std::string text) {
@@ -4521,6 +4551,9 @@ index 0000000000000000000000000000000000000000..90b4ed9e4433644e1c439b82b2904b60
 +  base::DictValue dict;
 +  for (const auto& [name, on] : options_) {
 +    dict.Set(name, on);
++  }
++  if (media_kb_ != 0) {
++    dict.Set("media-kb", media_kb_);
 +  }
 +  file_runner_->PostTask(
 +      FROM_HERE, base::BindOnce(&WriteJson, store_dir_.Append(kOptionsFile),
@@ -5141,10 +5174,10 @@ index 0000000000000000000000000000000000000000..90b4ed9e4433644e1c439b82b2904b60
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..7ff4b8d93a0958defd15acf2dbf08a13a979568b
+index 0000000000000000000000000000000000000000..bdc9be5676cffe39af4420fb7eeec801708ff9ab
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,328 @@
+@@ -0,0 +1,341 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -5396,10 +5429,20 @@ index 0000000000000000000000000000000000000000..7ff4b8d93a0958defd15acf2dbf08a13
 +  // "block-csp-reports" (reports a page's security policy asks for are not
 +  // sent), "ignore-generic" (hide rules for every site are not used), and
 +  // "default-media", "default-cosmetic", "default-fonts" (the menu's switch of
-+  // that name on for every site). Kept in <store>/options.json.
++  // that name on for every site), "auto-update" (the lists are checked on
++  // their own), "context-menu" ("Block element..." in the page's context
++  // menu), "advanced" (the menu's grid of rules). Kept in
++  // <store>/options.json.
 +  static bool KnownOption(std::string_view name);
 +  bool Option(std::string_view name) const;
 +  void SetOption(std::string_view name, bool on);
++  // "Block media elements larger than N kB": N (50 unless changed). False for
++  // a number out of range (1 to 1,048,576).
++  int large_media_kb() const;
++  bool SetLargeMediaKb(int kb);
++  // True once the saved switches, settings and rules were read (or there are
++  // none to read): before, a setting reads as its default.
++  bool saved_state_read() const { return saved_state_read_; }
 +
 +  // One more blocked request; how many since counting started. Kept in
 +  // <store>/stats.json, written at most every 30 seconds.
@@ -5427,6 +5470,7 @@ index 0000000000000000000000000000000000000000..7ff4b8d93a0958defd15acf2dbf08a13
 +    ~SavedState();
 +    std::map<std::string, std::set<std::string>> switches;
 +    std::map<std::string, bool> options;
++    int media_kb = 0;
 +    std::string my_rules;
 +    int64_t total = 0;
 +  };
@@ -5448,6 +5492,8 @@ index 0000000000000000000000000000000000000000..7ff4b8d93a0958defd15acf2dbf08a13
 +  std::map<std::string, std::set<std::string>> site_switches_;
 +  // The options changed from their defaults (KnownOption).
 +  std::map<std::string, bool> options_;
++  // 0: the default (kDefaultMediaKb).
++  int media_kb_ = 0;
 +  // "My rules" as saved, and the rules in force (with what the menu's grid
 +  // changed for now); `my_rules_` is read from the second.
 +  std::string my_rules_text_;
@@ -7950,10 +7996,10 @@ index 0000000000000000000000000000000000000000..68ae9a5baa21f8e0062cc5f83f8676d9
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_STORE_H_
 diff --git a/components/thoron_adblock/list_updater.cc b/components/thoron_adblock/list_updater.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..b03c276e8a02db80c65690b6d896e1819061b903
+index 0000000000000000000000000000000000000000..5db88b2305e4b593bec4b3a80c81b1b2f6434f5f
 --- /dev/null
 +++ b/components/thoron_adblock/list_updater.cc
-@@ -0,0 +1,199 @@
+@@ -0,0 +1,213 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7967,6 +8013,7 @@ index 0000000000000000000000000000000000000000..b03c276e8a02db80c65690b6d896e181
 +#include "base/strings/strcat.h"
 +#include "base/task/task_runner.h"
 +#include "base/time/time.h"
++#include "components/thoron_adblock/engine_service.h"
 +#include "components/thoron_adblock/list_fetch.h"
 +#include "services/network/public/cpp/shared_url_loader_factory.h"
 +
@@ -8038,6 +8085,19 @@ index 0000000000000000000000000000000000000000..b03c276e8a02db80c65690b6d896e181
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 +  if (busy_) {
 +    return;
++  }
++  // "Auto-update filter lists" off: only "Update now" checks. Asked again
++  // later, so switching it back on needs no restart. Not before the saved
++  // settings are read: until then the setting is not known.
++  if (!forced_) {
++    if (!EngineService::Get().saved_state_read()) {
++      ScheduleCheck(base::Seconds(1));
++      return;
++    }
++    if (!EngineService::Get().Option("auto-update")) {
++      ScheduleCheck(kCheckEvery);
++      return;
++    }
 +  }
 +  busy_ = true;
 +  const bool forced = forced_;
@@ -9733,10 +9793,10 @@ index 0000000000000000000000000000000000000000..0422887d918d1a79911da9537619601d
 +</html>
 diff --git a/components/thoron_adblock/popup_page.js b/components/thoron_adblock/popup_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..5e9fc271fd7ddf119a18a0819b963531a3db6633
+index 0000000000000000000000000000000000000000..9ecb3e824f44782be6f483a5414910bb2bb7cf0a
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.js
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,210 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -9778,6 +9838,10 @@ index 0000000000000000000000000000000000000000..5e9fc271fd7ddf119a18a0819b963531
 +    $(id).disabled = !next.applicable || !next.enabled;
 +  }
 +  $('logger').disabled = !next.applicable;
++  if (next.mediaKb) {
++    document.querySelector('[data-switch="media"]').title =
++        `Block audio and video files larger than ${number(next.mediaKb)} KB on this site`;
++  }
 +  showSites(next.sites);
 +  showGrid(next.grid);
 +}
@@ -10839,7 +10903,7 @@ index 0000000000000000000000000000000000000000..e8ba37d6d7127e3a48dab3fa94c3d34f
 +}
 diff --git a/components/thoron_adblock/proxying_url_loader_factory.cc b/components/thoron_adblock/proxying_url_loader_factory.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..106833f32f65da1600b3129a4a6dd1c991c1bac3
+index 0000000000000000000000000000000000000000..af76d41d36df4523337a045b6a75c97bdc73351e
 --- /dev/null
 +++ b/components/thoron_adblock/proxying_url_loader_factory.cc
 @@ -0,0 +1,322 @@
@@ -11080,7 +11144,7 @@ index 0000000000000000000000000000000000000000..106833f32f65da1600b3129a4a6dd1c9
 +    decision.stand_in.clear();
 +  }
 +  // The menu's switches for the page's site: no fonts at all, and no audio or
-+  // video file larger than kLargeMedia (judged by its answer, below).
++  // video file larger than the setting allows (judged by its answer, below).
 +  using Destination = network::mojom::RequestDestination;
 +  if (!decision.blocked && request.destination == Destination::kFont &&
 +      EngineService::Get().SiteSwitch(top_site_, "fonts")) {
@@ -11097,12 +11161,12 @@ index 0000000000000000000000000000000000000000..106833f32f65da1600b3129a4a6dd1c9
 +    decision.blocked = true;
 +    decision.stand_in.clear();
 +  }
-+  constexpr int64_t kLargeMedia = 50 * 1024;
++  // "Block media elements larger than N kB" (the setting; 50 unless changed)
 +  const int64_t max_media =
 +      (request.destination == Destination::kAudio ||
 +       request.destination == Destination::kVideo) &&
 +              EngineService::Get().SiteSwitch(top_site_, "media")
-+          ? kLargeMedia
++          ? int64_t{EngineService::Get().large_media_kb()} * 1024
 +          : 0;
 +  if (decision.blocked) {
 +    mojo::Remote<network::mojom::URLLoaderClient> remote(std::move(client));
@@ -12485,10 +12549,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..10c879fb3a803fc626cc7795189931f3b01ad6c2
+index 0000000000000000000000000000000000000000..4ad7c43a465a0ca33d38ebee7f25856ec2c22a5b
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,272 @@
+@@ -0,0 +1,284 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -12567,6 +12631,10 @@ index 0000000000000000000000000000000000000000..10c879fb3a803fc626cc7795189931f3
 +  #settings h3 { font-size: 13px; font-weight: 600; color: var(--soft); margin: 18px 0 4px; }
 +  .option { display: flex; gap: 10px; align-items: flex-start; padding: 5px 0; }
 +  .option input { margin-top: 3px; accent-color: var(--accent); }
++  div.option { align-items: center; gap: 6px; }
++  div.option label { display: flex; gap: 10px; align-items: flex-start; }
++  #media-kb { inline-size: 7em; margin-top: 0; font: inherit; color: inherit; background: transparent;
++              border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
 +  #catalog details { border-top: 1px solid var(--line); padding: 8px 0; margin: 0; }
 +  #catalog details:first-child { border-top: 0; }
 +  #catalog summary { cursor: pointer; font-weight: 500; }
@@ -12625,6 +12693,8 @@ index 0000000000000000000000000000000000000000..10c879fb3a803fc626cc7795189931f3
 +    <h3>Appearance</h3>
 +    <label class="option"><input type="checkbox" data-setting="badge">
 +      <span>Show the number of blocked requests on the shield</span></label>
++    <label class="option"><input type="checkbox" data-setting="context-menu">
++      <span>Make use of the context menu: "Block element..." when you right-click a page</span></label>
 +    <h3>Privacy</h3>
 +    <label class="option"><input type="checkbox" data-setting="prefetch">
 +      <span>Disable pre-fetching, so that blocked requests make no connection at all</span></label>
@@ -12638,8 +12708,9 @@ index 0000000000000000000000000000000000000000..10c879fb3a803fc626cc7795189931f3
 +    <p>For every site. The switches in the menu of the shield change it for one site.</p>
 +    <label class="option"><input type="checkbox" data-setting="default-cosmetic">
 +      <span>Disable cosmetic filtering: nothing is hidden</span></label>
-+    <label class="option"><input type="checkbox" data-setting="default-media">
-+      <span>Block media elements larger than 50 KB</span></label>
++    <div class="option"><label><input type="checkbox" data-setting="default-media">
++      <span>Block media elements larger than</span></label>
++      <input type="number" id="media-kb" min="1" max="1048576" step="1" aria-label="Largest media size in kB"><span>kB</span></div>
 +    <label class="option"><input type="checkbox" data-setting="default-fonts">
 +      <span>Block remote fonts</span></label>
 +    <label class="option"><input type="checkbox" data-setting="javascript">
@@ -12651,6 +12722,9 @@ index 0000000000000000000000000000000000000000..10c879fb3a803fc626cc7795189931f3
 +    <h3>Filtering</h3>
 +    <label class="option"><input type="checkbox" data-setting="ignore-generic">
 +      <span>Ignore generic cosmetic filters (hide rules written for every site)</span></label>
++    <h3>Advanced</h3>
++    <label class="option"><input type="checkbox" data-setting="advanced">
++      <span>I am an advanced user: the menu of the shield shows the grid of rules for the page</span></label>
 +    <h3>Backup</h3>
 +    <p>A file with your lists, your own rules, allowed sites, switches and these settings. It stays where
 +      you save it; nothing is sent anywhere.</p>
@@ -12666,6 +12740,8 @@ index 0000000000000000000000000000000000000000..10c879fb3a803fc626cc7795189931f3
 +    <h2>Filter lists</h2>
 +    <p>A list that is switched off is neither used nor downloaded.</p>
 +    <div id="lists" role="list"></div>
++    <label class="option"><input type="checkbox" data-setting="auto-update">
++      <span>Auto-update filter lists (otherwise only "Update now" downloads them)</span></label>
 +    <div class="row">
 +      <button id="update-now" type="button">Update now</button>
 +      <span id="last-check"></span>
@@ -12763,10 +12839,10 @@ index 0000000000000000000000000000000000000000..10c879fb3a803fc626cc7795189931f3
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..1c69ac257a55ba9d49c039f20b6a61c74e1863c4
+index 0000000000000000000000000000000000000000..0c2c461698c7d6cfadecfd702a81f4f3bbfd9aad
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,634 @@
+@@ -0,0 +1,648 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -12976,6 +13052,9 @@ index 0000000000000000000000000000000000000000..1c69ac257a55ba9d49c039f20b6a61c7
 +  for (const box of document.querySelectorAll('[data-setting]')) {
 +    box.checked = !!settings[box.dataset.setting];
 +  }
++  if (document.activeElement !== $('media-kb')) {
++    $('media-kb').value = String(settings['media-kb'] || SETTING_DEFAULTS['media-kb']);
++  }
 +}
 +
 +// --- My rules (uBlock Origin's dynamic filtering) ---
@@ -13004,7 +13083,10 @@ index 0000000000000000000000000000000000000000..1c69ac257a55ba9d49c039f20b6a61c7
 +const SETTING_DEFAULTS = {badge: true, prefetch: false, 'hyperlink-auditing': false, webrtc: false,
 +                          'block-csp-reports': false, 'default-cosmetic': false, 'default-media': false,
 +                          'default-fonts': false, javascript: false, 'ignore-generic': false,
-+                          'default-3p-script': false, 'default-3p-frame': false};
++                          'default-3p-script': false, 'default-3p-frame': false, 'auto-update': true,
++                          'context-menu': true, advanced: true, 'media-kb': 50};
++// a setting as the backup keeps it: a number for the one that is a number, else on or off
++const asSetting = (name, value) => (typeof SETTING_DEFAULTS[name] === 'number' ? Number(value) : !!value);
 +
 +async function makeBackup() {
 +  const [state, sites, settings] = await Promise.all(
@@ -13025,7 +13107,7 @@ index 0000000000000000000000000000000000000000..1c69ac257a55ba9d49c039f20b6a61c7
 +    myRules: await sendWithPromise('getMyRules'),
 +    allowed: sites.allowed,
 +    switches,
-+    settings: Object.fromEntries(Object.keys(SETTING_DEFAULTS).map((name) => [name, !!settings[name]])),
++    settings: Object.fromEntries(Object.keys(SETTING_DEFAULTS).map((name) => [name, asSetting(name, settings[name])])),
 +  };
 +}
 +
@@ -13043,8 +13125,10 @@ index 0000000000000000000000000000000000000000..1c69ac257a55ba9d49c039f20b6a61c7
 +  }
 +  const settings = {};
 +  for (const name of Object.keys(SETTING_DEFAULTS)) {
-+    if (data.settings && typeof data.settings[name] === 'boolean') {
-+      settings[name] = data.settings[name];
++    const value = data.settings ? data.settings[name] : undefined;
++    if (typeof value === typeof SETTING_DEFAULTS[name] &&
++        (typeof value !== 'number' || (Number.isInteger(value) && value >= 1 && value <= 1048576))) {
++      settings[name] = value;
 +    }
 +  }
 +  return {
@@ -13168,6 +13252,12 @@ index 0000000000000000000000000000000000000000..1c69ac257a55ba9d49c039f20b6a61c7
 +  const defaults = {disabled: new Set(), added: [], myFilters: '', myRules: '', allowed: [], switches: {},
 +                    settings: SETTING_DEFAULTS};
 +  await finish(await apply(defaults), 'Ad blocking is back to its defaults.');
++});
++
++$('media-kb').addEventListener('change', async () => {
++  const error = await sendWithPromise('setSetting', 'media-kb', Math.round(Number($('media-kb').value)));
++  say(error || 'The setting is in use.', !!error);
++  showSettings();
 +});
 +
 +for (const box of document.querySelectorAll('[data-setting]')) {
