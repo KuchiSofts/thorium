@@ -1533,6 +1533,24 @@ reload; the zapper removes one element and keeps the rest.
 - **Checked** by `tools/qa/adblock_trust_check.py`: My filters hold a plain scriptlet and one that needs
   trust; off, only the plain one works; on, both; off again, only the plain one.
 
+### 12.36 Opening a page strict blocking stopped (P5.49, 2026-11-13)
+
+- **What.** uBlock Origin's blocked page has "Proceed" and "Don't warn me again about this site". Here the
+  same two choices are in the menu of the shield, which shows them while the tab holds the blocked page:
+  "Open it now" (strict blocking off for that site until the browser closes) and "Always on this site"
+  (the site switch `no-strict`, listed with the other switches on `chrome://adblock` and removable there,
+  kept in a backup). The page reloads and opens; requests in it are still filtered as on any page.
+- **Why in the menu.** The blocked page is a web page of the blocked site's address. A button on it would
+  need a secret the page itself, or the site once opened, could read and use to open other blocked pages.
+  The menu is the browser's own page, which no web page can press. The blocked page says where the
+  choices are.
+- **How.** `EngineService::StrictOff` (hosts opened for now, kept only in memory, and the switch), asked by
+  `PageBlockThrottle` before it blocks. The menu acts only when the tab shows an error page for an address
+  the lists block as a whole.
+- **Checked** by `tools/qa/adblock_proceed_check.py` with the first `$doc` and `$all` hosts of uBlock
+  Origin's badware list: blocked and offered; "Open it now" opens it and saves no switch; another blocked
+  site stays blocked; "Always on this site" opens it and saves `no-strict` for it.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

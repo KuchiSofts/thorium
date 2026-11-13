@@ -1305,10 +1305,10 @@ index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d
 +#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_THORON_ADBLOCK_BUTTON_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..b7b6986e47e5eb0b86500cc9f42b26440e60738b
+index 0000000000000000000000000000000000000000..29ca33f6ef1ddfd944045c570ea632203a80c350
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
-@@ -0,0 +1,476 @@
+@@ -0,0 +1,506 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1426,6 +1426,7 @@ index 0000000000000000000000000000000000000000..b7b6986e47e5eb0b86500cc9f42b2644
 +    Register("saveGrid", &MenuHandler::SaveGrid);
 +    Register("revertGrid", &MenuHandler::RevertGrid);
 +    Register("reloadTab", &MenuHandler::ReloadTab);
++    Register("openBlockedPage", &MenuHandler::OpenBlockedPage);
 +  }
 +
 + private:
@@ -1513,6 +1514,7 @@ index 0000000000000000000000000000000000000000..b7b6986e47e5eb0b86500cc9f42b2644
 +    }
 +    state.Set("switches", std::move(switches));
 +    state.Set("mediaKb", thoron_adblock::EngineService::Get().large_media_kb());
++    state.Set("blockedPage", BlockedPage(tab, site));
 +    // the grid of rules, unless "I am an advanced user" is off
 +    if (site.is_valid() &&
 +        thoron_adblock::EngineService::Get().Option("advanced")) {
@@ -1673,6 +1675,34 @@ index 0000000000000000000000000000000000000000..b7b6986e47e5eb0b86500cc9f42b2644
 +  }
 +
 +  void ReloadTab(const base::ListValue& args) { Reload(Tab()); }
++
++  // The tab shows the page strict blocking put in place of a page the lists
++  // block (PageBlockThrottle).
++  bool BlockedPage(content::WebContents* tab, const GURL& site) {
++    const thoron_adblock::EngineService& service =
++        thoron_adblock::EngineService::Get();
++    return tab && site.is_valid() &&
++           tab->GetPrimaryMainFrame()->IsErrorDocument() &&
++           service.BlocksPage(site) && !service.StrictOff(site);
++  }
++
++  // uBlock Origin's "Proceed" on its blocked page: [always]. Only for the
++  // page the tab shows blocked.
++  void OpenBlockedPage(const base::ListValue& args) {
++    content::WebContents* tab = Tab();
++    const GURL site = Site(tab);
++    if (args.size() != 1 || !args[0].is_bool() || !BlockedPage(tab, site)) {
++      return;
++    }
++    thoron_adblock::EngineService& service =
++        thoron_adblock::EngineService::Get();
++    if (args[0].GetBool()) {
++      service.SetSiteSwitch(site, "no-strict", true);
++    } else {
++      service.SetStrictOffForNow(site);
++    }
++    Reload(tab);
++  }
 +
 +  void Reload(content::WebContents* tab) {
 +    if (tab) {
