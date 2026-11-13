@@ -1844,10 +1844,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..81dbfe50a5cf0c4151d6e5097eb5c38418e6da1f
+index 0000000000000000000000000000000000000000..acd8a05fc5bc7f1226b4ee68f0fc0300a103742b
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,563 @@
+@@ -0,0 +1,573 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1957,6 +1957,7 @@ index 0000000000000000000000000000000000000000..81dbfe50a5cf0c4151d6e5097eb5c384
 +    Register("forgetSite", &ThoronAdblockHandler::ForgetSite);
 +    Register("clearSwitches", &ThoronAdblockHandler::ClearSwitches);
 +    Register("getLog", &ThoronAdblockHandler::GetLog);
++    Register("setTrustMyFilters", &ThoronAdblockHandler::SetTrustMyFilters);
 +    Register("explainRequest", &ThoronAdblockHandler::ExplainRequest);
 +    Register("getSettings", &ThoronAdblockHandler::GetSettings);
 +    Register("allowPattern", &ThoronAdblockHandler::AllowPattern);
@@ -2300,6 +2301,15 @@ index 0000000000000000000000000000000000000000..81dbfe50a5cf0c4151d6e5097eb5c384
 +      }
 +    }
 +    ResolveJavascriptCallback(base::Value(*id), tabs);
++  }
++
++  // "Allow custom filters requiring trust": [id, on].
++  void SetTrustMyFilters(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 1);
++    if (!id || !args[1].is_bool()) {
++      return;
++    }
++    Service().SetTrustMyFilters(args[1].GetBool(), Changed(*id));
 +  }
 +
 +  // The logger's "Why?": [id, url, type, page]. Only web addresses, and a type
