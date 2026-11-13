@@ -88,6 +88,8 @@ def default_problems(got: dict) -> list[str]:
     out = []
     settings = got.get("settings", {})
     for name, on in settings.items():
+        if name == "shortcuts":
+            continue  # keyboard shortcuts are not settings a reset takes back (in uBlock Origin, the browser's)
         if name == "media-kb":
             if on != DEFAULT_MEDIA_KB:
                 out.append(f"reset: the largest media size is {on} kB, not {DEFAULT_MEDIA_KB}")
