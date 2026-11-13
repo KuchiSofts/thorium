@@ -4191,10 +4191,10 @@ index 0000000000000000000000000000000000000000..b12baf0b2b0f73c0a9748a0e8d7086e7
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..b6888b028f85fb884c3cdd56bfdef5e70b12b026
+index 0000000000000000000000000000000000000000..67782020cd432a67a824de39852ed2f75b3cce27
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,1227 @@
+@@ -0,0 +1,1241 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4369,7 +4369,7 @@ index 0000000000000000000000000000000000000000..b6888b028f85fb884c3cdd56bfdef5e7
 +  if (name.starts_with('-')) {
 +    return HasDefault(name.substr(1));
 +  }
-+  return name == "popups" || HasDefault(name);
++  return name == "popups" || name == "no-strict" || HasDefault(name);
 +}
 +
 +// The folder may not be there yet: on a new profile nothing else wrote to it.
@@ -5108,6 +5108,20 @@ index 0000000000000000000000000000000000000000..b6888b028f85fb884c3cdd56bfdef5e7
 +                                  rust::Str(o.data(), o.size()));
 +}
 +
++bool EngineService::StrictOff(const GURL& url) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  return url.has_host() &&
++         (strict_off_for_now_.contains(std::string(url.host())) ||
++          SiteSwitch(url, "no-strict"));
++}
++
++void EngineService::SetStrictOffForNow(const GURL& url) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  if (url.has_host() && strict_off_for_now_.size() < kMaxSwitchHosts) {
++    strict_off_for_now_.insert(std::string(url.host()));
++  }
++}
++
 +bool EngineService::BlocksPage(const GURL& url) const {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 +  if (!engine_ || !url.SchemeIsHTTPOrHTTPS()) {
@@ -5424,10 +5438,10 @@ index 0000000000000000000000000000000000000000..b6888b028f85fb884c3cdd56bfdef5e7
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..6035f2c59867882b4cf820c5363b8fcb364a2bff
+index 0000000000000000000000000000000000000000..0f34de1cb652c398dce1ff69264ec19bebbf9d21
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,369 @@
+@@ -0,0 +1,378 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -5528,6 +5542,12 @@ index 0000000000000000000000000000000000000000..6035f2c59867882b4cf820c5363b8fcb
 +  // Strict blocking: true when the lists block the page at `url` (http or
 +  // https) itself, with a rule for whole pages or one for its whole host.
 +  bool BlocksPage(const GURL& url) const;
++  // Strict blocking off for the host of `url`, as uBlock Origin's "Proceed"
++  // on its blocked page: until the browser closes (the menu's "Open it
++  // now"), or for good (the site switch "no-strict", "Always on this
++  // site").
++  bool StrictOff(const GURL& url) const;
++  void SetStrictOffForNow(const GURL& url);
 +
 +  // For a document's own request (a page, or a frame in one): the address
 +  // without the parameters `$removeparam` rules take out. Invalid (empty)
@@ -5764,6 +5784,9 @@ index 0000000000000000000000000000000000000000..6035f2c59867882b4cf820c5363b8fcb
 +  std::map<std::string, std::set<std::string>> site_switches_;
 +  // The options changed from their defaults (KnownOption).
 +  std::map<std::string, bool> options_;
++  // Hosts strict blocking is off for until the browser closes (at most
++  // kMaxSwitchHosts).
++  std::set<std::string> strict_off_for_now_;
 +  // 0: the default (kDefaultMediaKb).
 +  int media_kb_ = 0;
 +  // "My rules" as saved, and the rules in force (with what the menu's grid
@@ -8805,10 +8828,10 @@ index 0000000000000000000000000000000000000000..131119962cc6783162f9381146a326ef
 +#endif  // COMPONENTS_THORON_ADBLOCK_NEW_WINDOW_H_
 diff --git a/components/thoron_adblock/page_block_throttle.cc b/components/thoron_adblock/page_block_throttle.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..c4a7f34e054c91e6000cf258665d18dc7862701a
+index 0000000000000000000000000000000000000000..e6515d5742670437ee9094470336a20ff28c7624
 --- /dev/null
 +++ b/components/thoron_adblock/page_block_throttle.cc
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,151 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -8901,7 +8924,7 @@ index 0000000000000000000000000000000000000000..c4a7f34e054c91e6000cf258665d18dc
 +    return PROCEED;
 +  }
 +  const EngineService& engine = EngineService::Get();
-+  if (!engine.BlocksPage(url)) {
++  if (!engine.BlocksPage(url) || engine.StrictOff(url)) {
 +    return PROCEED;
 +  }
 +  // A redirector that a `$urlskip` rule goes past is not opened anyway: the
@@ -8951,9 +8974,10 @@ index 0000000000000000000000000000000000000000..c4a7f34e054c91e6000cf258665d18dc
 +  return base::StrCat(
 +      {kPageStart, base::EscapeForHTML(url.possibly_invalid_spec()), "</span>",
 +       why, onward_text,
-+       "<p>To open it anyway, click the shield in the toolbar and switch "
-+       "blocking off for this site with the big button, then reload. Or go "
-+       "back with the Back button.</p>"
++       "<p>To open it anyway, click the shield in the toolbar: &quot;Open it "
++       "now&quot; opens this site until you close the browser, &quot;Always "
++       "on this site&quot; for good (also on <code>chrome://adblock</code>, "
++       "under the switches of sites). Or go back with the Back button.</p>"
 +       "<p class=\"soft\">Your lists and your own rules are on "
 +       "<code>chrome://adblock</code>.</p></div></main></body></html>"});
 +}
@@ -9926,10 +9950,10 @@ index 0000000000000000000000000000000000000000..bb5e6c8789e8a4e07c5d7069027b5132
 +}
 diff --git a/components/thoron_adblock/popup_page.html b/components/thoron_adblock/popup_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..0422887d918d1a79911da9537619601d65245a2a
+index 0000000000000000000000000000000000000000..4c777af0e061a9ecb3040ac09be4ed4011a567f6
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.html
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,223 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file. -->
@@ -10030,6 +10054,15 @@ index 0000000000000000000000000000000000000000..0422887d918d1a79911da9537619601d
 +  .cell .allow.inherited { background: color-mix(in srgb, var(--allow) 30%, transparent); color: inherit; }
 +  .cell .block.inherited { background: color-mix(in srgb, var(--block) 30%, transparent); color: inherit; }
 +  .cell .noop.inherited { background: color-mix(in srgb, var(--noop) 30%, transparent); color: inherit; }
++  #blocked-box { margin: 10px 14px 0; padding: 10px 12px; border-radius: 10px;
++                 border: 1px solid color-mix(in srgb, var(--block) 45%, transparent);
++                 background: color-mix(in srgb, var(--block) 10%, transparent); }
++  #blocked-box[hidden] { display: none; }
++  #blocked-box p { margin: 0 0 8px; }
++  .blocked-actions { display: flex; gap: 6px; }
++  .blocked-actions button { border: 1px solid var(--line); border-radius: 6px; background: transparent;
++                            color: inherit; font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer; }
++  .blocked-actions button:hover { background: var(--line); }
 +  .grid-actions { display: flex; gap: 6px; justify-content: flex-end; padding-block-start: 8px; }
 +  .grid-actions button { border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit;
 +                         font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer; }
@@ -10046,6 +10079,14 @@ index 0000000000000000000000000000000000000000..0422887d918d1a79911da9537619601d
 +  <span class="name">Thoron</span>
 +  <span class="site" id="site"></span>
 +</header>
++
++<div id="blocked-box" hidden>
++  <p>Strict blocking stopped this page: your filter lists name it as a whole.</p>
++  <div class="blocked-actions">
++    <button id="open-once" title="Open this site until you close the browser">Open it now</button>
++    <button id="open-always" title="Never stop pages of this site again (strict blocking off for it)">Always on this site</button>
++  </div>
++</div>
 +
 +<div id="power-box">
 +  <button id="power" aria-pressed="true" aria-describedby="state">
@@ -10138,10 +10179,10 @@ index 0000000000000000000000000000000000000000..0422887d918d1a79911da9537619601d
 +</html>
 diff --git a/components/thoron_adblock/popup_page.js b/components/thoron_adblock/popup_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..9ecb3e824f44782be6f483a5414910bb2bb7cf0a
+index 0000000000000000000000000000000000000000..90f437cf8c80681aa1dfee8c088078546a9f68c0
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.js
-@@ -0,0 +1,210 @@
+@@ -0,0 +1,219 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -10189,6 +10230,7 @@ index 0000000000000000000000000000000000000000..9ecb3e824f44782be6f483a5414910bb
 +  }
 +  showSites(next.sites);
 +  showGrid(next.grid);
++  $('blocked-box').hidden = !next.blockedPage;
 +}
 +
 +// --- uBlock Origin's grid of rules (dynamic filtering): a change is in force at once, for now; Save keeps
@@ -10276,6 +10318,14 @@ index 0000000000000000000000000000000000000000..9ecb3e824f44782be6f483a5414910bb
 +      again.focus();
 +    }
 +  }
++}
++
++// uBlock Origin's "Proceed" on a page strict blocking stopped: now (until the browser closes) or always
++for (const [id, always] of [['open-once', false], ['open-always', true]]) {
++  $(id).addEventListener('click', () => {
++    chrome.send('openBlockedPage', [always]);
++    setTimeout(refresh, 300);
++  });
 +}
 +
 +for (const [id, message] of [['grid-save', 'saveGrid'], ['grid-revert', 'revertGrid'], ['grid-reload', 'reloadTab']]) {
@@ -13210,7 +13260,7 @@ index 0000000000000000000000000000000000000000..4731dad2de7cf0d1f18f82c5d9d8a00b
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..8594faaf0d59086d154b2c3624e70a5f4c0018dd
+index 0000000000000000000000000000000000000000..71ecf4874d5f30ee8ca48bc41dfece9e423a9c82
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
 @@ -0,0 +1,753 @@
@@ -13408,7 +13458,7 @@ index 0000000000000000000000000000000000000000..8594faaf0d59086d154b2c3624e70a5f
 +
 +// --- Sites: allowed sites and the menu's switches ---
 +const SWITCH_NAMES = {popups: 'no pop-ups', media: 'no large media', cosmetic: 'no hiding',
-+                      fonts: 'no remote fonts', javascript: 'no JavaScript',
++                      fonts: 'no remote fonts', javascript: 'no JavaScript', 'no-strict': 'strict blocking off',
 +                      // kept out of a default that is on for every site (Settings)
 +                      '-media': 'large media allowed', '-cosmetic': 'hiding allowed',
 +                      '-fonts': 'remote fonts allowed', '3p-script': 'no third-party scripts',
