@@ -7,7 +7,9 @@ A context menu is a window of its own, which a headless browser never shows, so 
 with a window, placed off the screen. It right-clicks an element of a local test page (host-resolver rules;
 every other name fails, so nothing leaves the PC), chooses "Block element..." in the menu with Windows UI
 Automation, and checks that the picker opened on that very element: Enter puts a rule for it in My filters,
-and after a reload the element is hidden. Then, with "Make use of the context menu" off on chrome://adblock
+and after a reload the element is hidden. On a subscribe link (abp:subscribe), "Subscribe to filter list..." opens
+the page that asks about the list; in a frame of another site, "Block element in frame..." starts the picker in
+that frame, and the rule it makes is for the frame's site (P5.53). Then, with "Make use of the context menu" off on chrome://adblock
 (P5.46), a right-click opens the menu without the item.
 
     py -3 -I tools/qa/adblock_context_check.py --browser <out>\\thoron.exe --work <scratch dir>
@@ -35,11 +37,19 @@ from tools.qa.adblock_syntax_check import NO_HTTPS_FIRST  # noqa: E402
 from tools.qa.cdp import WebSocket  # noqa: E402
 
 PAGE_HOST = "context-check.test"
+FRAME_HOST = "context-frame.test"
+SUBSCRIBE = "Subscribe to filter list"
+IN_FRAME = "Block element in frame"
+LIST_URL = "https://lists.example/check.txt"
 ITEM = "Block element"  # the string ends in "...", which Chromium's menus show as one character
 SETTLE_S = 2.5
 PAGE = """<!doctype html><title>Thoron context menu check</title>
 <p>text</p><div id="promo-box" class="promo" style="width:240px;height:90px;background:#c33;color:#fff">a promo</div>
-<p id="keep">this stays</p>"""
+<p id="keep">this stays</p>
+<a id="sub" href="abp:subscribe?location=https%3A%2F%2Flists.example%2Fcheck.txt&amp;title=Check%20list">a list</a>
+<p><iframe id="frame" src="http://context-frame.test/frame.html" width="400" height="140"></iframe></p>"""
+FRAME = """<!doctype html><title>frame</title><body style="margin:0">
+<div id="in-frame" style="width:300px;height:80px;background:#c0c;color:#fff">a promo in a frame</div>"""
 # Finds the menu item by the start of its name among the menu items of the test browser (its process id in
 # THORON_PID; no other program's windows are looked at) and chooses it.
 INVOKE = """
@@ -82,6 +92,28 @@ $names -join "`n"
 """
 
 
+def invoke_script(prefix: str) -> str:
+    """The script that chooses the menu item whose name starts with `prefix`."""
+    return INVOKE.replace(f"StartsWith('{ITEM}')", f"StartsWith('{prefix}')")
+
+
+def subscribe_problems(names: list[str], asked: dict) -> list[str]:
+    """On a subscribe link: the item is in the menu and opens the page that asks about the list."""
+    if not any(name.startswith(SUBSCRIBE) for name in names):
+        return [f"subscribe: {SUBSCRIBE!r} is not in the menu of the link ({names})"]
+    if not asked.get("shown") or asked.get("url") != LIST_URL:
+        return [f"subscribe: the page does not ask about the list ({asked})"]
+    return []
+
+
+def frame_problems(my_filters: str) -> list[str]:
+    """In a frame: the picker there made a rule for the frame's site."""
+    lines = [line for line in my_filters.splitlines() if line.strip()]
+    if not any(line.startswith(f"{FRAME_HOST}##") and "in-frame" in line for line in lines):
+        return [f"frame: no rule for the frame's element in My filters ({my_filters.strip()!r})"]
+    return []
+
+
 def off_problems(names: list[str]) -> list[str]:
     """With "Make use of the context menu" off: the menu opens, without the item."""
     if not names:
@@ -110,7 +142,9 @@ class Server:
                 pass
 
             def do_GET(self):
-                body = (WARM_HTML if self.path == "/warm.html" else PAGE).encode()
+                name = (self.headers.get("Host") or "").split(":")[0]
+                body = (WARM_HTML if self.path == "/warm.html" else FRAME if name == FRAME_HOST
+                        else PAGE).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
@@ -134,15 +168,20 @@ def _launch_window(browser: Path, profile: Path, port: int) -> subprocess.Popen:
     args = [str(browser), f"--user-data-dir={profile}", "--no-first-run", "--no-default-browser-check",
             "--disable-default-apps", "--disable-background-networking", "--disable-component-update",
             f"--disable-features={NO_HTTPS_FIRST}", "--enable-features=ThoronNativeAdblock",
-            f"--host-resolver-rules=MAP {PAGE_HOST} 127.0.0.1:{port}, MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
+            f"--host-resolver-rules=MAP {PAGE_HOST} 127.0.0.1:{port}, MAP {FRAME_HOST} 127.0.0.1:{port}, "
+            "MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
             # off the screen: the check needs a real window, not the person's attention
-            "--window-position=-4000,-4000", "--window-size=900,700",
+            "--window-position=-4000,-4000", "--window-size=900,900",
             "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "about:blank"]
     return subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _eval(ws: WebSocket, expression: str):
     return ws.call("Runtime.evaluate", expression=expression, returnByValue=True).get("result", {}).get("value")
+
+
+def _targets(port: int) -> list[dict]:
+    return json.loads(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=10).read())
 
 
 def run(browser: Path, work: Path) -> list[str]:
@@ -194,6 +233,53 @@ def run(browser: Path, work: Path) -> list[str]:
                     problems += rule_problems(mine, hidden)
                     print(f"{'PASS' if not problems else 'FAIL'}  context menu: My filters {mine.strip()!r}, "
                           f"element {hidden}")
+                # a subscribe link: "Subscribe to filter list..." opens the page that asks about the list
+                right_click("sub")
+                names = [n for n in uia(LIST).splitlines() if n.strip()]
+                before = {t["id"] for t in _targets(port)}
+                uia(invoke_script(SUBSCRIBE))
+                time.sleep(3)
+                asked = {}
+                for target in _targets(port):
+                    if target["id"] not in before and target.get("url", "").startswith("chrome://adblock/"):
+                        ws = WebSocket(target["webSocketDebuggerUrl"])
+                        try:
+                            asked = json.loads(_eval(ws, "JSON.stringify({shown: !document.getElementById("
+                                                         "'subscribe-box').hidden, url: document.getElementById("
+                                                         "'subscribe-url').textContent})") or "{}")
+                        finally:
+                            ws.close()
+                found = subscribe_problems(names, asked)
+                print(f"{'PASS' if not found else 'FAIL'}  subscribe: {asked}")
+                problems += found
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/json/activate/{page_target['id']}",
+                                       timeout=10).read()
+                time.sleep(1)
+                # in a frame: "Block element in frame..." starts the picker there; a click picks, Enter creates
+                frame = json.loads(_eval(page, "JSON.stringify(document.getElementById('frame')"
+                                               ".getBoundingClientRect())"))
+                fx, fy = frame["x"] + 150, frame["y"] + 40
+                for kind in ("mouseMoved", "mousePressed", "mouseReleased"):
+                    page.call("Input.dispatchMouseEvent", type=kind, x=fx, y=fy, button="right", clickCount=1)
+                    time.sleep(0.2)
+                chosen = uia(invoke_script(IN_FRAME))
+                time.sleep(1.5)
+                for kind in ("mouseMoved", "mousePressed", "mouseReleased"):
+                    page.call("Input.dispatchMouseEvent", type=kind, x=fx, y=fy, button="left", clickCount=1)
+                    time.sleep(0.2)
+                time.sleep(1)
+                for kind in ("keyDown", "keyUp"):
+                    page.call("Input.dispatchKeyEvent", type=kind, key="Enter", code="Enter",
+                              windowsVirtualKeyCode=13, text="\r" if kind == "keyDown" else "")
+                time.sleep(2)
+                try:
+                    mine = (profile / "Thoron Adblock" / "my-filters.txt").read_text(encoding="utf-8")
+                except OSError:
+                    mine = ""
+                found = ([] if chosen == "chosen" else [f"frame: {IN_FRAME!r} was not in the menu ({chosen!r})"]) \
+                    or frame_problems(mine)
+                print(f"{'PASS' if not found else 'FAIL'}  frame: My filters {mine.strip()!r}")
+                problems += found
                 # "Make use of the context menu" off on chrome://adblock: the item is gone
                 settings = WebSocket(_open(port, "chrome://adblock/")["webSocketDebuggerUrl"])
                 try:

@@ -19,5 +19,24 @@ class RuleTests(unittest.TestCase):
         self.assertIn(cc.ITEM, cc.INVOKE)
 
 
+
+class NewItemsTests(unittest.TestCase):
+    def test_subscribe(self):
+        asked = {"shown": True, "url": cc.LIST_URL}
+        self.assertEqual(cc.subscribe_problems(["Back", "Subscribe to filter list…"], asked), [])
+        self.assertEqual(len(cc.subscribe_problems(["Back"], asked)), 1)
+        self.assertEqual(len(cc.subscribe_problems(["Subscribe to filter list"], {"shown": False})), 1)
+
+    def test_frame(self):
+        self.assertEqual(cc.frame_problems(f"{cc.FRAME_HOST}###in-frame\n"), [])
+        self.assertEqual(len(cc.frame_problems(f"{cc.PAGE_HOST}###in-frame\n")), 1)
+
+    def test_the_page_has_the_link_and_the_frame(self):
+        self.assertIn('href="abp:subscribe?location=https%3A%2F%2Flists.example%2Fcheck.txt', cc.PAGE)
+        self.assertIn(f'src="http://{cc.FRAME_HOST}/frame.html"', cc.PAGE)
+        self.assertIn('id="in-frame"', cc.FRAME)
+        self.assertIn("StartsWith('Subscribe to filter list')", cc.invoke_script(cc.SUBSCRIBE))
+
+
 if __name__ == "__main__":
     unittest.main()
