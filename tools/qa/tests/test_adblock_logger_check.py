@@ -20,6 +20,16 @@ class RowsTests(unittest.TestCase):
         self.assertEqual(len(lc.filter_problems([{"kind": "allowed"}, {"kind": "blocked"}])), 1)
         self.assertEqual(len(lc.filter_problems([])), 1)
 
+    def test_why_names_the_rule(self):
+        self.assertEqual(lc.why_problems("blocked", "Blocked by ||ads.example^ (EasyList)", "ads.example"), [])
+        allowed = f"Let through by @@||ads.example^$domain={lc.PAGE_HOST} (My filters)"
+        self.assertEqual(lc.why_problems("allowed", allowed, "ads.example"), [])
+        self.assertEqual(lc.why_problems("allowed", allowed + ", which wins over ||ads.example^ (EasyList)",
+                                         "ads.example"), [])
+        for step, text in (("blocked", "Looking it up..."), ("blocked", "Blocked by a rule that is not in the lists"),
+                           ("allowed", "No rule matched")):
+            self.assertEqual(len(lc.why_problems(step, text, "ads.example")), 1, text)
+
     def test_the_page(self):
         html = lc.page_html("ads.example")
         self.assertIn('src="http://ads.example/ad.png"', html)

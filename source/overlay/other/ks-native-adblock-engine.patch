@@ -430,10 +430,10 @@ index 0000000000000000000000000000000000000000..f5da75eee11cccbbb2094285afb8a11e
 +fs.writeFileSync(outArg, JSON.stringify(resources) + '\n');
 diff --git a/components/thoron_adblock/blocked_count.cc b/components/thoron_adblock/blocked_count.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..2e49eb61fff37893ba5abfdd998b04f7a5c45d78
+index 0000000000000000000000000000000000000000..e56b5498448bf0f56d28285667a42cd4b5504198
 --- /dev/null
 +++ b/components/thoron_adblock/blocked_count.cc
-@@ -0,0 +1,219 @@
+@@ -0,0 +1,222 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -499,7 +499,8 @@ index 0000000000000000000000000000000000000000..2e49eb61fff37893ba5abfdd998b04f7
 +
 +// static
 +void BlockedCount::Allowed(content::GlobalRenderFrameHostId frame,
-+                           const GURL& url) {
++                           const GURL& url,
++                           std::string_view type) {
 +  content::RenderFrameHost* rfh = content::RenderFrameHost::FromID(frame);
 +  if (!rfh || !url.has_host()) {
 +    return;
@@ -510,7 +511,7 @@ index 0000000000000000000000000000000000000000..2e49eb61fff37893ba5abfdd998b04f7
 +  if (LoggerOpen()) {
 +    count->recent_.push_back({base::Time::Now(),
 +                              url.possibly_invalid_spec().substr(0, kMaxUrlLength),
-+                              /*blocked=*/false});
++                              /*blocked=*/false, std::string(type)});
 +    if (count->recent_.size() > kMaxRecent) {
 +      count->recent_.pop_front();
 +    }
@@ -575,7 +576,8 @@ index 0000000000000000000000000000000000000000..2e49eb61fff37893ba5abfdd998b04f7
 +
 +// static
 +void BlockedCount::Record(content::GlobalRenderFrameHostId frame,
-+                          const GURL& url) {
++                          const GURL& url,
++                          std::string_view type) {
 +  content::RenderFrameHost* rfh = content::RenderFrameHost::FromID(frame);
 +  if (!rfh) {
 +    return;
@@ -589,7 +591,8 @@ index 0000000000000000000000000000000000000000..2e49eb61fff37893ba5abfdd998b04f7
 +    count->domains_.insert(DomainOf(url));
 +  }
 +  count->recent_.push_back(
-+      {base::Time::Now(), url.possibly_invalid_spec().substr(0, kMaxUrlLength)});
++      {base::Time::Now(), url.possibly_invalid_spec().substr(0, kMaxUrlLength),
++       /*blocked=*/true, std::string(type)});
 +  if (count->recent_.size() > kMaxRecent) {
 +    count->recent_.pop_front();
 +  }
@@ -655,10 +658,10 @@ index 0000000000000000000000000000000000000000..2e49eb61fff37893ba5abfdd998b04f7
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/blocked_count.h b/components/thoron_adblock/blocked_count.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..bd048d27aa3048effa0a940ca2fabaa2b1b2442b
+index 0000000000000000000000000000000000000000..fa8aaa803135a6f0240b672a808a5adac80bb152
 --- /dev/null
 +++ b/components/thoron_adblock/blocked_count.h
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,114 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -669,6 +672,7 @@ index 0000000000000000000000000000000000000000..bd048d27aa3048effa0a940ca2fabaa2
 +#include <map>
 +#include <set>
 +#include <string>
++#include <string_view>
 +#include <utility>
 +#include <vector>
 +
@@ -693,7 +697,11 @@ index 0000000000000000000000000000000000000000..bd048d27aa3048effa0a940ca2fabaa2
 +  // Counts one blocked request to `url` of the document in `frame` and marks
 +  // ads as blocked on its page, which shows the blocked-ads icon in the
 +  // address bar.
-+  static void Record(content::GlobalRenderFrameHostId frame, const GURL& url);
++  // `type`: the request's type as the lists name it ("script", "image"...),
++  // for the logger's "Why?"; empty when not known.
++  static void Record(content::GlobalRenderFrameHostId frame,
++                     const GURL& url,
++                     std::string_view type = {});
 +
 +  // The count for `page` (0 when nothing was blocked).
 +  static int Get(content::Page& page);
@@ -704,7 +712,9 @@ index 0000000000000000000000000000000000000000..bd048d27aa3048effa0a940ca2fabaa2
 +
 +  // Counts one request of the document in `frame` that was let through, to
 +  // `url`: what the menu weighs the blocked ones against.
-+  static void Allowed(content::GlobalRenderFrameHostId frame, const GURL& url);
++  static void Allowed(content::GlobalRenderFrameHostId frame,
++                      const GURL& url,
++                      std::string_view type = {});
 +  // For the menu, as uBlock Origin's: every request the blocker saw on `page`
 +  // (let through or blocked), the domains they went to, and how many of those
 +  // domains were reached at least once.
@@ -728,6 +738,7 @@ index 0000000000000000000000000000000000000000..bd048d27aa3048effa0a940ca2fabaa2
 +    std::string url;
 +    // false: the request was let through (kept only while the logger is open)
 +    bool blocked = true;
++    std::string type;
 +  };
 +  // The logger asks every few seconds while it is open; only then are the
 +  // requests let through kept as well, as in uBlock Origin's logger.
@@ -1243,7 +1254,7 @@ index 0000000000000000000000000000000000000000..d15fc4744ffd406c9b3c1a3977a091be
 +};
 diff --git a/components/thoron_adblock/document_loader_throttle.cc b/components/thoron_adblock/document_loader_throttle.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..ba7a30c601ab9783eeab1b0235e70e327f27f56d
+index 0000000000000000000000000000000000000000..5a728d49ff984f28f51269ee1bf84742d102c964
 --- /dev/null
 +++ b/components/thoron_adblock/document_loader_throttle.cc
 @@ -0,0 +1,155 @@
@@ -1327,7 +1338,7 @@ index 0000000000000000000000000000000000000000..ba7a30c601ab9783eeab1b0235e70e32
 +    return false;
 +  }
 +  if (document_.frame) {
-+    BlockedCount::Record(document_.frame, url_);
++    BlockedCount::Record(document_.frame, url_, "subdocument");
 +  }
 +  delegate_->CancelWithError(net::ERR_BLOCKED_BY_CLIENT, "ThoronAdblock");
 +  return true;
@@ -1821,7 +1832,7 @@ index 0000000000000000000000000000000000000000..bc172c09dcfab5376a6cb3a397be1df8
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_H_
 diff --git a/components/thoron_adblock/document_request_interceptor.cc b/components/thoron_adblock/document_request_interceptor.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..450dbd5a08dbc0954648caeb4c6a3c8fb711cb16
+index 0000000000000000000000000000000000000000..789b692ff9780afcc9ef7bf5d26c58ee45347112
 --- /dev/null
 +++ b/components/thoron_adblock/document_request_interceptor.cc
 @@ -0,0 +1,209 @@
@@ -1948,7 +1959,7 @@ index 0000000000000000000000000000000000000000..450dbd5a08dbc0954648caeb4c6a3c8f
 +    }
 +    if (decision.blocked) {
 +      if (document->frame) {
-+        BlockedCount::Record(document->frame, url);
++        BlockedCount::Record(document->frame, url, "subdocument");
 +      }
 +      std::move(callback).Run(
 +          base::BindOnce(&DocumentRequestInterceptor::Refuse,
@@ -2140,10 +2151,10 @@ index 0000000000000000000000000000000000000000..43051154413e4f2354bc088827e16717
 +#endif  // COMPONENTS_THORON_ADBLOCK_DOCUMENT_REQUEST_INTERCEPTOR_H_
 diff --git a/components/thoron_adblock/dynamic.rs b/components/thoron_adblock/dynamic.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..80ad9efac012f9ea6daa2ef70ce7f24e87d47ac1
+index 0000000000000000000000000000000000000000..95ab7dc485b0f2eac71ef24a024c18da4a62dc62
 --- /dev/null
 +++ b/components/thoron_adblock/dynamic.rs
-@@ -0,0 +1,444 @@
+@@ -0,0 +1,478 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2291,45 +2302,68 @@ index 0000000000000000000000000000000000000000..80ad9efac012f9ea6daa2ef70ce7f24e
 +    /// request's host). `request_type` is the blocker's name for it ("script", "subdocument", "image",
 +    /// "object"...); `third_party` whether the two are different sites.
 +    pub fn evaluate(&self, source: &str, destination: &str, request_type: &str, third_party: bool) -> Action {
++        self.decide(source, destination, request_type, third_party).map_or(Action::None, |hit| hit.3)
++    }
++
++    /// The rule that decides, as "My rules" writes it (the logger's "Why?"); "" when none does.
++    pub fn deciding_rule(&self, source: &str, destination: &str, request_type: &str, third_party: bool) -> String {
++        self.decide(source, destination, request_type, third_party)
++            .and_then(|(s, d, kind, action)| rule_line(s, d, TYPES[kind], action))
++            .unwrap_or_default()
++    }
++
++    /// The cell that decides: (source, destination, type slot, action). Slices of the arguments or "*":
++    /// nothing is allocated, as this runs for every request.
++    fn decide<'a>(&self, source: &'a str, destination: &'a str, request_type: &str, third_party: bool)
++        -> Option<(&'a str, &'a str, usize, Action)> {
 +        if self.cells.is_empty() || destination.is_empty() {
-+            return Action::None;
++            return None;
 +        }
 +        let source = if source.is_empty() { "*" } else { source };
++        let find = |dest: &'a str, kind: usize| {
++            let mut z = Some(source);
++            while let Some(s) = z {
++                let found = self.cell(s, dest, kind);
++                if found != Action::None {
++                    return Some((s, dest, kind, found));
++                }
++                z = broader(s);
++            }
++            None
++        };
 +        // a named destination, any type
 +        let mut d = Some(destination);
 +        while let Some(host) = d {
 +            if host == "*" {
 +                break;
 +            }
-+            let found = self.by_source(source, host, 0);
-+            if found != Action::None {
-+                return found;
++            if let Some(hit) = find(host, 0) {
++                return Some(hit);
 +            }
 +            d = broader(host);
 +        }
-+        // any destination: the party and the type of the request
-+        let mut asked: Vec<usize> = Vec::new();
++        // any destination: the party and the type of the request, most specific first
++        let mut asked = [0usize; 4];
++        let mut n = 0;
++        let mut ask = |kind: usize| {
++            asked[n] = kind;
++            n += 1;
++        };
 +        if third_party {
 +            match request_type {
-+                "script" => asked.push(3),
-+                "subdocument" | "object" => asked.push(4),
++                "script" => ask(3),
++                "subdocument" | "object" => ask(4),
 +                _ => {}
 +            }
-+            asked.push(1);
++            ask(1);
 +        } else if request_type == "script" {
-+            asked.push(2);
++            ask(2);
 +        }
 +        if request_type == "image" {
-+            asked.push(5);
++            ask(5);
 +        }
-+        asked.push(0);
-+        for kind in asked {
-+            let found = self.by_source(source, "*", kind);
-+            if found != Action::None {
-+                return found;
-+            }
-+        }
-+        Action::None
++        ask(0);
++        asked[..n].iter().find_map(|&kind| find("*", kind))
 +    }
 +
 +    /// True when inline scripts are blocked on a page of `source` (`* * inline-script block`).
@@ -2582,6 +2616,17 @@ index 0000000000000000000000000000000000000000..80ad9efac012f9ea6daa2ef70ce7f24e
 +    }
 +
 +    #[test]
++    fn the_rule_that_decides_is_named() {
++        let r = rules();
++        assert_eq!(r.deciding_rule("www.news.example", "img.cdn.example", "script", true),
++                   "news.example cdn.example * allow");
++        assert_eq!(r.deciding_rule("blog.example", "lib.example", "script", true), "* * 3p-script block");
++        assert_eq!(r.deciding_rule("shop.example", "img.example", "image", true), "shop.example * 3p block");
++        assert_eq!(r.deciding_rule("blog.example", "blog.example", "font", false), "");
++        assert_eq!(DynamicRules::from_text("").deciding_rule("a.example", "b.example", "script", true), "");
++    }
++
++    #[test]
 +    fn the_last_rule_for_a_cell_wins() {
 +        let r = DynamicRules::from_text("* * 3p-script block\n* * 3p-script allow\n");
 +        assert_eq!(r.len(), 1);
@@ -2590,10 +2635,10 @@ index 0000000000000000000000000000000000000000..80ad9efac012f9ea6daa2ef70ce7f24e
 +}
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..58a499bae54b1bb1bb6a1c19663128a5431246d4
+index 0000000000000000000000000000000000000000..9f7828b3aa4e482e6fb5c2c2a4ada1afd51abb2b
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,1073 @@
+@@ -0,0 +1,1106 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2721,6 +2766,15 @@ index 0000000000000000000000000000000000000000..58a499bae54b1bb1bb6a1c19663128a5
 +        fn verdict(self: &DynamicRules, source: &str, destination: &str, request_type: &str, third_party: bool)
 +            -> u8;
 +        fn inline_scripts_blocked(self: &DynamicRules, source: &str) -> bool;
++        /// The rule that decides a request, as written in "My rules" (the logger's "Why?"); "" for none.
++        fn deciding_rule(self: &DynamicRules, source: &str, destination: &str, request_type: &str,
++                         third_party: bool) -> String;
++
++        /// The logger's "Why?": the lists in use parsed with the text of each rule kept (built only
++        /// when asked), and for a request [rule, its list, exception, its list], "" where none.
++        type Explainer;
++        fn explainer_from_rules(rules: &str) -> Box<Explainer>;
++        fn explain(self: &Explainer, url: &str, source_url: &str, request_type: &str) -> Vec<String>;
 +        /// One cell of the menu's grid: the action (as `verdict`), plus 4 when the rule is set in
 +        /// exactly this cell rather than in a broader one.
 +        fn grid_cell(self: &DynamicRules, source: &str, destination: &str, kind: &str) -> u8;
@@ -2827,6 +2881,12 @@ index 0000000000000000000000000000000000000000..58a499bae54b1bb1bb6a1c19663128a5
 +        let (action, exact) = self.cell_state(source, destination, kind);
 +        action as u8 + if exact && action != dynamic::Action::None { 4 } else { 0 }
 +    }
++}
++
++use engine_core::Explainer;
++
++fn explainer_from_rules(rules: &str) -> Box<Explainer> {
++    Box::new(Explainer::new(rules))
 +}
 +
 +fn dynamic_rules_with_cell(text: &str, source: &str, destination: &str, kind: &str, action: u8) -> String {
@@ -3255,6 +3315,24 @@ index 0000000000000000000000000000000000000000..58a499bae54b1bb1bb6a1c19663128a5
 +    }
 +
 +    #[test]
++    fn the_logger_names_the_rule_and_its_list() {
++        let rules = format!(
++            "{m}easylist\n||ads.example^\n/banner/*$image\n{m}ublock-filters\n@@||ok.ads.example^\n",
++            m = engine_core::MARKER
++        );
++        let x = explainer_from_rules(&rules);
++        let none = vec![String::new(); 4];
++        assert_eq!(x.explain("https://ads.example/a.js", "https://site.example/", "script"),
++                   ["||ads.example^", "easylist", "", ""]);
++        assert_eq!(x.explain("https://site.example/banner/1.png", "https://site.example/", "image"),
++                   ["/banner/*$image", "easylist", "", ""]);
++        let allowed = x.explain("https://ok.ads.example/a.js", "https://site.example/", "script");
++        assert_eq!(allowed[2..], ["@@||ok.ads.example^", "ublock-filters"]);
++        assert_eq!(x.explain("https://plain.example/", "https://site.example/", "script"), none);
++        assert_eq!(x.explain("not an address", "", "script"), none);
++    }
++
++    #[test]
 +    fn a_page_the_lists_block_is_not_opened() {
 +        let e = engine_from_rules(
 +            "||ads.example^\n||bad.example^$doc\n||harm.example^$all\n@@||fine.ads.example^\n\
@@ -3669,10 +3747,10 @@ index 0000000000000000000000000000000000000000..58a499bae54b1bb1bb6a1c19663128a5
 +}
 diff --git a/components/thoron_adblock/engine_core.rs b/components/thoron_adblock/engine_core.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..ed67bfcf044d144278258384cbe9953003efafe8
+index 0000000000000000000000000000000000000000..51ec998b02a2e74c6e6acdf749c720eebfd9798e
 --- /dev/null
 +++ b/components/thoron_adblock/engine_core.rs
-@@ -0,0 +1,395 @@
+@@ -0,0 +1,434 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3748,6 +3826,45 @@ index 0000000000000000000000000000000000000000..ed67bfcf044d144278258384cbe99530
 +        lists.push((id, &text[start..pos]));
 +    }
 +    lists
++}
++
++/// The logger's "Why?" (P5.47), as uBlock Origin's logger names the filter of each request: the lists
++/// parsed again with the text of every rule kept, which the engine in use does not keep (that would cost
++/// memory all the time). The browser builds one only when the logger asks, and drops it again.
++pub struct Explainer {
++    engine: adblock::Engine,
++    // the id of each list, in the order they were added (adblock-rust's source index)
++    ids: Vec<String>,
++}
++
++impl Explainer {
++    pub fn new(rules: &str) -> Explainer {
++        let mut set = FilterSet::new(true);
++        let mut ids = Vec::new();
++        for (id, text) in split_lists(rules) {
++            let options = ParseOptions { permissions: list_permissions(id), ..Default::default() };
++            set.add_filter_list(text.to_string(), options);
++            ids.push(id.to_string());
++        }
++        Explainer { engine: adblock::Engine::new_with_filter_set(set), ids }
++    }
++
++    /// The rule that blocks a request and the exception that lets it through, each with the id of its
++    /// list: [rule, list, exception, list], "" where there is none.
++    pub fn explain(&self, url: &str, source_url: &str, request_type: &str) -> Vec<String> {
++        let mut out = vec![String::new(); 4];
++        let Ok(request) = Request::new(url, source_url, request_type, "GET") else { return out };
++        let result = self.engine.check_network_request(&request);
++        for (at, info) in [(0, result.filter), (2, result.exception)] {
++            if let Some(info) = info {
++                out[at] = info.raw_line.unwrap_or_default();
++                if let Some(location) = info.source_location {
++                    out[at + 1] = self.ids.get(location.source_index as usize).cloned().unwrap_or_default();
++                }
++            }
++        }
++        out
++    }
 +}
 +
 +/// The filter set of a lists file, each list parsed with the permission its id gives it.
@@ -4070,10 +4187,10 @@ index 0000000000000000000000000000000000000000..ed67bfcf044d144278258384cbe99530
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..6c6933c48bcd46c1a0697fd320d58d003ab63d33
+index 0000000000000000000000000000000000000000..263ccad1ade39e81ca06d992dd64b93415a99de8
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,1098 @@
+@@ -0,0 +1,1216 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -4513,6 +4630,120 @@ index 0000000000000000000000000000000000000000..6c6933c48bcd46c1a0697fd320d58d00
 +  WriteMyRules();
 +}
 +
++void EngineService::Explain(const GURL& url,
++                            const GURL& page,
++                            std::string type,
++                            Explained done) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  EnsureStarted();
++  // dropped 5 minutes after the last question
++  explainer_drop_.Start(FROM_HERE, base::Minutes(5),
++                        base::BindOnce(
++                            [](base::WeakPtr<EngineService> self) {
++                              if (self && !self->explainer_building_) {
++                                self->explainer_.reset();
++                              }
++                            },
++                            weak_factory_.GetWeakPtr()));
++  base::OnceClosure answer = base::BindOnce(
++      [](base::WeakPtr<EngineService> self, GURL url, GURL page,
++         std::string type, Explained done) {
++        std::move(done).Run(self ? self->Explanation(url, page, type)
++                                 : base::DictValue());
++      },
++      weak_factory_.GetWeakPtr(), url, page, std::move(type), std::move(done));
++  if (explainer_) {
++    std::move(answer).Run();
++    return;
++  }
++  explainer_waiting_.push_back(std::move(answer));
++  if (!explainer_building_) {
++    BuildExplainer();
++  }
++}
++
++void EngineService::BuildExplainer() {
++  explainer_building_ = true;
++  file_runner_->PostTaskAndReplyWithResult(
++      FROM_HERE,
++      base::BindOnce(
++          [](StorePaths paths) {
++            const std::string rules = RulesInUse(paths);
++            return explainer_from_rules(ToRust(rules));
++          },
++          Paths()),
++      base::BindOnce(&EngineService::OnExplainerBuilt,
++                     weak_factory_.GetWeakPtr()));
++}
++
++void EngineService::ResetExplainer() {
++  explainer_.reset();
++  // one being built reads the lists as they were: build it once more
++  explainer_stale_ = explainer_building_;
++}
++
++void EngineService::OnExplainerBuilt(rust::Box<Explainer> explainer) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  explainer_building_ = false;
++  if (explainer_stale_) {
++    explainer_stale_ = false;
++    BuildExplainer();
++    return;
++  }
++  explainer_ = std::move(explainer);
++  std::vector<base::OnceClosure> waiting;
++  waiting.swap(explainer_waiting_);
++  for (base::OnceClosure& answer : waiting) {
++    std::move(answer).Run();
++  }
++}
++
++base::DictValue EngineService::Explanation(const GURL& url,
++                                           const GURL& page,
++                                           std::string_view type) const {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  std::string found[4];
++  const std::string& u = url.possibly_invalid_spec();
++  const std::string& p = page.possibly_invalid_spec();
++  if (explainer_ && base::IsStringASCII(type)) {
++    rust::Vec<rust::String> got =
++        (*explainer_)->explain(ToRust(u), ToRust(p), ToRust(type));
++    for (size_t i = 0; i < got.size() && i < 4; ++i) {
++      found[i] = std::string(got[i]);
++    }
++  }
++  const bool third_party = ProxyingURLLoaderFactory::IsThirdParty(url, page);
++  std::string my_rule;
++  if (my_rules_ && url.has_host() && base::IsStringASCII(type)) {
++    const std::string source =
++        page.has_host() ? std::string(page.host()) : std::string("*");
++    const std::string host(url.host());
++    my_rule = std::string((*my_rules_)->deciding_rule(
++        ToRust(source), ToRust(host), ToRust(type), third_party));
++  }
++  // the menu's switches, as the blocker applies them
++  std::string_view by_switch;
++  if (type == "script" && third_party && SiteSwitch(page, "3p-script")) {
++    by_switch = "3p-script";
++  } else if (type == "subdocument" && third_party &&
++             SiteSwitch(page, "3p-frame")) {
++    by_switch = "3p-frame";
++  } else if (type == "font" && SiteSwitch(page, "fonts")) {
++    by_switch = "fonts";
++  } else if (type == "media" && SiteSwitch(page, "media")) {
++    by_switch = "media";
++  } else if (type == "popup" && SiteSwitch(page, "popups")) {
++    by_switch = "popups";
++  }
++  return base::DictValue()
++      .Set("rule", found[0])
++      .Set("list", found[1])
++      .Set("exception", found[2])
++      .Set("exceptionList", found[3])
++      .Set("myRule", my_rule)
++      .Set("switch", by_switch);
++}
++
 +void EngineService::RevertGrid(std::string_view source,
 +                               const std::vector<std::string>& destinations) {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -4771,6 +5002,8 @@ index 0000000000000000000000000000000000000000..6c6933c48bcd46c1a0697fd320d58d00
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 +  if (engine->is_valid()) {
 +    engine_ = std::move(engine);
++    // other lists: the logger's "Why?" reads them again when next asked
++    ResetExplainer();
 +  }
 +}
 +
@@ -5167,6 +5400,8 @@ index 0000000000000000000000000000000000000000..6c6933c48bcd46c1a0697fd320d58d00
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 +  if (change.error.empty() && change.engine && (*change.engine)->is_valid()) {
 +    engine_ = std::move(change.engine);
++    // other lists or own filters: "Why?" reads them again when next asked
++    ResetExplainer();
 +  }
 +  std::move(callback).Run(std::move(change.error));
 +}
@@ -5174,10 +5409,10 @@ index 0000000000000000000000000000000000000000..6c6933c48bcd46c1a0697fd320d58d00
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..bdc9be5676cffe39af4420fb7eeec801708ff9ab
+index 0000000000000000000000000000000000000000..e1845da49506ebd983e707271b0f8ee1eef1d16c
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,341 @@
+@@ -0,0 +1,367 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -5197,6 +5432,7 @@ index 0000000000000000000000000000000000000000..bdc9be5676cffe39af4420fb7eeec801
 +#include "base/memory/weak_ptr.h"
 +#include "base/no_destructor.h"
 +#include "base/sequence_checker.h"
++#include "base/timer/timer.h"
 +#include "base/values.h"
 +#include "components/thoron_adblock/engine.rs.h"
 +#include "components/thoron_adblock/list_updater.h"
@@ -5424,6 +5660,19 @@ index 0000000000000000000000000000000000000000..bdc9be5676cffe39af4420fb7eeec801
 +  void RevertGrid(std::string_view source,
 +                  const std::vector<std::string>& destinations);
 +
++  // The logger's "Why?", as uBlock Origin's logger names the filter of each
++  // request: for a request to `url` of type `type` from the page `page`, the
++  // rule of the lists that blocks it and the exception that lets it through
++  // ("rule", "list", "exception", "exceptionList"), the rule of "My rules"
++  // that decides ("myRule") and the menu's switch that blocks it ("switch");
++  // "" for none. For it the lists are read once more with the text of their
++  // rules kept, and dropped again 5 minutes after the last question.
++  using Explained = base::OnceCallback<void(base::DictValue)>;
++  void Explain(const GURL& url,
++               const GURL& page,
++               std::string type,
++               Explained done);
++
 +  // The settings of chrome://adblock, as in uBlock Origin, by name: "badge"
 +  // (the shield shows what was blocked; on unless switched off),
 +  // "block-csp-reports" (reports a page's security policy asks for are not
@@ -5481,6 +5730,12 @@ index 0000000000000000000000000000000000000000..bdc9be5676cffe39af4420fb7eeec801
 +  // The rules in force become `text`; "My rules" as saved go to their file.
 +  void UseSessionRules(std::string text);
 +  void WriteMyRules();
++  void BuildExplainer();
++  void ResetExplainer();
++  void OnExplainerBuilt(rust::Box<Explainer> explainer);
++  base::DictValue Explanation(const GURL& url,
++                              const GURL& page,
++                              std::string_view type) const;
 +  void SaveStats();
 +  // The switch for `host` or a host it is under; `found` is false when none of
 +  // them has it set either way.
@@ -5500,6 +5755,12 @@ index 0000000000000000000000000000000000000000..bdc9be5676cffe39af4420fb7eeec801
 +  std::string session_rules_text_;
 +  std::optional<rust::Box<DynamicRules>> my_rules_;
 +  bool saved_state_read_ = false;
++  // The logger's "Why?": the lists with their rules' text, while asked.
++  std::optional<rust::Box<Explainer>> explainer_;
++  bool explainer_building_ = false;
++  bool explainer_stale_ = false;
++  std::vector<base::OnceClosure> explainer_waiting_;
++  base::OneShotTimer explainer_drop_;
 +  int64_t total_blocked_ = 0;
 +  bool stats_save_pending_ = false;
 +
@@ -6932,10 +7193,10 @@ index 0000000000000000000000000000000000000000..eed875cd4da34b0f151586a64b5700ff
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_FETCH_H_
 diff --git a/components/thoron_adblock/list_store.cc b/components/thoron_adblock/list_store.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..96ad571100f327e00bed7a511cbb67c8cdc9f218
+index 0000000000000000000000000000000000000000..91e93710ad7e788030b0ee68f3d4766ac8322643
 --- /dev/null
 +++ b/components/thoron_adblock/list_store.cc
-@@ -0,0 +1,878 @@
+@@ -0,0 +1,909 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7526,6 +7787,37 @@ index 0000000000000000000000000000000000000000..96ad571100f327e00bed7a511cbb67c8
 +  return engine;
 +}
 +
++std::string RulesInUse(const StorePaths& paths) {
++  const Settings settings = ReadSettings(paths);
++  std::optional<base::DictValue> state = ReadState(paths);
++  const base::DictValue* lists = state ? state->FindDict("lists") : nullptr;
++  std::optional<std::string> bundled_text =
++      ReadText(paths.bundled_dir.Append(kBundledLists), kMaxAllListsBytes);
++  std::map<std::string, std::string> bundled =
++      bundled_text ? SplitLists(*bundled_text) : decltype(bundled)();
++  std::string combined;
++  // the copy each list uses, as Assemble chooses it
++  for (const ActiveList& source : ActiveLists(settings)) {
++    const base::DictValue* entry = lists ? lists->FindDict(source.id) : nullptr;
++    const std::string* from = entry ? entry->FindString("source") : nullptr;
++    std::optional<std::string> text;
++    if (!source.builtin || (from && *from == "download")) {
++      text = ReadText(StoredListPath(paths, source.id), kMaxListBytes);
++    }
++    if (!text && source.builtin && bundled.contains(source.id)) {
++      text = std::move(bundled[source.id]);
++    }
++    if (text) {
++      base::StrAppend(&combined, {kMarker, source.id, "\n", *text, "\n"});
++    }
++  }
++  const std::string my_filters = ReadMyFilters(paths);
++  if (!my_filters.empty()) {
++    base::StrAppend(&combined, {kMarker, kMyFiltersId, "\n", my_filters, "\n"});
++  }
++  return combined;
++}
++
 +bool IsUpdateDue(const StorePaths& paths, base::Time now) {
 +  std::optional<base::DictValue> state = ReadState(paths);
 +  std::optional<double> last =
@@ -7816,10 +8108,10 @@ index 0000000000000000000000000000000000000000..96ad571100f327e00bed7a511cbb67c8
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/list_store.h b/components/thoron_adblock/list_store.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..68ae9a5baa21f8e0062cc5f83f8676d9c4f3de12
+index 0000000000000000000000000000000000000000..a8dc94a6f3bfa54b9ad6c155b16a9e1c7569c15c
 --- /dev/null
 +++ b/components/thoron_adblock/list_store.h
-@@ -0,0 +1,174 @@
+@@ -0,0 +1,179 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7929,6 +8221,11 @@ index 0000000000000000000000000000000000000000..68ae9a5baa21f8e0062cc5f83f8676d9
 +// saved for exactly these settings, else one built from the lists the
 +// settings name (and saved).
 +std::optional<rust::Box<Engine>> LoadEngine(const StorePaths& paths);
++
++// The text of the lists in use as the engine is built from them (each list
++// after its marker, the person's own filters last): for the logger's "Why?".
++// Empty when there is none to read.
++std::string RulesInUse(const StorePaths& paths);
 +
 +// True when the last list check is older than kUpdateInterval, or was made by
 +// another browser version.
@@ -8319,7 +8616,7 @@ index 0000000000000000000000000000000000000000..397ecb69ddb3e4d84730c1d49cb23d57
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_UPDATER_H_
 diff --git a/components/thoron_adblock/new_window.cc b/components/thoron_adblock/new_window.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..9f072b196fb6b43c7f13b7417cab83dd7002ec70
+index 0000000000000000000000000000000000000000..cd3f53fd489aefbd4fabd2126ea83868e541e5fa
 --- /dev/null
 +++ b/components/thoron_adblock/new_window.cc
 @@ -0,0 +1,89 @@
@@ -8381,7 +8678,7 @@ index 0000000000000000000000000000000000000000..9f072b196fb6b43c7f13b7417cab83dd
 +  const bool blocked = engine.SiteSwitch(top, "popups") ||
 +                       engine.BlocksPopup(target_url, top);
 +  if (blocked) {
-+    BlockedCount::Record(opener.GetGlobalId(), target_url);
++    BlockedCount::Record(opener.GetGlobalId(), target_url, "popup");
 +  }
 +  return blocked;
 +}
@@ -8405,7 +8702,7 @@ index 0000000000000000000000000000000000000000..9f072b196fb6b43c7f13b7417cab83dd
 +  if (!top.is_valid() || !EngineService::Get().BlocksPopup(url, top)) {
 +    return false;
 +  }
-+  BlockedCount::Record(opener->GetGlobalId(), url);
++  BlockedCount::Record(opener->GetGlobalId(), url, "popup");
 +  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
 +      FROM_HERE, base::BindOnce(&Close, tab.GetWeakPtr()));
 +  return true;
@@ -10903,10 +11200,10 @@ index 0000000000000000000000000000000000000000..e8ba37d6d7127e3a48dab3fa94c3d34f
 +}
 diff --git a/components/thoron_adblock/proxying_url_loader_factory.cc b/components/thoron_adblock/proxying_url_loader_factory.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..af76d41d36df4523337a045b6a75c97bdc73351e
+index 0000000000000000000000000000000000000000..78a9d0d5adefac52fcc3303c1713b0facd92558b
 --- /dev/null
 +++ b/components/thoron_adblock/proxying_url_loader_factory.cc
-@@ -0,0 +1,322 @@
+@@ -0,0 +1,324 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -11175,12 +11472,14 @@ index 0000000000000000000000000000000000000000..af76d41d36df4523337a045b6a75c97b
 +      remote->OnComplete(BlockedStatus(request.destination));
 +    }
 +    if (frame_) {
-+      BlockedCount::Record(frame_, request.url);
++      BlockedCount::Record(frame_, request.url,
++                           EngineService::RequestType(request.destination));
 +    }
 +    return;
 +  }
 +  if (frame_) {
-+    BlockedCount::Allowed(frame_, request.url);
++    BlockedCount::Allowed(frame_, request.url,
++                          EngineService::RequestType(request.destination));
 +  }
 +  // The request goes out, with a watcher between its loader and its client
 +  // that looks at the redirects it may meet, and at its answer when `$header`
@@ -11688,10 +11987,10 @@ index 0000000000000000000000000000000000000000..93d4b7aef64a8427c748e773c0b2a3d0
 +}
 diff --git a/components/thoron_adblock/redirect_watcher.cc b/components/thoron_adblock/redirect_watcher.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..c3d0e76845b900b5cf9c87b7bbdb5712a61de77b
+index 0000000000000000000000000000000000000000..44efffccf92b785e7adabb7dc91e345065349610
 --- /dev/null
 +++ b/components/thoron_adblock/redirect_watcher.cc
-@@ -0,0 +1,276 @@
+@@ -0,0 +1,288 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -11705,6 +12004,7 @@ index 0000000000000000000000000000000000000000..c3d0e76845b900b5cf9c87b7bbdb5712
 +#include "base/task/sequenced_task_runner.h"
 +#include "base/task/thread_pool.h"
 +#include "components/thoron_adblock/blocked_count.h"
++#include "components/thoron_adblock/engine_service.h"
 +#include "components/thoron_adblock/proxying_url_loader_factory.h"
 +#include "content/public/browser/browser_task_traits.h"
 +#include "content/public/browser/browser_thread.h"
@@ -11713,6 +12013,17 @@ index 0000000000000000000000000000000000000000..c3d0e76845b900b5cf9c87b7bbdb5712
 +#include "services/network/public/cpp/url_loader_completion_status.h"
 +
 +namespace thoron_adblock {
++
++namespace {
++
++// A blocked request on the page's count, with its type (the logger's "Why?").
++void RecordBlocked(content::GlobalRenderFrameHostId frame,
++                   const GURL& url,
++                   network::mojom::RequestDestination destination) {
++  BlockedCount::Record(frame, url, EngineService::RequestType(destination));
++}
++
++}  // namespace
 +
 +namespace {
 +
@@ -11809,8 +12120,8 @@ index 0000000000000000000000000000000000000000..c3d0e76845b900b5cf9c87b7bbdb5712
 +      head->content_length > context_.max_media_bytes) {
 +    if (context_.frame) {
 +      content::GetUIThreadTaskRunner({})->PostTask(
-+          FROM_HERE, base::BindOnce(&BlockedCount::Record, context_.frame,
-+                                    context_.url));
++          FROM_HERE, base::BindOnce(&RecordBlocked, context_.frame,
++                                    context_.url, context_.destination));
 +    }
 +    EndBlocked();
 +    return;
@@ -11943,8 +12254,8 @@ index 0000000000000000000000000000000000000000..c3d0e76845b900b5cf9c87b7bbdb5712
 +  if (context_.frame) {
 +    // The page's count is kept on the UI thread.
 +    content::GetUIThreadTaskRunner({})->PostTask(
-+        FROM_HERE,
-+        base::BindOnce(&BlockedCount::Record, context_.frame, context_.url));
++        FROM_HERE, base::BindOnce(&RecordBlocked, context_.frame, context_.url,
++                                  context_.destination));
 +  }
 +  EndBlocked();
 +  return true;
@@ -12549,10 +12860,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..4ad7c43a465a0ca33d38ebee7f25856ec2c22a5b
+index 0000000000000000000000000000000000000000..924480b123b56cd761869c1a5dda41e7c7807262
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,284 @@
+@@ -0,0 +1,289 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -12656,6 +12967,10 @@ index 0000000000000000000000000000000000000000..4ad7c43a465a0ca33d38ebee7f25856e
 +  #log tr.blocked td.kind { color: #d93025; }
 +  #log tr.allowed td.kind { color: var(--soft); }
 +  #log td.act button { padding: 2px 10px; font-size: 12px; }
++  #log td.act { white-space: nowrap; }
++  #log td.act button + button { margin-inline-start: 4px; }
++  #log td.type { white-space: nowrap; color: var(--soft); }
++  #log .why { margin-top: 4px; font-family: system-ui, sans-serif; color: var(--soft); }
 +  select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: Canvas;
 +           color: inherit; max-inline-size: 100%; }
 +</style>
@@ -12818,7 +13133,8 @@ index 0000000000000000000000000000000000000000..4ad7c43a465a0ca33d38ebee7f25856e
 +    <h2>Logger</h2>
 +    <p>The requests of the open tabs, the newest first: every blocked one, and while this page is open also
 +      those let through. It is kept only in memory: nothing is stored or sent. "Block" adds a rule for a host
-+      to My filters; "Allow" lets a blocked host through on that site.</p>
++      to My filters; "Allow" lets a blocked host through on that site; "Why?" names the rule that blocked
++      the request or let it through, and its list.</p>
 +    <div class="row">
 +      <select id="log-tab" aria-label="Tab"></select>
 +      <select id="log-kind" aria-label="Show">
@@ -12839,10 +13155,10 @@ index 0000000000000000000000000000000000000000..4ad7c43a465a0ca33d38ebee7f25856e
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..0c2c461698c7d6cfadecfd702a81f4f3bbfd9aad
+index 0000000000000000000000000000000000000000..6b5eb404a7538c61ea4d4420e71a9d0a3d6f2033
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,648 @@
+@@ -0,0 +1,710 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -12854,6 +13170,8 @@ index 0000000000000000000000000000000000000000..0c2c461698c7d6cfadecfd702a81f4f3
 +import {sendWithPromise} from 'chrome://resources/js/cr.js';
 +
 +const $ = (id) => document.getElementById(id);
++// list id -> its name, for the logger's "Why?" (filled as the lists are shown)
++const listNames = new Map([['my-filters', 'My filters']]);
 +
 +/** The rules as they are saved, to tell whether the box was edited. */
 +let savedFilters = '';
@@ -13006,6 +13324,7 @@ index 0000000000000000000000000000000000000000..0c2c461698c7d6cfadecfd702a81f4f3
 +    row.dataset.id = list.id;
 +
 +    const about = make('div', 'about');
++    listNames.set(list.id, list.title || list.url);
 +    const title = make('span', 'title', list.title || list.url);
 +    const count = make('span', 'count', `  ${rulesText(list.rules)}${list.note ? ' - ' + list.note : ''}`);
 +    about.append(title, count, make('span', 'url', list.url));
@@ -13335,6 +13654,55 @@ index 0000000000000000000000000000000000000000..0c2c461698c7d6cfadecfd702a81f4f3
 +// --- Logger ---
 +let log = [];
 +
++// The logger's "Why?", as uBlock Origin's logger names the filter of each request: the answers, by request.
++const whys = new Map();
++const MAX_WHYS = 200;
++const WHY_SWITCHES = {'3p-script': '3rd-party scripts', '3p-frame': '3rd-party frames', 'fonts': 'Remote fonts',
++                      'media': 'Large media', 'popups': 'Pop-ups'};
++
++function whyText(blocked, why) {
++  const list = (id) => listNames.get(id) || id || 'a list';
++  const mine = why.myRule || '';
++  if (blocked) {
++    if (mine.endsWith(' block')) {
++      return `Blocked by My rules: ${mine}`;
++    }
++    if (why.rule) {
++      return `Blocked by ${why.rule} (${list(why.list)})` +
++             (why.exception ? `, which wins over ${why.exception} (${list(why.exceptionList)})` : '');
++    }
++    if (why.switch) {
++      return `Blocked by the switch "${WHY_SWITCHES[why.switch] || why.switch}" in the menu for this site`;
++    }
++    return 'Blocked by a rule that is not in the lists in use now (it changed since, or strict blocking ' +
++           'or a pop-up rule)';
++  }
++  if (mine.endsWith(' allow')) {
++    return `Let through by My rules: ${mine}`;
++  }
++  if (why.exception) {
++    return `Let through by ${why.exception} (${list(why.exceptionList)})` +
++           (why.rule ? `, which wins over ${why.rule} (${list(why.list)})` : '');
++  }
++  return mine.endsWith(' noop') ? `No rule of the lists matched (My rules leave it to them: ${mine})`
++                                : 'No rule matched';
++}
++
++async function explain(e, page, key) {
++  if (whys.size >= MAX_WHYS) {
++    whys.delete(whys.keys().next().value);
++  }
++  whys.set(key, 'Looking it up... (the first time takes a few seconds)');
++  showLog();
++  try {
++    const answer = await sendWithPromise('explainRequest', e.url, e.type || 'other', page);
++    whys.set(key, whyText(e.blocked !== false, answer || {}));
++  } catch {
++    whys.set(key, 'No answer.');
++  }
++  showLog();
++}
++
 +function showLog() {
 +  const select = $('log-tab');
 +  const chosen = select.value;
@@ -13380,8 +13748,18 @@ index 0000000000000000000000000000000000000000..0c2c461698c7d6cfadecfd702a81f4f3
 +      button.addEventListener('click', () => change('addFilter', [rule], `${rule} was added to My filters.`));
 +      act.append(button);
 +    }
++    const key = `${e.time}|${e.url}`;
++    const ask = make('button', 'why-button', 'Why?');
++    ask.type = 'button';
++    ask.title = 'Which rule blocked this request or let it through';
++    ask.addEventListener('click', () => explain(e, tab.url, key));
++    act.append(ask);
++    const url = make('td', 'url', e.url);
++    if (whys.has(key)) {
++      url.append(make('div', 'why', whys.get(key)));
++    }
 +    row.append(make('td', 'time', new Date(e.time).toLocaleTimeString()),
-+               make('td', 'kind', blocked ? 'blocked' : 'let through'), make('td', 'url', e.url), act);
++               make('td', 'kind', blocked ? 'blocked' : 'let through'), make('td', 'type', e.type || ''), url, act);
 +    return row;
 +  }));
 +}
@@ -14724,7 +15102,7 @@ index 0000000000000000000000000000000000000000..238932a1d83dba698aa99c8d1fb72fc3
 +}
 diff --git a/components/thoron_adblock/websocket.cc b/components/thoron_adblock/websocket.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..564c8e7227c8fb23f62f133ac6d9c83ee9da4d1b
+index 0000000000000000000000000000000000000000..e60bd3fa54d0171ce0f6bc8d5d15add160756914
 --- /dev/null
 +++ b/components/thoron_adblock/websocket.cc
 @@ -0,0 +1,58 @@
@@ -14765,7 +15143,7 @@ index 0000000000000000000000000000000000000000..564c8e7227c8fb23f62f133ac6d9c83e
 +          url, frame.GetLastCommittedOrigin().GetURL())) {
 +    return false;
 +  }
-+  BlockedCount::Record(frame.GetGlobalId(), url);
++  BlockedCount::Record(frame.GetGlobalId(), url, "websocket");
 +  return true;
 +}
 +

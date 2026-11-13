@@ -44,6 +44,7 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** "My rules": uBlock Origin's dynamic filtering rules (block, allow, noop by site and host).
 - **Ad blocking:** the menu's grid of rules for the page, as uBlock Origin's, with Save and Revert.
 - **Ad blocking:** settings for list auto-update, the right-click item, the grid and the media size limit.
+- **Ad blocking:** the logger's "Why?" names the rule and list that blocked a request or let it through.
 - **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.

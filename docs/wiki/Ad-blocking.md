@@ -53,7 +53,7 @@ It is **off by default** until its last correctness checks are done.
   - **Zapper:** click things to remove them until the page reloads; Esc stops;
   - or right-click the thing on the page and choose **Block element...**: the picker opens on it;
   - **Logger:** the requests of your open tabs, blocked and let through; "Block" or "Allow" on a row
-    makes a rule for that host;
+    makes a rule for that host; "Why?" names the rule that blocked it or let it through, and its list;
   - **Settings:** the full page, `chrome://adblock`;
   - switches for this site: pop-ups (no window the site opens, also from a click), large media (sound
     and video over 50 KB, or the size you set), no hiding, remote fonts, JavaScript, 3rd-party scripts and 3rd-party frames

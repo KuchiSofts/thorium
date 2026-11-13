@@ -11,6 +11,8 @@ host. Steps:
     filter   "Let through" shows only the plain image
     allow    "Allow" on the ad image adds @@||<ad host>^$domain=<page site>, and the ad host is asked again
     block    "Block" on the plain image adds ||<plain host>^, and the plain host is not asked any more
+    why      (P5.47) "Why?" on the blocked ad image names the rule of the lists that blocked it and its list;
+             after "Allow", on the ad image let through, the exception of My filters that lets it through
 
     py -3 -I tools/qa/adblock_logger_check.py --browser <out>\\thoron.exe --work <scratch dir>
 Exit status 0 only when every step passes.
@@ -61,6 +63,23 @@ def rows_problems(rows: list[dict], host: str) -> list[str]:
     if not any(r["kind"] == "allowed" and f"//{PLAIN_HOST}/pic.png" in r["url"] for r in rows):
         out.append("rows: the plain image is not listed as let through")
     return out
+
+
+def why_problems(step: str, text: str, host: str) -> list[str]:
+    """What "Why?" said: for the blocked ad image a rule of a list; for it let through, the exception the
+    "Allow" button made, from My filters."""
+    if step == "blocked":
+        ok = text.startswith("Blocked by ") and "(" in text and "not in the lists" not in text
+    else:
+        # and which rule of the lists it wins over
+        ok = text.startswith(f"Let through by @@||{host}^$domain={PAGE_HOST} (My filters)")
+    return [] if ok else [f"why: for the {step} ad image it says {text!r}"]
+
+
+WHY_ROW = """(() => {{ const tr = Array.from(document.querySelectorAll('#log-rows tr')).find((t) =>
+  t.className === {kind} && t.querySelector('td.url').firstChild.textContent.includes({part}));
+  if (!tr) return null;
+  {action} }})()"""
 
 
 def filter_problems(rows: list[dict]) -> list[str]:
@@ -158,6 +177,22 @@ def run(browser: Path, work: Path, host: str) -> list[str]:
                                   " if (tr) tr.querySelector('td.act button').click(); return !!tr; })()")
                     time.sleep(4)  # the rule is built in
 
+                def why(kind: str, url_part: str) -> str:
+                    at = {"kind": json.dumps(kind), "part": json.dumps(url_part)}
+                    _eval(logger, WHY_ROW.format(**at, action="tr.querySelector('td.act .why-button').click();"
+                                                              " return true;"))
+                    text = ""
+                    for _ in range(60):
+                        time.sleep(0.5)
+                        text = _eval(logger, WHY_ROW.format(**at, action="const w = tr.querySelector('.why');"
+                                                                         " return w ? w.textContent : '';")) or ""
+                        if text and not text.startswith("Looking"):
+                            break
+                    return text
+
+                text = why("blocked", f"//{host}/ad.png")
+                report("why", why_problems("blocked", text, host), text)
+
                 press("blocked", f"//{host}/ad.png")
                 server.asked.clear()
                 page.call("Page.reload", ignoreCache=True)
@@ -167,6 +202,10 @@ def run(browser: Path, work: Path, host: str) -> list[str]:
                 if host not in server.asked:
                     found.append("allow: the ad host was not asked after it was allowed")
                 report("allow", found, mine.strip())
+                time.sleep(SETTLE_S)
+                _eval(logger, CHOOSE_TAB)
+                text = why("allowed", f"//{host}/ad.png")
+                report("why", why_problems("allowed", text, host), text)
 
                 time.sleep(SETTLE_S)
                 _eval(logger, CHOOSE_TAB)

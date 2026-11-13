@@ -1844,15 +1844,16 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5f1e75c28dd8d69ec2c20193ee46656f8ae08547
+index 0000000000000000000000000000000000000000..81dbfe50a5cf0c4151d6e5097eb5c38418e6da1f
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,530 @@
+@@ -0,0 +1,563 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
 +#include "chrome/browser/ui/webui/thoron_adblock_ui.h"
 +
++#include <algorithm>
 +#include <memory>
 +#include <string>
 +#include <utility>
@@ -1956,6 +1957,7 @@ index 0000000000000000000000000000000000000000..5f1e75c28dd8d69ec2c20193ee46656f
 +    Register("forgetSite", &ThoronAdblockHandler::ForgetSite);
 +    Register("clearSwitches", &ThoronAdblockHandler::ClearSwitches);
 +    Register("getLog", &ThoronAdblockHandler::GetLog);
++    Register("explainRequest", &ThoronAdblockHandler::ExplainRequest);
 +    Register("getSettings", &ThoronAdblockHandler::GetSettings);
 +    Register("allowPattern", &ThoronAdblockHandler::AllowPattern);
 +    Register("setHostSwitches", &ThoronAdblockHandler::SetHostSwitches);
@@ -2288,7 +2290,8 @@ index 0000000000000000000000000000000000000000..5f1e75c28dd8d69ec2c20193ee46656f
 +          list.Append(base::DictValue()
 +                          .Set("time", entry.time.InMillisecondsFSinceUnixEpoch())
 +                          .Set("url", entry.url)
-+                          .Set("blocked", entry.blocked));
++                          .Set("blocked", entry.blocked)
++                          .Set("type", entry.type));
 +        }
 +        tabs.Append(base::DictValue()
 +                        .Set("title", base::UTF16ToUTF8(tab->GetTitle()))
@@ -2297,6 +2300,36 @@ index 0000000000000000000000000000000000000000..5f1e75c28dd8d69ec2c20193ee46656f
 +      }
 +    }
 +    ResolveJavascriptCallback(base::Value(*id), tabs);
++  }
++
++  // The logger's "Why?": [id, url, type, page]. Only web addresses, and a type
++  // as the lists name one (lower-case letters and "_"); another is "other".
++  void ExplainRequest(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 3);
++    if (!id || !args[1].is_string() || !args[2].is_string() ||
++        !args[3].is_string()) {
++      return;
++    }
++    const GURL url(args[1].GetString());
++    const GURL page(args[3].GetString());
++    std::string type = args[2].GetString();
++    if (type.empty() || type.size() > 24 ||
++        !std::all_of(type.begin(), type.end(),
++                     [](char c) { return (c >= 'a' && c <= 'z') || c == '_'; })) {
++      type = "other";
++    }
++    if (!url.is_valid() || !(url.SchemeIsHTTPOrHTTPS() || url.SchemeIsWSOrWSS())) {
++      ResolveJavascriptCallback(base::Value(*id), base::DictValue());
++      return;
++    }
++    Service().Explain(
++        url, page.SchemeIsHTTPOrHTTPS() ? page : GURL(), std::move(type),
++        base::BindOnce(&ThoronAdblockHandler::AnswerValue,
++                       weak_factory_.GetWeakPtr(), *id));
++  }
++
++  void AnswerValue(const std::string& id, base::DictValue value) {
++    ResolveJavascriptCallback(base::Value(id), value);
 +  }
 +
 +  void GetState(const base::ListValue& args) {
