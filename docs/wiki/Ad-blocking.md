@@ -57,7 +57,13 @@ It is **off by default** until its last correctness checks are done.
   - **Settings:** the full page, `chrome://adblock`;
   - switches for this site: pop-ups (no window the site opens, also from a click), large media (sound
     and video over 50 KB), no hiding, remote fonts, JavaScript, 3rd-party scripts and 3rd-party frames
-    (nothing of that kind from other sites). A blue switch means it is on.
+    (nothing of that kind from other sites). A blue switch means it is on;
+  - **Rules for this page** (open it once, it stays open): uBlock Origin's grid. A row for each kind
+    of request and for each domain the page used, with how many requests went there and how many
+    were blocked. Each row has a cell for every site and one for this site: allow (✓), leave it to
+    the lists (○) or block (✕). A strong color is a rule set there, a light one comes from a
+    broader rule; click a set rule again to take it out. Changes work after **Reload** but only for
+    now: **Save** keeps them in My rules, **Revert** takes them back.
 
 - **Pop-ups:** ad windows and tabs a page tries to open are not opened at all, and count on the shield.
 - **Blocked pages:** a page your lists name as harmful (malware, phishing) or as an ad site is not

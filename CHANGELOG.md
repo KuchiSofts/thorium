@@ -42,6 +42,7 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** the logger also shows requests let through, and makes Block and Allow rules from them.
 - **Ad blocking:** switches for third-party scripts and frames, per site or for every site ("medium mode").
 - **Ad blocking:** "My rules": uBlock Origin's dynamic filtering rules (block, allow, noop by site and host).
+- **Ad blocking:** the menu's grid of rules for the page, as uBlock Origin's, with Save and Revert.
 - **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.
@@ -110,6 +111,8 @@ Explanations live in the design docs under `docs/design/`.
 
 - **Tools:** the profile rehearsal also sees a profile written a moment ago when the drive's clock runs ahead.
 - **Ad blocking:** ads in frames are blocked; a frame's own document was loaded without being checked.
+- **Ad blocking:** on a new profile, switches and settings changed before the first list update are kept.
+- **Ad blocking:** the menu shows the count blocked on the page in full size again.
 - **Ad blocking:** rules for one request method (`method=post`) now apply; every request was checked as a GET.
 - **Build:** two small patches fix the Chromium 158 build (FFmpeg duplicate sources, a Rust compiler flag).
 - **Build:** `rebase_report.py` no longer reports a patch that changes an upstream overlay file as rejected.
