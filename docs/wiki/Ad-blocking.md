@@ -53,7 +53,8 @@ It is **off by default** until its last correctness checks are done.
     Create. The rule goes into My filters and works at once;
   - **Zapper:** click things to remove them until the page reloads; Esc stops. A page a cookie wall had
     locked can scroll again;
-  - or right-click the thing on the page and choose **Block element...**: the picker opens on it;
+  - or right-click the thing on the page and choose **Block element...**: the picker opens on it
+    (inside a frame, **Block element in frame...** picks in that frame);
   - **Logger:** the requests of your open tabs, blocked and let through; "Block" or "Allow" on a row
     makes a rule for that host; "Why?" names the rule that blocked it or let it through, and its list;
   - **Settings:** the full page, `chrome://adblock`;
@@ -68,6 +69,8 @@ It is **off by default** until its last correctness checks are done.
     now: **Save** keeps them in My rules, **Revert** takes them back.
 
 - **Pop-ups:** ad windows and tabs a page tries to open are not opened at all, and count on the shield.
+- **Subscribe links:** on filter list websites, a "subscribe" link (or right-click it and choose
+  **Subscribe to filter list...**) opens the settings page, which asks before it adds the list.
 - **Blocked pages:** a page your lists name as harmful (malware, phishing) or as an ad site is not
   opened. A page says why. To open it anyway, click the shield: "Open it now" opens that site until
   you close the browser, "Always on this site" for good (you can take it back on `chrome://adblock`,

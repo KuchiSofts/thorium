@@ -78,10 +78,10 @@ index 0f7d54fe9798d8726656c6cd8f30ea2194b8c4e1..908235300b443a23bea4c2a9b39d0715
        "//sandbox:sandbox_unittests",
 diff --git a/components/thoron_adblock/BUILD.gn b/components/thoron_adblock/BUILD.gn
 new file mode 100644
-index 0000000000000000000000000000000000000000..21d0800312aa33d3298c535d9527184f5da185c8
+index 0000000000000000000000000000000000000000..bda8ffd06a87197bc056c878024b45bb8fac70a7
 --- /dev/null
 +++ b/components/thoron_adblock/BUILD.gn
-@@ -0,0 +1,248 @@
+@@ -0,0 +1,250 @@
 +# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
 +
@@ -187,6 +187,8 @@ index 0000000000000000000000000000000000000000..21d0800312aa33d3298c535d9527184f
 +    "menu_opener.cc",
 +    "menu_opener.h",
 +    "picker.cc",
++    "subscribe.cc",
++    "subscribe.h",
 +    "picker.h",
 +    "list_store.cc",
 +    "list_store.h",
@@ -7128,10 +7130,10 @@ index 0000000000000000000000000000000000000000..14d8a42b54fdbb2d0b66c56140e37796
 +}
 diff --git a/components/thoron_adblock/i18n.js b/components/thoron_adblock/i18n.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..b5f662f6056ac75c909a50f8f118da3127f6750b
+index 0000000000000000000000000000000000000000..3239767cd6e3930c2f43c94e208ddfd5326a1b7c
 --- /dev/null
 +++ b/components/thoron_adblock/i18n.js
-@@ -0,0 +1,890 @@
+@@ -0,0 +1,898 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7362,6 +7364,11 @@ index 0000000000000000000000000000000000000000..b5f662f6056ac75c909a50f8f118da31
 +   `Nach neueren Listen gesucht.`, `Procurou listas mais novas.`, `Проверено наличие новых списков.`],
 +  [`The list was added and is in use.`, `La lista se añadió y está en uso.`, `La liste a été ajoutée et est utilisée.`,
 +   `Die Liste wurde hinzugefügt und ist aktiv.`, `A lista foi adicionada e está em uso.`, `Список добавлен и используется.`],
++  [`Add the list`, `Añadir la lista`, `Ajouter la liste`, `Liste hinzufügen`, `Adicionar a lista`,
++   `Добавить список`],
++  [`Cancel`, `Cancelar`, `Annuler`, `Abbrechen`, `Cancelar`, `Отмена`],
++  [`Add this filter list?`, `¿Añadir esta lista de filtros?`, `Ajouter cette liste de filtres ?`,
++   `Diese Filterliste hinzufügen?`, `Adicionar esta lista de filtros?`, `Добавить этот список фильтров?`],
 +  [`The list was removed.`, `La lista se quitó.`, `La liste a été retirée.`, `Die Liste wurde entfernt.`,
 +   `A lista foi removida.`, `Список удалён.`],
 +  [`There is no such list.`, `No existe esa lista.`, `Cette liste n'existe pas.`, `Diese Liste gibt es nicht.`,
@@ -7829,6 +7836,9 @@ index 0000000000000000000000000000000000000000..b5f662f6056ac75c909a50f8f118da31
 +    `Audio- und Videodateien über $1 KB auf dieser Website blockieren`,
 +    `Bloquear arquivos de áudio e vídeo maiores que $1 KB neste site`,
 +    `Блокировать аудио и видео больше $1 KB на этом сайте`]],
++  [/^Add the filter list "(.+)"\?$/, {}, [`¿Añadir la lista de filtros "$1"?`,
++    `Ajouter la liste de filtres « $1 » ?`, `Die Filterliste "$1" hinzufügen?`,
++    `Adicionar a lista de filtros "$1"?`, `Добавить список фильтров «$1»?`]],
 +  [/^(.+) was added and is in use\.$/, {}, [`$1 se añadió y está en uso.`, `$1 a été ajoutée et est utilisée.`,
 +    `$1 wurde hinzugefügt und ist aktiv.`, `$1 foi adicionada e está em uso.`, `$1 добавлен и используется.`]],
 +  [/^(.+) is in use\.$/, {}, [`$1 está en uso.`, `$1 est utilisée.`, `$1 ist aktiv.`, `$1 está em uso.`,
@@ -9926,10 +9936,10 @@ index 0000000000000000000000000000000000000000..131119962cc6783162f9381146a326ef
 +#endif  // COMPONENTS_THORON_ADBLOCK_NEW_WINDOW_H_
 diff --git a/components/thoron_adblock/page_block_throttle.cc b/components/thoron_adblock/page_block_throttle.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..e6515d5742670437ee9094470336a20ff28c7624
+index 0000000000000000000000000000000000000000..59603d58e3fd9d7e39d07b6be62817156c147a42
 --- /dev/null
 +++ b/components/thoron_adblock/page_block_throttle.cc
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,182 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -9945,6 +9955,13 @@ index 0000000000000000000000000000000000000000..e6515d5742670437ee9094470336a20f
 +#include "components/thoron_adblock/engine_service.h"
 +#include "components/thoron_adblock/features.h"
 +#include "components/thoron_adblock/proxying_url_loader_factory.h"
++#include "components/thoron_adblock/subscribe.h"
++#include "base/task/sequenced_task_runner.h"
++#include "content/public/browser/web_contents.h"
++#include "content/public/browser/page_navigator.h"
++#include "base/functional/bind.h"
++#include "ui/base/page_transition_types.h"
++#include "ui/base/window_open_disposition.h"
 +#include "content/public/browser/navigation_handle.h"
 +#include "content/public/browser/navigation_throttle_registry.h"
 +#include "net/base/net_errors.h"
@@ -10017,6 +10034,30 @@ index 0000000000000000000000000000000000000000..e6515d5742670437ee9094470336a20f
 +
 +content::NavigationThrottle::ThrottleCheckResult PageBlockThrottle::Check() {
 +  const GURL& url = navigation_handle()->GetURL();
++  // A "subscribe" link of a filter list site, as uBlock Origin handles them:
++  // the blocker's page asks whether to add the list.
++  if (navigation_handle()->HasUserGesture() && IsSubscribeLink(url)) {
++    const GURL page = SubscribePageFor(url);
++    content::WebContents* tab = navigation_handle()->GetWebContents();
++    if (page.is_valid() && tab) {
++      // a tab of its own, after this call: the navigation code is not entered again from inside it
++      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++          FROM_HERE,
++          base::BindOnce(
++              [](base::WeakPtr<content::WebContents> tab, GURL page) {
++                if (tab) {
++                  tab->OpenURL(content::OpenURLParams(
++                                   page, content::Referrer(),
++                                   WindowOpenDisposition::kNewForegroundTab,
++                                   ui::PAGE_TRANSITION_LINK,
++                                   /*is_renderer_initiated=*/false),
++                               /*navigation_handle_callback=*/{});
++                }
++              },
++              tab->GetWeakPtr(), page));
++      return CANCEL;
++    }
++  }
 +  if (!url.SchemeIsHTTPOrHTTPS() ||
 +      ProxyingURLLoaderFactory::AdsAllowedOn(settings_.get(), url)) {
 +    return PROCEED;
@@ -10350,10 +10391,10 @@ index 0000000000000000000000000000000000000000..00523ed2ab49618d8acc12bcd40a1fdc
 +}
 diff --git a/components/thoron_adblock/picker.cc b/components/thoron_adblock/picker.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..bb2638a2c8f7b2944c7e92e571b625bf9e797573
+index 0000000000000000000000000000000000000000..f093292ce44e0e9be720a61b4ed0ff25a38e1cdb
 --- /dev/null
 +++ b/components/thoron_adblock/picker.cc
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,110 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -10409,12 +10450,8 @@ index 0000000000000000000000000000000000000000..bb2638a2c8f7b2944c7e92e571b625bf
 +
 +namespace {
 +
-+// Sends the picker to the tab's page, followed by its arguments.
-+void Start(content::WebContents* tab, const std::string& arguments) {
-+  if (!tab) {
-+    return;
-+  }
-+  content::RenderFrameHost* frame = tab->GetPrimaryMainFrame();
++// Sends the picker to a frame, followed by its arguments.
++void StartIn(content::RenderFrameHost* frame, const std::string& arguments) {
 +  if (!frame || !frame->GetLastCommittedURL().SchemeIsHTTPOrHTTPS() ||
 +      !frame->IsRenderFrameLive()) {
 +    return;
@@ -10427,10 +10464,21 @@ index 0000000000000000000000000000000000000000..bb2638a2c8f7b2944c7e92e571b625bf
 +  agent->StartPicker(script);
 +}
 +
++// ... to the tab's page.
++void Start(content::WebContents* tab, const std::string& arguments) {
++  if (tab) {
++    StartIn(tab->GetPrimaryMainFrame(), arguments);
++  }
++}
++
 +}  // namespace
 +
 +void StartPicker(content::WebContents* tab, bool zapper) {
 +  Start(tab, zapper ? "(\"zapper\");\n" : "(\"picker\");\n");
++}
++
++void StartPickerInFrame(content::RenderFrameHost* frame) {
++  StartIn(frame, "(\"picker\");\n");
 +}
 +
 +void StartPickerAt(content::WebContents* tab, int x, int y) {
@@ -10459,10 +10507,10 @@ index 0000000000000000000000000000000000000000..bb2638a2c8f7b2944c7e92e571b625bf
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/picker.h b/components/thoron_adblock/picker.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..312772150b64523b7d2df30c95f579bb25217068
+index 0000000000000000000000000000000000000000..0683dd3bba69d5aca4cf03945011b27c41a21b45
 --- /dev/null
 +++ b/components/thoron_adblock/picker.h
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,42 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -10490,6 +10538,10 @@ index 0000000000000000000000000000000000000000..312772150b64523b7d2df30c95f579bb
 +// the page's context menu ("Block element...") opens its panel at once.
 +void StartPickerAt(content::WebContents* tab, int x, int y);
 +
++// The picker in one frame of a page, as uBlock Origin's "Block element in
++// frame...": its rules are for the frame's site.
++void StartPickerInFrame(content::RenderFrameHost* frame);
++
 +// The rule the picker in `frame` made, before it is added to "My filters":
 +// accepted only from a page the person opened the picker in during the last
 +// ten minutes (once per opening), only as one line of at most 2,000
@@ -10503,10 +10555,10 @@ index 0000000000000000000000000000000000000000..312772150b64523b7d2df30c95f579bb
 +#endif  // COMPONENTS_THORON_ADBLOCK_PICKER_H_
 diff --git a/components/thoron_adblock/picker.js b/components/thoron_adblock/picker.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..ccf205720e2b38f2ba68769278a1f16d0fd6f8df
+index 0000000000000000000000000000000000000000..3f3ee75a41bcdd052926da9dab771eac18dc3fa5
 --- /dev/null
 +++ b/components/thoron_adblock/picker.js
-@@ -0,0 +1,389 @@
+@@ -0,0 +1,392 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +//
@@ -10542,6 +10594,7 @@ index 0000000000000000000000000000000000000000..ccf205720e2b38f2ba68769278a1f16d
 +            border-radius: 2px; transition: all .05s; display: none; }
 +    .mark.locked { border-color: #a78bfa; background: rgba(167,139,250,.22); }
 +    .panel { position: fixed; right: 16px; bottom: 16px; width: 420px; max-width: calc(100vw - 32px);
++             max-height: calc(100vh - 32px); overflow: auto; box-sizing: border-box;
 +             pointer-events: auto; font: 13px/1.4 system-ui, sans-serif; color: #e8eaed; background: #202124;
 +             border: 1px solid #3c4043; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.45);
 +             padding: 12px 14px; box-sizing: border-box; }
@@ -10559,10 +10612,12 @@ index 0000000000000000000000000000000000000000..ccf205720e2b38f2ba68769278a1f16d
 +             color: #e8eaed; cursor: pointer; }
 +    button.main { background: #a78bfa; border-color: #a78bfa; color: #1b1036; }
 +    button:disabled { opacity: .45; cursor: default; }
-+    .hint { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); pointer-events: auto;
++    .hint { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); pointer-events: none;
 +            font: 13px system-ui, sans-serif; color: #e8eaed; background: #202124; border: 1px solid #3c4043;
 +            border-radius: 18px; padding: 6px 8px 6px 14px; display: flex; gap: 10px; align-items: center;
-+            box-shadow: 0 4px 16px rgba(0,0,0,.4); }`;
++            box-shadow: 0 4px 16px rgba(0,0,0,.4); }
++    /* in a small frame the hint lies over the page: only its button takes clicks */
++    .hint button { pointer-events: auto; }`;
 +  root.append(style);
 +  const mark = doc.createElement('div');
 +  mark.className = 'mark';
@@ -14098,10 +14153,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..ca793316b3ea111d05e89008ba3bd87d3fa441c3
+index 0000000000000000000000000000000000000000..85d139a6cbeeee41d0a9ce1de491b1ff7543af7d
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,306 @@
+@@ -0,0 +1,317 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -14166,6 +14221,8 @@ index 0000000000000000000000000000000000000000..ca793316b3ea111d05e89008ba3bd87d
 +  #message:empty { visibility: hidden; }
 +  #message.bad, #not-applied { border-color: var(--bad); color: var(--bad); }
 +  #not-applied { border: 1px solid var(--bad); border-radius: 8px; padding: 10px 14px; }
++  #subscribe-box { border: 1px solid var(--accent); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
++  #subscribe-box p { margin: 0 0 6px; }
 +  [hidden] { display: none !important; }
 +  details { margin-top: 12px; }
 +  pre { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 ui-monospace, Consolas, monospace;
@@ -14234,6 +14291,15 @@ index 0000000000000000000000000000000000000000..ca793316b3ea111d05e89008ba3bd87d
 +  <p class="lead">Thoron blocks ads and trackers inside the browser, with the filter lists below. What you
 +    choose here stays on this computer. A list is downloaded from its address every few days, without
 +    cookies or anything that tells who you are.</p>
++
++  <div id="subscribe-box" hidden role="alertdialog" aria-labelledby="subscribe-title">
++    <p id="subscribe-title"></p>
++    <p class="url" id="subscribe-url"></p>
++    <div class="row">
++      <button id="subscribe-add" class="main" type="button">Add the list</button>
++      <button id="subscribe-cancel" type="button">Cancel</button>
++    </div>
++  </div>
 +
 +  <p id="not-applied" hidden>Your last change is not in use: the browser stopped while it was reading it.
 +    Change the setting again, or remove the list or the rules you added last.</p>
@@ -14410,10 +14476,10 @@ index 0000000000000000000000000000000000000000..ca793316b3ea111d05e89008ba3bd87d
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..39989664db328e0de2b2d1fb6de47e6e53685804
+index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98edf29595
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,815 @@
+@@ -0,0 +1,843 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -15212,6 +15278,34 @@ index 0000000000000000000000000000000000000000..39989664db328e0de2b2d1fb6de47e6e
 +  say('Your filters were saved as a file.');
 +});
 +
++// A "subscribe" link of a filter list site (the browser opens this page with #subscribe=<address>&title=):
++// the list is added only when the person says so, as in uBlock Origin.
++function askToSubscribe() {
++  if (!location.hash.startsWith('#subscribe=')) {
++    return;
++  }
++  const params = new URLSearchParams(location.hash.slice(1));
++  const url = params.get('subscribe') || '';
++  const title = (params.get('title') || '').trim();
++  history.replaceState(null, '', location.pathname);
++  if (!/^https?:\/\//.test(url)) {
++    return;
++  }
++  $('subscribe-title').textContent = title ? `Add the filter list "${title}"?` : 'Add this filter list?';
++  $('subscribe-url').textContent = url;
++  $('subscribe-box').hidden = false;
++  $('subscribe-box').scrollIntoView();
++  $('subscribe-add').onclick = () => {
++    $('subscribe-box').hidden = true;
++    change('addList', [url], 'The list was added and is in use.');
++  };
++  $('subscribe-cancel').onclick = () => {
++    $('subscribe-box').hidden = true;
++  };
++}
++askToSubscribe();
++window.addEventListener('hashchange', askToSubscribe);
++
 +$('revert-filters').addEventListener('click', () => {
 +  $('my-filters').value = savedFilters;
 +  showDirty();
@@ -15442,6 +15536,119 @@ index 0000000000000000000000000000000000000000..c2ee5651348a2b2b95626e7ee5e5bc65
 +}  // namespace thoron_adblock
 +
 +#endif  // COMPONENTS_THORON_ADBLOCK_SUBRESOURCE_LOADER_THROTTLE_H_
+diff --git a/components/thoron_adblock/subscribe.cc b/components/thoron_adblock/subscribe.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..3d32e3f0f155285380b37fa5bca61652689b4a85
+--- /dev/null
++++ b/components/thoron_adblock/subscribe.cc
+@@ -0,0 +1,78 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/thoron_adblock/subscribe.h"
++
++#include <string>
++
++#include "base/strings/escape.h"
++#include "base/strings/strcat.h"
++#include "base/strings/string_util.h"
++#include "net/base/url_util.h"
++
++namespace thoron_adblock {
++
++namespace {
++
++constexpr size_t kMaxTitleLength = 200;
++constexpr size_t kMaxAddressLength = 2048;
++
++bool IsSubscribeHost(const GURL& link) {
++  return link.SchemeIs("https") && link.host() == "subscribe.adblockplus.org" &&
++         (link.path().empty() || link.path() == "/");
++}
++
++}  // namespace
++
++bool IsSubscribeLink(const GURL& link) {
++  return link.is_valid() &&
++         ((link.SchemeIs("abp") &&
++           base::StartsWith(link.GetContent(), "subscribe")) ||
++          IsSubscribeHost(link));
++}
++
++GURL SubscribePageFor(const GURL& link) {
++  if (!IsSubscribeLink(link)) {
++    return GURL();
++  }
++  std::string location;
++  std::string title;
++  // abp: is not a scheme GURL splits into parts: its query is what follows
++  // the "?" of its content.
++  GURL query_holder = link;
++  if (link.SchemeIs("abp")) {
++    const std::string content(link.GetContent());
++    const size_t question = content.find('?');
++    if (question == std::string::npos) {
++      return GURL();
++    }
++    query_holder = GURL(base::StrCat({"https://subscribe.invalid/?",
++                                      content.substr(question + 1)}));
++  }
++  for (net::QueryIterator it(query_holder); !it.IsAtEnd(); it.Advance()) {
++    if (it.GetKey() == "location" && location.empty()) {
++      location = it.GetUnescapedValue();
++    } else if (it.GetKey() == "title" && title.empty()) {
++      title = it.GetUnescapedValue();
++    }
++  }
++  const GURL list(location);
++  if (!list.is_valid() || !list.SchemeIsHTTPOrHTTPS() || list.has_username() ||
++      list.has_password() || location.size() > kMaxAddressLength ||
++      !base::IsStringUTF8(title)) {
++    return GURL();
++  }
++  if (title.size() > kMaxTitleLength) {
++    title.resize(kMaxTitleLength);
++    // never half a character
++    while (!title.empty() && !base::IsStringUTF8(title)) {
++      title.pop_back();
++    }
++  }
++  return GURL(base::StrCat(
++      {"chrome://adblock/#subscribe=",
++       base::EscapeQueryParamValue(list.spec(), /*use_plus=*/false),
++       "&title=", base::EscapeQueryParamValue(title, /*use_plus=*/false)}));
++}
++
++}  // namespace thoron_adblock
+diff --git a/components/thoron_adblock/subscribe.h b/components/thoron_adblock/subscribe.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..9f4721c61db03ca150952b98ed125251c498700c
+--- /dev/null
++++ b/components/thoron_adblock/subscribe.h
+@@ -0,0 +1,23 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_THORON_ADBLOCK_SUBSCRIBE_H_
++#define COMPONENTS_THORON_ADBLOCK_SUBSCRIBE_H_
++
++#include "url/gurl.h"
++
++namespace thoron_adblock {
++
++// "Subscribe" links of filter list sites, as uBlock Origin handles them:
++// abp:subscribe?location=<address>&title=<title>, or the same query at
++// https://subscribe.adblockplus.org/. True for such a link.
++bool IsSubscribeLink(const GURL& link);
++
++// The page of chrome://adblock that asks whether to add the list such a link
++// names (nothing is added without the person's click there). Invalid when the
++// link names no list with a web address.
++GURL SubscribePageFor(const GURL& link);
++
++}  // namespace thoron_adblock
++
++#endif  // COMPONENTS_THORON_ADBLOCK_SUBSCRIBE_H_
 diff --git a/components/thoron_adblock/uritransform.rs b/components/thoron_adblock/uritransform.rs
 new file mode 100644
 index 0000000000000000000000000000000000000000..4f326f1763efc75d7c771facbe8aeaae9ff03fd7

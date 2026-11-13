@@ -77,7 +77,7 @@ changed in each version is in the [changelog](CHANGELOG.md), one line per change
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `████████░░░░░░░░░░░░` 76 of 181 tasks done (42%) · roadmap updated 2026-11-12
+**Overall:** `████████░░░░░░░░░░░░` 77 of 182 tasks done (42%) · roadmap updated 2026-11-12
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -87,7 +87,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/21 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `█████████████░░░░░░░` | 35/52 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `██████████████░░░░░░` | 36/53 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `██████████░░░░░░░░░░` | 8/16 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `████████░░░░░░░░░░░░` | 4/10 | 🔄 In progress |
@@ -261,6 +261,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **P5.50** Native ad blocking, uBlock Origin's keyboard shortcuts (picker, zapper, logger, settings, blocking, hiding and JavaScript for the site)
 - [x] **P5.51** Native ad blocking, the pages in the browser's language (Spanish, French, German, Portuguese, Russian), as uBlock Origin's
 - [x] **P5.52** Native ad blocking, the address bar icon opens the blocker's menu; the picker's address rules and "Pick again"; the zapper unlocks scrolling, as in uBlock Origin
+- [x] **P5.53** Native ad blocking, subscribe links (`abp:subscribe`), "Subscribe to filter list..." and "Block element in frame...", as in uBlock Origin
 - [ ] **P5.30** Native ad blocking, a page in Settings that a person can work with: one switch for the blocker; the filter lists with a checkbox each; add a list by its address and remove it again; "My filters", the person's own rules in the syntax of the lists; the sites where blocking is off
 
 **Security (S)**

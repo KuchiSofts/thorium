@@ -1601,6 +1601,23 @@ reload; the zapper removes one element and keeps the rest.
   host was stopped; a click on it with Windows UI Automation opens the menu) and by a new step of
   `adblock_menu_check.py` (a page locked as a cookie wall locks it can scroll after the zapper).
 
+### 12.40 Subscribe links and the frame picker (P5.53, 2026-11-14)
+
+- **Subscribe links.** Filter list sites offer "subscribe" links: `abp:subscribe?location=<list>&title=<name>`,
+  or the same at `https://subscribe.adblockplus.org/`. As in uBlock Origin, a click on one opens
+  `chrome://adblock`, which asks "Add the filter list ...?" and adds it only when the person says so (through
+  the same checks as any list one adds). An `abp:` link is never handed to a program of the system. Only a
+  click opens the page: a page that goes to such a link on its own opens nothing. The link must name a web
+  address (no user name or password), at most 2,048 characters, with a title of at most 200.
+- **Context menu.** "Subscribe to filter list..." on such a link, and "Block element in frame..." in a frame:
+  the picker opens in that frame, and its rules are for the frame's site (the browser checks the rule
+  against the frame's address, as for a page). Both follow "Make use of the context menu".
+- **The picker in a small frame.** Its hint lets clicks through to the page (only its button takes them),
+  and its panel is never taller than the frame (it scrolls).
+- **Checked** by `tools/qa/adblock_subscribe_check.py` (a click on each kind of link opens the question;
+  "Add the list" adds it; without a click nothing opens) and by `adblock_context_check.py` (the item on a
+  subscribe link opens the question; in a frame of another site the picker makes a rule for that site).
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
