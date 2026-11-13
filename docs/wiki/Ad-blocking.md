@@ -90,6 +90,8 @@ Open `chrome://adblock`.
   site; ignoring hide rules written for every site; the size of "large media"; "Block element..." in
   the right-click menu; the grid of rules in the menu ("I am an advanced user"); and, under the lists,
   whether they update on their own (otherwise only "Update now" downloads them).
+- **Language:** the settings page and the menu follow the browser's language: English, Spanish,
+  French, German, Portuguese or Russian. Rules, addresses and list names stay as they are.
 - **Shortcuts:** under Settings, click a box and press Ctrl or Alt with a letter, a digit or F1 to F12
   to open the picker, the zapper or the logger, or to switch blocking, hiding or JavaScript for the site,
   with the keyboard. They work while a page has the focus.

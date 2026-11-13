@@ -1536,10 +1536,10 @@ index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d
 +#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_THORON_ADBLOCK_BUTTON_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..29ca33f6ef1ddfd944045c570ea632203a80c350
+index 0000000000000000000000000000000000000000..5dda7f14f1270b0645f0a707264ac257aafbb9fa
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
-@@ -0,0 +1,506 @@
+@@ -0,0 +1,530 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1555,9 +1555,14 @@ index 0000000000000000000000000000000000000000..29ca33f6ef1ddfd944045c570ea63220
 +#include <vector>
 +
 +#include "base/feature_list.h"
++#include "base/i18n/rtl.h"
++#include "base/strings/escape.h"
++#include "base/strings/strcat.h"
++#include "base/strings/string_util.h"
 +#include "base/functional/bind.h"
 +#include "base/memory/ref_counted_memory.h"
 +#include "base/values.h"
++#include "chrome/browser/browser_process.h"
 +#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 +#include "chrome/browser/profiles/profile.h"
 +#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -1583,7 +1588,21 @@ index 0000000000000000000000000000000000000000..29ca33f6ef1ddfd944045c570ea63220
 +
 +namespace {
 +
++// The page with the browser's language and its direction in <html>: i18n.js
++// puts the page's text into that language.
++std::string LocalizedPage(std::string_view html) {
++  std::string page(html);
++  const std::string locale =
++      g_browser_process ? g_browser_process->GetApplicationLocale() : "en";
++  base::ReplaceFirstSubstringAfterOffset(
++      &page, 0, "<html lang=\"en\" dir=\"ltr\">",
++      base::StrCat({"<html lang=\"", base::EscapeForHTML(locale), "\" dir=\"",
++                    base::i18n::IsRTL() ? "rtl" : "ltr", "\">"}));
++  return page;
++}
++
 +constexpr char kScriptPath[] = "/popup_page.js";
++constexpr char kI18nPath[] = "/i18n.js";
 +constexpr char kDashboardUrl[] = "chrome://adblock/";
 +constexpr char kLoggerUrl[] = "chrome://adblock/#logger";
 +
@@ -1599,7 +1618,9 @@ index 0000000000000000000000000000000000000000..29ca33f6ef1ddfd944045c570ea63220
 +  // content::URLDataSource:
 +  std::string GetSource() override { return kThoronAdblockMenuHost; }
 +  std::string GetMimeType(const GURL& url) override {
-+    return url.path() == kScriptPath ? "text/javascript" : "text/html";
++    return url.path() == kScriptPath || url.path() == kI18nPath
++               ? "text/javascript"
++               : "text/html";
 +  }
 +  bool ShouldServeMimeTypeAsContentTypeHeader() override { return true; }
 +  void StartDataRequest(const GURL& url,
@@ -1609,9 +1630,12 @@ index 0000000000000000000000000000000000000000..29ca33f6ef1ddfd944045c570ea63220
 +    if (path == kScriptPath) {
 +      std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(
 +          std::string(thoron_adblock::popup_page_js())));
++    } else if (path == kI18nPath) {
++      std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(
++          std::string(thoron_adblock::page_i18n_js())));
 +    } else if (path.empty() || path == "/") {
 +      std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(
-+          std::string(thoron_adblock::popup_page_html())));
++          LocalizedPage(std::string(thoron_adblock::popup_page_html()))));
 +    } else {
 +      std::move(callback).Run(nullptr);
 +    }
@@ -2105,10 +2129,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..da47e4bc07ee05047458bf2ac463f80082ae9663
+index 0000000000000000000000000000000000000000..8746021df20b34f4885d573a0b69f49047ab499c
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,591 @@
+@@ -0,0 +1,614 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2120,6 +2144,10 @@ index 0000000000000000000000000000000000000000..da47e4bc07ee05047458bf2ac463f800
 +#include <utility>
 +
 +#include "base/feature_list.h"
++#include "base/i18n/rtl.h"
++#include "base/strings/escape.h"
++#include "base/strings/strcat.h"
++#include "base/strings/string_util.h"
 +#include "base/functional/bind.h"
 +#include "base/memory/ref_counted_memory.h"
 +#include "base/memory/weak_ptr.h"
@@ -2154,7 +2182,21 @@ index 0000000000000000000000000000000000000000..da47e4bc07ee05047458bf2ac463f800
 +
 +namespace {
 +
++// The page with the browser's language and its direction in <html>: i18n.js
++// puts the page's text into that language.
++std::string LocalizedPage(std::string_view html) {
++  std::string page(html);
++  const std::string locale =
++      g_browser_process ? g_browser_process->GetApplicationLocale() : "en";
++  base::ReplaceFirstSubstringAfterOffset(
++      &page, 0, "<html lang=\"en\" dir=\"ltr\">",
++      base::StrCat({"<html lang=\"", base::EscapeForHTML(locale), "\" dir=\"",
++                    base::i18n::IsRTL() ? "rtl" : "ltr", "\">"}));
++  return page;
++}
++
 +constexpr char kScriptPath[] = "/adblock.js";
++constexpr char kI18nPath[] = "/i18n.js";
 +// What the page may send: an address, and rules of at most the size the store
 +// accepts (it checks again).
 +constexpr size_t kMaxUrlLength = 2048;
@@ -2174,7 +2216,9 @@ index 0000000000000000000000000000000000000000..da47e4bc07ee05047458bf2ac463f800
 +  std::string GetSource() override { return kThoronAdblockHost; }
 +
 +  std::string GetMimeType(const GURL& url) override {
-+    return url.path() == kScriptPath ? "text/javascript" : "text/html";
++    return url.path() == kScriptPath || url.path() == kI18nPath
++               ? "text/javascript"
++               : "text/html";
 +  }
 +
 +  // A module script is only run when it comes with its type.
@@ -2187,9 +2231,12 @@ index 0000000000000000000000000000000000000000..da47e4bc07ee05047458bf2ac463f800
 +    if (path == kScriptPath) {
 +      std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(
 +          std::string(thoron_adblock::settings_page_js())));
++    } else if (path == kI18nPath) {
++      std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(
++          std::string(thoron_adblock::page_i18n_js())));
 +    } else if (path.empty() || path == "/") {
 +      std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(
-+          std::string(thoron_adblock::settings_page_html())));
++          LocalizedPage(std::string(thoron_adblock::settings_page_html()))));
 +    } else {
 +      std::move(callback).Run(nullptr);
 +    }
