@@ -3747,10 +3747,10 @@ index 0000000000000000000000000000000000000000..9f7828b3aa4e482e6fb5c2c2a4ada1af
 +}
 diff --git a/components/thoron_adblock/engine_core.rs b/components/thoron_adblock/engine_core.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..51ec998b02a2e74c6e6acdf749c720eebfd9798e
+index 0000000000000000000000000000000000000000..b12baf0b2b0f73c0a9748a0e8d7086e7d7244906
 --- /dev/null
 +++ b/components/thoron_adblock/engine_core.rs
-@@ -0,0 +1,434 @@
+@@ -0,0 +1,438 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -3786,11 +3786,15 @@ index 0000000000000000000000000000000000000000..51ec998b02a2e74c6e6acdf749c720ee
 +    }
 +}
 +
-+/// True for uBlock Origin's own lists: the only ones that may use trusted scriptlets and the options
-+/// that send a request somewhere else (`$urlskip`, `$uritransform`) or change what a page may use
-+/// (`$permissions`).
++/// The id "My filters" are built in under when the person allowed them to use what needs trust
++/// (uBlock Origin's "Allow custom filters requiring trust"); otherwise "my-filters", which gives none.
++pub const MY_FILTERS_TRUSTED: &str = "my-filters-trusted";
++
++/// True for uBlock Origin's own lists, and for the person's own filters when they allowed it: the only
++/// ones that may use trusted scriptlets and the options that send a request somewhere else (`$urlskip`,
++/// `$uritransform`) or change what a page may use (`$permissions`).
 +pub fn is_trusted(id: &str) -> bool {
-+    id.starts_with("ublock-")
++    id.starts_with("ublock-") || id == MY_FILTERS_TRUSTED
 +}
 +
 +/// The lines of the trusted lists that hold `word`: where the rules come from that only such lists
@@ -4187,10 +4191,10 @@ index 0000000000000000000000000000000000000000..51ec998b02a2e74c6e6acdf749c720ee
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..263ccad1ade39e81ca06d992dd64b93415a99de8
+index 0000000000000000000000000000000000000000..b6888b028f85fb884c3cdd56bfdef5e70b12b026
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,1216 @@
+@@ -0,0 +1,1227 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -5285,6 +5289,17 @@ index 0000000000000000000000000000000000000000..263ccad1ade39e81ca06d992dd64b934
 +      std::move(callback));
 +}
 +
++void EngineService::SetTrustMyFilters(bool trusted, Changed callback) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  EnsureStarted();
++  file_runner_->PostTaskAndReplyWithResult(
++      FROM_HERE,
++      base::BindOnce(&thoron_adblock::SetTrustMyFilters, Paths(), trusted,
++                     base::Time::Now()),
++      base::BindOnce(&EngineService::OnChanged, weak_factory_.GetWeakPtr(),
++                     std::move(callback)));
++}
++
 +void EngineService::SetListEnabled(const std::string& id,
 +                                   bool enabled,
 +                                   Changed callback) {
@@ -5409,10 +5424,10 @@ index 0000000000000000000000000000000000000000..263ccad1ade39e81ca06d992dd64b934
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..e1845da49506ebd983e707271b0f8ee1eef1d16c
+index 0000000000000000000000000000000000000000..6035f2c59867882b4cf820c5363b8fcb364a2bff
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,367 @@
+@@ -0,0 +1,369 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -5591,6 +5606,8 @@ index 0000000000000000000000000000000000000000..e1845da49506ebd983e707271b0f8ee1
 +  void DescribeSettings(Described callback);
 +  // Switches a built-in list on or off.
 +  void SetListEnabled(const std::string& id, bool enabled, Changed callback);
++  // uBlock Origin's "Allow custom filters requiring trust".
++  void SetTrustMyFilters(bool trusted, Changed callback);
 +  // Downloads the list at `url` (HTTPS only), checks it like an updated list
 +  // and adds it. Its rules get no trust: no trusted scriptlets.
 +  void AddList(const GURL& url, Changed callback);
@@ -7193,10 +7210,10 @@ index 0000000000000000000000000000000000000000..eed875cd4da34b0f151586a64b5700ff
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_FETCH_H_
 diff --git a/components/thoron_adblock/list_store.cc b/components/thoron_adblock/list_store.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..91e93710ad7e788030b0ee68f3d4766ac8322643
+index 0000000000000000000000000000000000000000..69277aead65da6532cc6ad50e10628435f5e13ff
 --- /dev/null
 +++ b/components/thoron_adblock/list_store.cc
-@@ -0,0 +1,909 @@
+@@ -0,0 +1,927 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7400,6 +7417,9 @@ index 0000000000000000000000000000000000000000..91e93710ad7e788030b0ee68f3d4766a
 +  }
 +  for (const CustomList& list : settings.custom) {
 +    base::StrAppend(&text, {"+", list.url, "\n"});
++  }
++  if (settings.trust_my_filters) {
++    text += "!trust\n";
 +  }
 +  base::StrAppend(&text, {"\n", my_filters});
 +  return base::HexEncodeLower(base::SHA1HashString(text));
@@ -7677,7 +7697,8 @@ index 0000000000000000000000000000000000000000..91e93710ad7e788030b0ee68f3d4766a
 +  }
 +  if (!my_filters.empty()) {
 +    // The person's own rules, last, under an id that gives no trust.
-+    base::StrAppend(&combined, {kMarker, kMyFiltersId, "\n", my_filters, "\n"});
++    base::StrAppend(&combined,
++                    {kMarker, MyFiltersId(settings), "\n", my_filters, "\n"});
 +    new_lists.Set(kMyFiltersId,
 +                  base::DictValue()
 +                      .Set("source", "own")
@@ -7756,6 +7777,9 @@ index 0000000000000000000000000000000000000000..91e93710ad7e788030b0ee68f3d4766a
 +  }
 +  dict.Set("disabled", std::move(disabled));
 +  dict.Set("custom", std::move(custom));
++  if (settings.trust_my_filters) {
++    dict.Set("trust_my_filters", true);
++  }
 +  std::optional<std::string> json = base::WriteJson(dict);
 +  ChangeResult change;
 +  if (!json || !base::CreateDirectory(paths.store_dir) ||
@@ -7813,7 +7837,8 @@ index 0000000000000000000000000000000000000000..91e93710ad7e788030b0ee68f3d4766a
 +  }
 +  const std::string my_filters = ReadMyFilters(paths);
 +  if (!my_filters.empty()) {
-+    base::StrAppend(&combined, {kMarker, kMyFiltersId, "\n", my_filters, "\n"});
++    base::StrAppend(&combined,
++                    {kMarker, MyFiltersId(settings), "\n", my_filters, "\n"});
 +  }
 +  return combined;
 +}
@@ -7884,6 +7909,7 @@ index 0000000000000000000000000000000000000000..91e93710ad7e788030b0ee68f3d4766a
 +      }
 +    }
 +  }
++  settings.trust_my_filters = dict->FindBool("trust_my_filters").value_or(false);
 +  return settings;
 +}
 +
@@ -7933,6 +7959,14 @@ index 0000000000000000000000000000000000000000..91e93710ad7e788030b0ee68f3d4766a
 +           "allow a site, write a rule like @@||example.com^";
 +  }
 +  return std::nullopt;
++}
++
++ChangeResult SetTrustMyFilters(const StorePaths& paths,
++                               bool trusted,
++                               base::Time now) {
++  Settings settings = ReadSettings(paths);
++  settings.trust_my_filters = trusted;
++  return Commit(paths, settings, now);
 +}
 +
 +ChangeResult SetListEnabled(const StorePaths& paths,
@@ -8093,6 +8127,7 @@ index 0000000000000000000000000000000000000000..91e93710ad7e788030b0ee68f3d4766a
 +  base::DictValue out;
 +  out.Set("lists", std::move(lists));
 +  out.Set("myFilters", my_filters);
++  out.Set("trustMyFilters", settings.trust_my_filters);
 +  out.Set("myFiltersRules", static_cast<int>(count_rules(ToStr(my_filters))));
 +  out.Set("lastCheck",
 +          state ? state->FindDouble("last_check").value_or(0.0) : 0.0);
@@ -8108,10 +8143,10 @@ index 0000000000000000000000000000000000000000..91e93710ad7e788030b0ee68f3d4766a
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/list_store.h b/components/thoron_adblock/list_store.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..a8dc94a6f3bfa54b9ad6c155b16a9e1c7569c15c
+index 0000000000000000000000000000000000000000..4bb522f266285c02e20ada40299458c61147692a
 --- /dev/null
 +++ b/components/thoron_adblock/list_store.h
-@@ -0,0 +1,179 @@
+@@ -0,0 +1,192 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -8174,6 +8209,8 @@ index 0000000000000000000000000000000000000000..a8dc94a6f3bfa54b9ad6c155b16a9e1c
 +struct Settings {
 +  std::set<std::string> disabled;  // built-in lists that are switched off
 +  std::vector<CustomList> custom;  // lists the person added
++  // uBlock Origin's "Allow custom filters requiring trust" (off)
++  bool trust_my_filters = false;
 +
 +  bool operator==(const Settings&) const = default;
 +};
@@ -8184,6 +8221,12 @@ index 0000000000000000000000000000000000000000..a8dc94a6f3bfa54b9ad6c155b16a9e1c
 +// not start with "ublock-", it gives no trust: such rules cannot use the
 +// trusted scriptlets.
 +inline constexpr std::string_view kMyFiltersId = "my-filters";
++// ... and the id they are built in under when the person allowed them what
++// needs trust (engine_core.rs: MY_FILTERS_TRUSTED).
++inline constexpr std::string_view kMyFiltersTrustedId = "my-filters-trusted";
++inline std::string_view MyFiltersId(const Settings& settings) {
++  return settings.trust_my_filters ? kMyFiltersTrustedId : kMyFiltersId;
++}
 +
 +// The settings as saved; the defaults when there are none or the file cannot
 +// be read. Ids of built-in lists that do not exist are dropped.
@@ -8264,6 +8307,11 @@ index 0000000000000000000000000000000000000000..a8dc94a6f3bfa54b9ad6c155b16a9e1c
 +  std::string error;
 +  std::optional<rust::Box<Engine>> engine;
 +};
++// "Allow custom filters requiring trust" on or off; the filters are built
++// again.
++ChangeResult SetTrustMyFilters(const StorePaths& paths,
++                               bool trusted,
++                               base::Time now);
 +// Switches a built-in list on or off.
 +ChangeResult SetListEnabled(const StorePaths& paths,
 +                            const std::string& id,
@@ -12860,10 +12908,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..924480b123b56cd761869c1a5dda41e7c7807262
+index 0000000000000000000000000000000000000000..4731dad2de7cf0d1f18f82c5d9d8a00b12db6406
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,289 @@
+@@ -0,0 +1,296 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -13090,10 +13138,17 @@ index 0000000000000000000000000000000000000000..924480b123b56cd761869c1a5dda41e7
 +    <p>Your own rules, one per line, written like the rules of the lists. <code>||ads.example.com^</code>
 +      blocks a host, <code>example.com##.banner</code> hides something on a site, and
 +      <code>@@||example.com^</code> allows a site.</p>
++    <label class="option"><input type="checkbox" id="trust-filters">
++      <span>Allow custom filters requiring trust: your own filters may use what only uBlock Origin's lists may
++        use (scriptlets that set cookies, click elements or change what a page reads, and rules that send a
++        request elsewhere). Only for filters you understand.</span></label>
 +    <textarea id="my-filters" rows="12" spellcheck="false" aria-label="My filters"></textarea>
 +    <div class="row">
 +      <button id="save-filters" class="main" type="button">Save</button>
 +      <button id="revert-filters" type="button">Undo changes</button>
++      <button id="import-filters" type="button">Import and append</button>
++      <button id="export-filters" type="button">Export</button>
++      <input id="import-filters-file" type="file" accept=".txt,text/plain" hidden>
 +      <span id="my-count"></span>
 +    </div>
 +  </section>
@@ -13155,10 +13210,10 @@ index 0000000000000000000000000000000000000000..924480b123b56cd761869c1a5dda41e7
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..6b5eb404a7538c61ea4d4420e71a9d0a3d6f2033
+index 0000000000000000000000000000000000000000..8594faaf0d59086d154b2c3624e70a5f4c0018dd
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,710 @@
+@@ -0,0 +1,753 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -13171,7 +13226,7 @@ index 0000000000000000000000000000000000000000..6b5eb404a7538c61ea4d4420e71a9d0a
 +
 +const $ = (id) => document.getElementById(id);
 +// list id -> its name, for the logger's "Why?" (filled as the lists are shown)
-+const listNames = new Map([['my-filters', 'My filters']]);
++const listNames = new Map([['my-filters', 'My filters'], ['my-filters-trusted', 'My filters']]);
 +
 +/** The rules as they are saved, to tell whether the box was edited. */
 +let savedFilters = '';
@@ -13796,6 +13851,7 @@ index 0000000000000000000000000000000000000000..6b5eb404a7538c61ea4d4420e71a9d0a
 +  }
 +  savedFilters = state.myFilters;
 +  $('my-count').textContent = state.myFiltersRules > 0 ? `${rulesText(state.myFiltersRules)} in use` : '';
++  $('trust-filters').checked = !!state.trustMyFilters;
 +  showDirty();
 +}
 +
@@ -13850,6 +13906,48 @@ index 0000000000000000000000000000000000000000..6b5eb404a7538c61ea4d4420e71a9d0a
 +$('save-filters').addEventListener('click', () => {
 +  // When the browser refuses the rules, the box keeps what was typed.
 +  change('setMyFilters', [$('my-filters').value], 'Your filters were saved and are in use.');
++});
++
++// As uBlock Origin's: trust for own filters, and importing and exporting them as a text file. A backup
++// never turns trust on: only this switch does.
++$('trust-filters').addEventListener('change', () => {
++  const on = $('trust-filters').checked;
++  change('setTrustMyFilters', [on], on ? 'Your filters may now use what needs trust.'
++                                       : 'Your filters no longer use what needs trust.');
++});
++
++$('import-filters').addEventListener('click', () => $('import-filters-file').click());
++$('import-filters-file').addEventListener('change', async () => {
++  const file = $('import-filters-file').files[0];
++  $('import-filters-file').value = '';
++  if (!file) {
++    return;
++  }
++  if (file.size > 1024 * 1024) {
++    say('That file is larger than 1 MB.', true);
++    return;
++  }
++  const text = (await file.text()).replace(/\r\n?/g, '\n').trim();
++  if (!text) {
++    say('That file is empty.', true);
++    return;
++  }
++  const box = $('my-filters');
++  box.value = box.value.trim() ? `${box.value.trimEnd()}\n${text}\n` : `${text}\n`;
++  showDirty();
++  say(`${text.split('\n').length} lines were added below your filters. Save to use them.`);
++});
++
++$('export-filters').addEventListener('click', () => {
++  const blob = new Blob([$('my-filters').value], {type: 'text/plain'});
++  const link = make('a');
++  link.href = URL.createObjectURL(blob);
++  link.download = `my-filters-${new Date().toISOString().slice(0, 10)}.txt`;
++  document.body.append(link);
++  link.click();
++  link.remove();
++  setTimeout(() => URL.revokeObjectURL(link.href), 10000);
++  say('Your filters were saved as a file.');
 +});
 +
 +$('revert-filters').addEventListener('click', () => {

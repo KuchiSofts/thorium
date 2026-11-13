@@ -1516,6 +1516,23 @@ reload; the zapper removes one element and keeps the rest.
   after "Allow", on the ad image let through, the exception from My filters and the rule it wins over. Two
   new engine tests (118 in all).
 
+### 12.35 My filters as uBlock Origin's: trust, import and export (P5.48, 2026-11-13)
+
+- **What.** Under "My filters": uBlock Origin's "Allow custom filters requiring trust" (off), and its
+  "Import and append" and "Export" buttons. With trust on, the person's own filters may use what only
+  uBlock Origin's lists may use otherwise: the scriptlets that need trust (`trusted-set-cookie`,
+  `trusted-click-element`...) and the options that send a request elsewhere or change what a page may use
+  (`$urlskip`, `$uritransform`, `$permissions`). Import adds the lines of a text file (at most 1 MB) below
+  the filters, to be saved like typed ones; Export saves them as a text file.
+- **How.** Trust is given by a list's id, never by what a list says: own filters are built in under
+  `my-filters`, or `my-filters-trusted` when the setting is on (`is_trusted`). The setting is saved with the
+  list settings, so changing it builds the filters again (it is part of the fingerprint of a saved engine).
+- **Security.** Off unless the person turns it on, with a note what it allows. A backup never turns it on:
+  it is not in the backup file, and only the switch on the page changes it. A downloaded list never gets
+  it (its id is always worked out from its address).
+- **Checked** by `tools/qa/adblock_trust_check.py`: My filters hold a plain scriptlet and one that needs
+  trust; off, only the plain one works; on, both; off again, only the plain one.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

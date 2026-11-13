@@ -105,6 +105,9 @@ Open `chrome://adblock`.
   first; something that is not a filter list is refused, and the page says why. Remove takes it out again.
 - **My filters:** write your own rules, one per line, and press Save. For example `||ads.example.com^`
   blocks a host, `example.com##.banner` hides something on a site, and `@@||example.com^` allows a site.
+  "Import and append" adds the lines of a text file, "Export" saves your filters as one. "Allow custom
+  filters requiring trust" lets your filters use what only uBlock Origin's lists may (scriptlets that
+  set cookies or click elements, for example): turn it on only for filters you understand.
 
 Every change is in use at once, and stays after a restart and after an update of the browser. What you
 choose stays on your computer. A list you add is fetched from its address every few days, without cookies.
