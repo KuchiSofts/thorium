@@ -39,6 +39,10 @@ SWITCH_HOST = "switch-backup.test"
 SWITCHES = ["-fonts", "popups"]
 LIST_OFF = "easyprivacy"
 TURNED_ON = ("block-csp-reports", "default-fonts")
+# the settings that are on unless changed (P5.46: auto-update, the context menu, the menu's grid), and the
+# largest media size unless changed
+DEFAULT_ON = ("badge", "auto-update", "context-menu", "advanced")
+DEFAULT_MEDIA_KB = 50
 
 CHANGE = f"""(async () => {{
   const {{sendWithPromise}} = await import('chrome://resources/js/cr.js');
@@ -84,7 +88,10 @@ def default_problems(got: dict) -> list[str]:
     out = []
     settings = got.get("settings", {})
     for name, on in settings.items():
-        if on != (name == "badge"):
+        if name == "media-kb":
+            if on != DEFAULT_MEDIA_KB:
+                out.append(f"reset: the largest media size is {on} kB, not {DEFAULT_MEDIA_KB}")
+        elif on != (name in DEFAULT_ON):
             out.append(f"reset: the setting {name} is {'on' if on else 'off'}")
     if got.get("myFilters"):
         out.append(f"reset: own rules are left: {got.get('myFilters')!r}")

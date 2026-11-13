@@ -35,8 +35,11 @@ class ChangedTests(unittest.TestCase):
 class DefaultsTests(unittest.TestCase):
     def test_the_defaults(self):
         got = {"disabled": [], "myFilters": "", "allowed": [], "switches": {},
-               "settings": {"badge": True, "webrtc": False}}
+               "settings": {"badge": True, "webrtc": False, "auto-update": True, "context-menu": True,
+                            "advanced": True, "media-kb": 50}}
         self.assertEqual(bc.default_problems(got), [])
+        got["settings"].update({"auto-update": False, "media-kb": 300})
+        self.assertEqual(len(bc.default_problems(got)), 2)
 
     def test_whatever_is_left_is_named(self):
         found = bc.default_problems(changed())
