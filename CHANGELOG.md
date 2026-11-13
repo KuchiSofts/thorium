@@ -49,6 +49,8 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** a page strict blocking stopped opens from the shield's menu, now or always.
 - **Ad blocking:** uBlock Origin's keyboard shortcuts, set on the settings page.
 - **Ad blocking:** its pages follow the browser's language: Spanish, French, German, Portuguese, Russian.
+- **Ad blocking:** the address bar icon opens the menu; the picker offers every address an element loads.
+- **Ad blocking:** the zapper lets a page scroll again after taking out what had locked it.
 - **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.

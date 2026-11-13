@@ -1097,6 +1097,46 @@ index 5405cffb491b80b37779cc9ba2d8a0bfea368b99..5120ef99e6e59ce0f02b767078ecc6c9
    return window_->PreHandleKeyboardEvent(event);
  }
  
+diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/views/location_bar/BUILD.gn
+index 58fd6d16a629077cd44470d81143bb1b5bef94a5..1321c8d4c110196e495bdc08e46bc5fd25b864e4 100644
+--- a/chrome/browser/ui/views/location_bar/BUILD.gn
++++ b/chrome/browser/ui/views/location_bar/BUILD.gn
+@@ -73,6 +73,7 @@ source_set("impl") {
+   deps = [
+     ":icon_label_bubble",
+     ":location_bar",
++    "//components/thoron_adblock",
+     "//chrome/browser:defaults",
+     "//chrome/browser/ui:browser_command_controller",
+     "//chrome/browser/ui:browser_commands",
+diff --git a/chrome/browser/ui/views/location_bar/content_setting_image_view.cc b/chrome/browser/ui/views/location_bar/content_setting_image_view.cc
+index a02ab7d45eba361c16e5abd2da2c9328d73e7120..1b83c16ab5589858c4c2cb4d60fb16f0ce887601 100644
+--- a/chrome/browser/ui/views/location_bar/content_setting_image_view.cc
++++ b/chrome/browser/ui/views/location_bar/content_setting_image_view.cc
+@@ -24,6 +24,7 @@
+ #include "chrome/browser/web_applications/web_app_tab_helper.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/feature_engagement/public/feature_constants.h"
++#include "components/thoron_adblock/menu_opener.h"
+ #include "components/user_education/common/feature_promo/feature_promo_controller.h"
+ #include "content/public/browser/web_contents.h"
+ #include "ui/base/l10n/l10n_util.h"
+@@ -287,6 +288,15 @@ bool ContentSettingImageView::ShowBubbleImpl() {
+   }
+   content::WebContents* web_contents =
+       delegate_->GetContentSettingWebContents();
++  // Thoron's ad blocker: the icon for blocked ads and trackers opens the
++  // blocker's own menu (as the shield in the toolbar does), as uBlock
++  // Origin's icon does.
++  if (content_setting_image_model_->image_type() ==
++          ContentSettingImageModel::ImageType::kAds &&
++      thoron_adblock::OpenMenuFor(web_contents)) {
++    UnpauseAnimation();
++    return true;
++  }
+   if (web_contents && !bubble_view_) {
+     std::unique_ptr<ContentSettingBubbleModel> bubble_model =
+         content_setting_image_model_->CreateBubbleModel(
 diff --git a/chrome/browser/ui/browser_web_contents_delegate/thoron_adblock_shortcuts.cc b/chrome/browser/ui/browser_web_contents_delegate/thoron_adblock_shortcuts.cc
 new file mode 100644
 index 0000000000000000000000000000000000000000..fbf9e91b23d38b0d8c43c559f9add62d29599214
@@ -1283,10 +1323,10 @@ index 0000000000000000000000000000000000000000..5ace492dd1a60c29b3c3dd04efae2228
 +#endif  // CHROME_BROWSER_UI_BROWSER_WEB_CONTENTS_DELEGATE_THORON_ADBLOCK_SHORTCUTS_H_
 diff --git a/chrome/browser/ui/views/toolbar/thoron_adblock_button.cc b/chrome/browser/ui/views/toolbar/thoron_adblock_button.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..a31a90935ed3cc0fef6e649777d81cbe68c29477
+index 0000000000000000000000000000000000000000..de75eb46d5a2fb5d37fa6f41cf38ac480113a486
 --- /dev/null
 +++ b/chrome/browser/ui/views/toolbar/thoron_adblock_button.cc
-@@ -0,0 +1,176 @@
+@@ -0,0 +1,187 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1353,6 +1393,7 @@ index 0000000000000000000000000000000000000000..a31a90935ed3cc0fef6e649777d81cbe
 +  GetViewAccessibility().SetName(u"Ad blocking");
 +  browser_->GetTabStripModel()->AddObserver(this);
 +  Observe(browser_->GetTabStripModel()->GetActiveWebContents());
++  thoron_adblock::AddMenuOpener(this);
 +  // base::Unretained is safe: the subscription ends with this button.
 +  blocked_subscription_ = thoron_adblock::BlockedCount::AddObserver(
 +      base::BindRepeating(&ThoronAdblockButton::OnBlocked,
@@ -1362,6 +1403,7 @@ index 0000000000000000000000000000000000000000..a31a90935ed3cc0fef6e649777d81cbe
 +}
 +
 +ThoronAdblockButton::~ThoronAdblockButton() {
++  thoron_adblock::RemoveMenuOpener(this);
 +  browser_->GetTabStripModel()->RemoveObserver(this);
 +}
 +
@@ -1449,6 +1491,15 @@ index 0000000000000000000000000000000000000000..a31a90935ed3cc0fef6e649777d81cbe
 +  }
 +}
 +
++bool ThoronAdblockButton::OpenMenuFor(content::WebContents* tab) {
++  if (browser_->GetTabStripModel()->GetIndexOfWebContents(tab) ==
++      TabStripModel::kNoTab) {
++    return false;
++  }
++  ButtonPressed();
++  return true;
++}
++
 +void ThoronAdblockButton::ButtonPressed() {
 +  if (!menu_) {
 +    menu_ = WebUIBubbleManager::Create<ThoronAdblockMenuUI>(
@@ -1465,10 +1516,10 @@ index 0000000000000000000000000000000000000000..a31a90935ed3cc0fef6e649777d81cbe
 +END_METADATA
 diff --git a/chrome/browser/ui/views/toolbar/thoron_adblock_button.h b/chrome/browser/ui/views/toolbar/thoron_adblock_button.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d78b84d89
+index 0000000000000000000000000000000000000000..74bb1e36e87cc5e12248f5c5735b1c2015c5a16e
 --- /dev/null
 +++ b/chrome/browser/ui/views/toolbar/thoron_adblock_button.h
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,71 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1481,6 +1532,7 @@ index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d
 +#include "base/memory/raw_ptr.h"
 +#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 +#include "chrome/browser/ui/views/toolbar/toolbar_button.h"
++#include "components/thoron_adblock/menu_opener.h"
 +#include "content/public/browser/web_contents_observer.h"
 +#include "ui/base/metadata/metadata_header_macros.h"
 +
@@ -1498,7 +1550,8 @@ index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d
 +// ThoronNativeAdblock feature is on.
 +class ThoronAdblockButton : public ToolbarButton,
 +                            public TabStripModelObserver,
-+                            public content::WebContentsObserver {
++                            public content::WebContentsObserver,
++                            public thoron_adblock::MenuOpener {
 +  METADATA_HEADER(ThoronAdblockButton, ToolbarButton)
 +
 + public:
@@ -1506,6 +1559,10 @@ index 0000000000000000000000000000000000000000..866f5fb3da4ef74876beb18e0ffe602d
 +  ThoronAdblockButton(const ThoronAdblockButton&) = delete;
 +  ThoronAdblockButton& operator=(const ThoronAdblockButton&) = delete;
 +  ~ThoronAdblockButton() override;
++
++  // thoron_adblock::MenuOpener: the address bar's icon for blocked ads opens
++  // this menu too, as uBlock Origin's icon does.
++  bool OpenMenuFor(content::WebContents* tab) override;
 +
 +  // ToolbarButton:
 +  void UpdateIcon() override;
