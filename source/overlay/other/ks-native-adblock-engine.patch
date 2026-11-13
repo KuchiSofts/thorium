@@ -78,10 +78,10 @@ index 0f7d54fe9798d8726656c6cd8f30ea2194b8c4e1..908235300b443a23bea4c2a9b39d0715
        "//sandbox:sandbox_unittests",
 diff --git a/components/thoron_adblock/BUILD.gn b/components/thoron_adblock/BUILD.gn
 new file mode 100644
-index 0000000000000000000000000000000000000000..2782f3f774df521a36bf22c4ab24b242abe87ddf
+index 0000000000000000000000000000000000000000..9b4ccc627d83436966dca516e74bac911c40fdec
 --- /dev/null
 +++ b/components/thoron_adblock/BUILD.gn
-@@ -0,0 +1,245 @@
+@@ -0,0 +1,246 @@
 +# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
 +
@@ -116,6 +116,7 @@ index 0000000000000000000000000000000000000000..2782f3f774df521a36bf22c4ab24b242
 +    "popup_page.html",
 +    "popup_page.js",
 +    "picker.js",
++    "i18n.js",
 +  ]
 +  allow_unsafe = true  # the cxx bridge's generated glue
 +  cxx_bindings = [ crate_root ]
@@ -2635,10 +2636,10 @@ index 0000000000000000000000000000000000000000..95ab7dc485b0f2eac71ef24a024c18da
 +}
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..9f7828b3aa4e482e6fb5c2c2a4ada1afd51abb2b
+index 0000000000000000000000000000000000000000..d6329551f45e99ed7d8cab50cb43350e0a41bdad
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,1106 @@
+@@ -0,0 +1,1117 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2837,6 +2838,9 @@ index 0000000000000000000000000000000000000000..9f7828b3aa4e482e6fb5c2c2a4ada1af
 +        fn popup_page_html() -> &'static str;
 +
 +        fn popup_page_js() -> &'static str;
++
++        /// What puts both pages into the browser's language (i18n.js): the pages load it first.
++        fn page_i18n_js() -> &'static str;
 +
 +        /// The element picker and zapper (picker.js): a function expression the browser calls
 +        /// with "picker" or "zapper".
@@ -3068,6 +3072,10 @@ index 0000000000000000000000000000000000000000..9f7828b3aa4e482e6fb5c2c2a4ada1af
 +
 +fn popup_page_js() -> &'static str {
 +    include_str!("popup_page.js")
++}
++
++fn page_i18n_js() -> &'static str {
++    include_str!("i18n.js")
 +}
 +
 +fn picker_js() -> &'static str {
@@ -3362,11 +3370,15 @@ index 0000000000000000000000000000000000000000..9f7828b3aa4e482e6fb5c2c2a4ada1af
 +        let html = settings_page_html();
 +        let script = settings_page_js();
 +        assert!(html.contains("<script type=\"module\" src=\"adblock.js\"></script>"));
-+        // The page's security policy allows no inline script and no HTML made from text.
-+        assert_eq!(html.matches("<script").count(), 1);
++        // The page's security policy allows no inline script and no HTML made from text: two module
++        // scripts, the page's own and i18n.js, which puts it into the browser's language.
++        assert!(html.contains("<script type=\"module\" src=\"i18n.js\"></script>"));
++        assert_eq!(html.matches("<script").count(), 2);
 +        assert!(!html.contains("onclick=") && !html.contains("javascript:"));
-+        for forbidden in ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("] {
-+            assert!(!script.contains(forbidden), "{forbidden}");
++        for source in [script, page_i18n_js()] {
++            for forbidden in ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval("] {
++                assert!(!source.contains(forbidden), "{forbidden}");
++            }
 +        }
 +        // Only the browser's own resources are loaded.
 +        assert!(!html.contains("http://") && !html.contains("https://"));
@@ -7112,6 +7124,902 @@ index 0000000000000000000000000000000000000000..14d8a42b54fdbb2d0b66c56140e37796
 +        assert_eq!(tests_for(&rules, "https://many.example/a.js", "script", "GET").lines().count(), MAX_TESTS);
 +    }
 +}
+diff --git a/components/thoron_adblock/i18n.js b/components/thoron_adblock/i18n.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..b5f662f6056ac75c909a50f8f118da3127f6750b
+--- /dev/null
++++ b/components/thoron_adblock/i18n.js
+@@ -0,0 +1,890 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// The pages of Thoron's built-in ad blocker (chrome://adblock and the menu of the shield) in the
++// browser's language, as uBlock Origin's are in the language of the browser. The pages and their scripts
++// are written in English. For another language the browser writes it into <html lang> when it serves a
++// page, and this script puts every text the page shows into that language from the tables below: the
++// texts there at the start and every text the page shows later (a MutationObserver), so the pages' own
++// code stays as it is. A text without a translation stays in English. Rules, addresses and code are
++// never translated. Another language is one more column.
++
++const LANGS = ['es', 'fr', 'de', 'pt', 'ru'];
++
++// [English, Spanish, French, German, Portuguese, Russian]
++const ROWS = [
++  // titles and sections
++  [`Ad blocking`, `Bloqueo de anuncios`, `Blocage des publicités`, `Werbeblocker`, `Bloqueio de anúncios`,
++   `Блокировка рекламы`],
++  [`Settings`, `Ajustes`, `Paramètres`, `Einstellungen`, `Configurações`, `Настройки`],
++  [`Filter lists`, `Listas de filtros`, `Listes de filtres`, `Filterlisten`, `Listas de filtros`, `Списки фильтров`],
++  [`More lists`, `Más listas`, `Autres listes`, `Weitere Listen`, `Mais listas`, `Другие списки`],
++  [`My filters`, `Mis filtros`, `Mes filtres`, `Meine Filter`, `Meus filtros`, `Мои фильтры`],
++  [`My rules`, `Mis reglas`, `Mes règles`, `Meine Regeln`, `Minhas regras`, `Мои правила`],
++  [`Sites`, `Sitios`, `Sites`, `Websites`, `Sites`, `Сайты`],
++  [`Logger`, `Registro`, `Journal`, `Protokoll`, `Registro`, `Журнал`],
++  [`Sections`, `Secciones`, `Sections`, `Abschnitte`, `Seções`, `Разделы`],
++  [`Thoron blocks ads and trackers inside the browser, with the filter lists below. What you choose here ` +
++       `stays on this computer. A list is downloaded from its address every few days, without cookies or ` +
++       `anything that tells who you are.`,
++   `Thoron bloquea anuncios y rastreadores dentro del navegador, con las listas de filtros de abajo. Lo que ` +
++       `elijas aquí se queda en este equipo. Cada lista se descarga de su dirección cada pocos días, sin cookies ` +
++       `ni nada que diga quién eres.`,
++   `Thoron bloque les publicités et les traqueurs dans le navigateur, avec les listes de filtres ci-dessous. ` +
++       `Vos choix restent sur cet ordinateur. Chaque liste est téléchargée depuis son adresse tous les quelques ` +
++       `jours, sans cookies ni rien qui dise qui vous êtes.`,
++   `Thoron blockiert Werbung und Tracker im Browser, mit den Filterlisten unten. Was du hier wählst, bleibt auf ` +
++       `diesem Computer. Jede Liste wird alle paar Tage von ihrer Adresse geladen, ohne Cookies und ohne etwas, ` +
++       `das verrät, wer du bist.`,
++   `O Thoron bloqueia anúncios e rastreadores dentro do navegador, com as listas de filtros abaixo. O que você ` +
++       `escolhe aqui fica neste computador. Cada lista é baixada do seu endereço a cada poucos dias, sem cookies ` +
++       `nem nada que diga quem você é.`,
++   `Thoron блокирует рекламу и трекеры прямо в браузере с помощью списков фильтров ниже. Ваш выбор остаётся на ` +
++       `этом компьютере. Каждый список загружается со своего адреса раз в несколько дней, без cookie и без ` +
++       `всего, что могло бы вас выдать.`],
++  [`Your last change is not in use: the browser stopped while it was reading it. Change the setting again, ` +
++       `or remove the list or the rules you added last.`,
++   `Tu último cambio no está en uso: el navegador se detuvo mientras lo leía. Cambia el ajuste de nuevo, o ` +
++       `quita la lista o las reglas que añadiste al final.`,
++   `Votre dernière modification n'est pas utilisée : le navigateur s'est arrêté pendant sa lecture. Modifiez ` +
++       `de nouveau le paramètre, ou retirez la liste ou les règles ajoutées en dernier.`,
++   `Deine letzte Änderung ist nicht aktiv: Der Browser wurde beim Einlesen beendet. Ändere die Einstellung ` +
++       `erneut oder entferne die zuletzt hinzugefügte Liste oder Regeln.`,
++   `Sua última alteração não está em uso: o navegador parou enquanto a lia. Altere a configuração de novo, ` +
++       `ou remova a lista ou as regras que você adicionou por último.`,
++   `Последнее изменение не применено: браузер остановился во время его чтения. Измените настройку снова или ` +
++       `удалите список или правила, добавленные последними.`],
++  [`On, off and allowed sites`, `Activado, desactivado y sitios permitidos`, `Activé, désactivé et sites autorisés`,
++   `An, aus und erlaubte Websites`, `Ligado, desligado e sites permitidos`, `Включено, выключено и разрешённые сайты`],
++  [`Blocking is switched on or off for all sites, and sites are allowed one by one, in the site settings. ` +
++       `On a page, the icon in the address bar does the same for that site.`,
++   `El bloqueo se activa o desactiva para todos los sitios, y los sitios se permiten uno a uno, en los ajustes ` +
++       `de sitios. En una página, el icono de la barra de direcciones hace lo mismo para ese sitio.`,
++   `Le blocage s'active ou se désactive pour tous les sites, et les sites s'autorisent un par un, dans les ` +
++       `paramètres des sites. Sur une page, l'icône de la barre d'adresse fait de même pour ce site.`,
++   `Das Blockieren wird für alle Websites ein- oder ausgeschaltet, und Websites werden einzeln erlaubt, in den ` +
++       `Website-Einstellungen. Auf einer Seite macht das Symbol in der Adressleiste dasselbe für diese Website.`,
++   `O bloqueio é ligado ou desligado para todos os sites, e os sites são permitidos um a um, nas configurações ` +
++       `de sites. Em uma página, o ícone da barra de endereço faz o mesmo para esse site.`,
++   `Блокировка включается или выключается для всех сайтов, а сайты разрешаются по одному в настройках сайтов. ` +
++       `На странице значок в адресной строке делает то же самое для этого сайта.`],
++  [`Open "Ads and trackers" in Settings`, `Abrir "Anuncios y rastreadores" en Configuración`,
++   `Ouvrir « Publicités et traqueurs » dans les paramètres`, `"Werbung und Tracker" in den Einstellungen öffnen`,
++   `Abrir "Anúncios e rastreadores" nas configurações`, `Открыть «Реклама и трекеры» в настройках`],
++  // Settings
++  [`As in uBlock Origin. A change is in use at once.`, `Como en uBlock Origin. Un cambio se aplica al instante.`,
++   `Comme dans uBlock Origin. Une modification s'applique aussitôt.`,
++   `Wie in uBlock Origin. Eine Änderung gilt sofort.`, `Como no uBlock Origin. Uma alteração vale na hora.`,
++   `Как в uBlock Origin. Изменение действует сразу.`],
++  [`Appearance`, `Apariencia`, `Apparence`, `Darstellung`, `Aparência`, `Внешний вид`],
++  [`Show the number of blocked requests on the shield`, `Mostrar el número de solicitudes bloqueadas en el escudo`,
++   `Afficher le nombre de requêtes bloquées sur le bouclier`, `Anzahl blockierter Anfragen auf dem Schild anzeigen`,
++   `Mostrar o número de solicitações bloqueadas no escudo`, `Показывать число заблокированных запросов на щите`],
++  [`Make use of the context menu: "Block element..." when you right-click a page`,
++   `Usar el menú contextual: "Bloquear elemento..." al hacer clic derecho en una página`,
++   `Utiliser le menu contextuel : « Bloquer l'élément... » d'un clic droit sur une page`,
++   `Kontextmenü nutzen: "Element blockieren..." per Rechtsklick auf eine Seite`,
++   `Usar o menu de contexto: "Bloquear elemento..." ao clicar com o botão direito em uma página`,
++   `Использовать контекстное меню: «Заблокировать элемент...» по правому щелчку на странице`],
++  [`Privacy`, `Privacidad`, `Confidentialité`, `Datenschutz`, `Privacidade`, `Конфиденциальность`],
++  [`Disable pre-fetching, so that blocked requests make no connection at all`,
++   `Desactivar la precarga, para que las solicitudes bloqueadas no abran ninguna conexión`,
++   `Désactiver le préchargement, pour que les requêtes bloquées n'ouvrent aucune connexion`,
++   `Vorabladen ausschalten, damit blockierte Anfragen gar keine Verbindung aufbauen`,
++   `Desativar o pré-carregamento, para que solicitações bloqueadas não abram nenhuma conexão`,
++   `Отключить предзагрузку, чтобы заблокированные запросы не открывали никаких соединений`],
++  [`Disable hyperlink auditing (the pings a link sends when it is clicked)`,
++   `Desactivar la auditoría de enlaces (los avisos que envía un enlace al hacer clic)`,
++   `Désactiver l'audit des liens (les pings qu'un lien envoie quand on clique dessus)`,
++   `Hyperlink-Auditing ausschalten (die Pings, die ein Link beim Klicken sendet)`,
++   `Desativar a auditoria de links (os avisos que um link envia ao ser clicado)`,
++   `Отключить аудит ссылок (сигналы, которые ссылка отправляет при щелчке)`],
++  [`Prevent WebRTC from leaking local IP addresses`, `Evitar que WebRTC filtre direcciones IP locales`,
++   `Empêcher WebRTC de divulguer les adresses IP locales`, `Verhindern, dass WebRTC lokale IP-Adressen preisgibt`,
++   `Impedir que o WebRTC vaze endereços IP locais`, `Не давать WebRTC раскрывать локальные IP-адреса`],
++  [`Block CSP reports (what a page's security policy reports to its servers)`,
++   `Bloquear los informes CSP (lo que la política de seguridad de una página informa a sus servidores)`,
++   `Bloquer les rapports CSP (ce que la politique de sécurité d'une page signale à ses serveurs)`,
++   `CSP-Berichte blockieren (was die Sicherheitsrichtlinie einer Seite an ihre Server meldet)`,
++   `Bloquear relatórios CSP (o que a política de segurança de uma página informa aos seus servidores)`,
++   `Блокировать отчёты CSP (то, что политика безопасности страницы сообщает её серверам)`],
++  [`Default behavior`, `Comportamiento predeterminado`, `Comportement par défaut`, `Standardverhalten`,
++   `Comportamento padrão`, `Поведение по умолчанию`],
++  [`For every site. The switches in the menu of the shield change it for one site.`,
++   `Para todos los sitios. Los interruptores del menú del escudo lo cambian para un sitio.`,
++   `Pour tous les sites. Les interrupteurs du menu du bouclier le changent pour un site.`,
++   `Für alle Websites. Die Schalter im Menü des Schilds ändern es für eine Website.`,
++   `Para todos os sites. Os interruptores do menu do escudo mudam isso para um site.`,
++   `Для всех сайтов. Переключатели в меню щита меняют это для одного сайта.`],
++  [`Disable cosmetic filtering: nothing is hidden`, `Desactivar el filtrado cosmético: no se oculta nada`,
++   `Désactiver le filtrage cosmétique : rien n'est masqué`, `Kosmetisches Filtern ausschalten: nichts wird ausgeblendet`,
++   `Desativar a filtragem cosmética: nada é ocultado`, `Отключить косметическую фильтрацию: ничего не скрывается`],
++  [`Block media elements larger than`, `Bloquear elementos multimedia de más de`,
++   `Bloquer les éléments multimédias de plus de`, `Medienelemente blockieren, die größer sind als`,
++   `Bloquear elementos de mídia maiores que`, `Блокировать медиаэлементы больше чем`],
++  [`Block remote fonts`, `Bloquear fuentes remotas`, `Bloquer les polices distantes`, `Externe Schriftarten blockieren`,
++   `Bloquear fontes remotas`, `Блокировать удалённые шрифты`],
++  [`Disable JavaScript`, `Desactivar JavaScript`, `Désactiver JavaScript`, `JavaScript ausschalten`,
++   `Desativar JavaScript`, `Отключить JavaScript`],
++  [`Block third-party scripts (uBlock Origin's "medium mode", with the next one)`,
++   `Bloquear scripts de terceros (el "modo medio" de uBlock Origin, junto con el siguiente)`,
++   `Bloquer les scripts tiers (le « mode moyen » d'uBlock Origin, avec le suivant)`,
++   `Skripte von Drittanbietern blockieren (der "mittlere Modus" von uBlock Origin, mit dem nächsten)`,
++   `Bloquear scripts de terceiros (o "modo médio" do uBlock Origin, junto com o seguinte)`,
++   `Блокировать сторонние скрипты («средний режим» uBlock Origin, вместе со следующим)`],
++  [`Block third-party frames`, `Bloquear marcos de terceros`, `Bloquer les cadres tiers`,
++   `Frames von Drittanbietern blockieren`, `Bloquear frames de terceiros`, `Блокировать сторонние фреймы`],
++  [`Filtering`, `Filtrado`, `Filtrage`, `Filterung`, `Filtragem`, `Фильтрация`],
++  [`Ignore generic cosmetic filters (hide rules written for every site)`,
++   `Ignorar los filtros cosméticos genéricos (reglas de ocultación escritas para todos los sitios)`,
++   `Ignorer les filtres cosmétiques génériques (règles de masquage écrites pour tous les sites)`,
++   `Allgemeine kosmetische Filter ignorieren (Ausblenderegeln für alle Websites)`,
++   `Ignorar filtros cosméticos genéricos (regras de ocultação escritas para todos os sites)`,
++   `Игнорировать общие косметические фильтры (правила скрытия для всех сайтов)`],
++  [`Shortcuts`, `Atajos`, `Raccourcis`, `Tastenkürzel`, `Atalhos`, `Сочетания клавиш`],
++  [`As in uBlock Origin: click a box and press the keys (Ctrl or Alt with a letter, a digit or F1 to F12). ` +
++       `They work while a page has the focus.`,
++   `Como en uBlock Origin: haz clic en un cuadro y pulsa las teclas (Ctrl o Alt con una letra, un número o de ` +
++       `F1 a F12). Funcionan mientras una página tiene el foco.`,
++   `Comme dans uBlock Origin : cliquez dans une case et appuyez sur les touches (Ctrl ou Alt avec une lettre, ` +
++       `un chiffre ou F1 à F12). Ils fonctionnent quand une page a le focus.`,
++   `Wie in uBlock Origin: Klicke in ein Feld und drücke die Tasten (Ctrl oder Alt mit einem Buchstaben, ` +
++       `einer Ziffer oder F1 bis F12). Sie wirken, solange eine Seite den Fokus hat.`,
++   `Como no uBlock Origin: clique em uma caixa e pressione as teclas (Ctrl ou Alt com uma letra, um número ou ` +
++       `F1 a F12). Funcionam enquanto uma página tem o foco.`,
++   `Как в uBlock Origin: щёлкните поле и нажмите клавиши (Ctrl или Alt с буквой, цифрой или F1 до F12). Они ` +
++       `работают, пока страница в фокусе.`],
++  [`Advanced`, `Avanzado`, `Avancé`, `Erweitert`, `Avançado`, `Дополнительно`],
++  [`I am an advanced user: the menu of the shield shows the grid of rules for the page`,
++   `Soy un usuario avanzado: el menú del escudo muestra la cuadrícula de reglas de la página`,
++   `Je suis un utilisateur avancé : le menu du bouclier affiche la grille des règles de la page`,
++   `Ich bin ein erfahrener Benutzer: Das Menü des Schilds zeigt das Regelraster der Seite`,
++   `Sou um usuário avançado: o menu do escudo mostra a grade de regras da página`,
++   `Я опытный пользователь: меню щита показывает таблицу правил страницы`],
++  [`Backup`, `Copia de seguridad`, `Sauvegarde`, `Sicherung`, `Cópia de segurança`, `Резервная копия`],
++  [`A file with your lists, your own rules, allowed sites, switches and these settings. It stays where you ` +
++       `save it; nothing is sent anywhere.`,
++   `Un archivo con tus listas, tus reglas, los sitios permitidos, los interruptores y estos ajustes. Se queda ` +
++       `donde lo guardes; no se envía nada a ningún sitio.`,
++   `Un fichier avec vos listes, vos règles, les sites autorisés, les interrupteurs et ces paramètres. Il reste ` +
++       `là où vous l'enregistrez ; rien n'est envoyé nulle part.`,
++   `Eine Datei mit deinen Listen, eigenen Regeln, erlaubten Websites, Schaltern und diesen Einstellungen. Sie ` +
++       `bleibt, wo du sie speicherst; nichts wird irgendwohin gesendet.`,
++   `Um arquivo com suas listas, suas regras, os sites permitidos, os interruptores e estas configurações. Ele ` +
++       `fica onde você o salvar; nada é enviado para lugar nenhum.`,
++   `Файл с вашими списками, правилами, разрешёнными сайтами, переключателями и этими настройками. Он остаётся ` +
++       `там, где вы его сохраните; ничего никуда не отправляется.`],
++  [`Back up to file`, `Guardar copia en archivo`, `Sauvegarder dans un fichier`, `In Datei sichern`,
++   `Salvar cópia em arquivo`, `Сохранить в файл`],
++  [`Restore from file`, `Restaurar desde archivo`, `Restaurer depuis un fichier`, `Aus Datei wiederherstellen`,
++   `Restaurar de arquivo`, `Восстановить из файла`],
++  [`Reset to default settings`, `Restablecer la configuración predeterminada`, `Rétablir les paramètres par défaut`,
++   `Auf Standardeinstellungen zurücksetzen`, `Restaurar as configurações padrão`, `Сбросить настройки по умолчанию`],
++  [`Largest media size in kB`, `Tamaño máximo de multimedia en kB`, `Taille maximale des médias en kB`,
++   `Größte Mediengröße in kB`, `Tamanho máximo de mídia em kB`, `Наибольший размер медиа в kB`],
++  // the shortcuts
++  [`Block an element (the picker)`, `Bloquear un elemento (el selector)`, `Bloquer un élément (le sélecteur)`,
++   `Ein Element blockieren (die Auswahl)`, `Bloquear um elemento (o seletor)`, `Заблокировать элемент (выбор)`],
++  [`Remove elements (the zapper)`, `Quitar elementos (el borrador)`, `Retirer des éléments (l'effaceur)`,
++   `Elemente entfernen (der Entferner)`, `Remover elementos (o apagador)`, `Удалить элементы (стиратель)`],
++  [`Open the logger`, `Abrir el registro`, `Ouvrir le journal`, `Das Protokoll öffnen`, `Abrir o registro`,
++   `Открыть журнал`],
++  [`Open these settings`, `Abrir estos ajustes`, `Ouvrir ces paramètres`, `Diese Einstellungen öffnen`,
++   `Abrir estas configurações`, `Открыть эти настройки`],
++  [`Blocking off or on for the site`, `Desactivar o activar el bloqueo para el sitio`,
++   `Désactiver ou activer le blocage pour le site`, `Blockieren für die Website aus- oder einschalten`,
++   `Desligar ou ligar o bloqueio para o site`, `Выключить или включить блокировку для сайта`],
++  [`Hiding off or on for the site`, `Desactivar o activar la ocultación para el sitio`,
++   `Désactiver ou activer le masquage pour le site`, `Ausblenden für die Website aus- oder einschalten`,
++   `Desligar ou ligar a ocultação para o site`, `Выключить или включить скрытие для сайта`],
++  [`JavaScript off or on for the site`, `Desactivar o activar JavaScript para el sitio`,
++   `Désactiver ou activer JavaScript pour le site`, `JavaScript für die Website aus- oder einschalten`,
++   `Desligar ou ligar o JavaScript para o site`, `Выключить или включить JavaScript для сайта`],
++  [`Clear`, `Borrar`, `Effacer`, `Löschen`, `Limpar`, `Очистить`],
++  [`None`, `Ninguno`, `Aucun`, `Keiner`, `Nenhum`, `Нет`],
++  [`That cannot be a shortcut: use Ctrl or Alt with a letter, a digit or F1 to F12.`,
++   `Eso no puede ser un atajo: usa Ctrl o Alt con una letra, un número o de F1 a F12.`,
++   `Ce ne peut pas être un raccourci : utilisez Ctrl ou Alt avec une lettre, un chiffre ou F1 à F12.`,
++   `Das kann kein Tastenkürzel sein: Nutze Ctrl oder Alt mit einem Buchstaben, einer Ziffer oder F1 bis F12.`,
++   `Isso não pode ser um atalho: use Ctrl ou Alt com uma letra, um número ou F1 a F12.`,
++   `Это не может быть сочетанием: используйте Ctrl или Alt с буквой, цифрой или F1 до F12.`],
++  // Filter lists
++  [`A list that is switched off is neither used nor downloaded.`, `Una lista desactivada no se usa ni se descarga.`,
++   `Une liste désactivée n'est ni utilisée ni téléchargée.`, `Eine ausgeschaltete Liste wird weder genutzt noch geladen.`,
++   `Uma lista desligada não é usada nem baixada.`, `Выключенный список не используется и не загружается.`],
++  [`Auto-update filter lists (otherwise only "Update now" downloads them)`,
++   `Actualizar automáticamente las listas de filtros (si no, solo "Actualizar ahora" las descarga)`,
++   `Mettre à jour automatiquement les listes de filtres (sinon seul « Mettre à jour » les télécharge)`,
++   `Filterlisten automatisch aktualisieren (sonst lädt nur "Jetzt aktualisieren" sie)`,
++   `Atualizar automaticamente as listas de filtros (senão só "Atualizar agora" as baixa)`,
++   `Автоматически обновлять списки фильтров (иначе их загружает только «Обновить сейчас»)`],
++  [`Update now`, `Actualizar ahora`, `Mettre à jour`, `Jetzt aktualisieren`, `Atualizar agora`, `Обновить сейчас`],
++  [`What the last update did`, `Qué hizo la última actualización`, `Ce qu'a fait la dernière mise à jour`,
++   `Was das letzte Update getan hat`, `O que a última atualização fez`, `Что сделало последнее обновление`],
++  [`The lists that came with the browser are in use.`, `Se usan las listas que venían con el navegador.`,
++   `Les listes fournies avec le navigateur sont utilisées.`, `Die mit dem Browser gelieferten Listen sind aktiv.`,
++   `As listas que vieram com o navegador estão em uso.`, `Используются списки, поставляемые с браузером.`],
++  [`Looked for newer lists.`, `Se buscaron listas más nuevas.`, `Recherche de listes plus récentes effectuée.`,
++   `Nach neueren Listen gesucht.`, `Procurou listas mais novas.`, `Проверено наличие новых списков.`],
++  [`The list was added and is in use.`, `La lista se añadió y está en uso.`, `La liste a été ajoutée et est utilisée.`,
++   `Die Liste wurde hinzugefügt und ist aktiv.`, `A lista foi adicionada e está em uso.`, `Список добавлен и используется.`],
++  [`The list was removed.`, `La lista se quitó.`, `La liste a été retirée.`, `Die Liste wurde entfernt.`,
++   `A lista foi removida.`, `Список удалён.`],
++  [`There is no such list.`, `No existe esa lista.`, `Cette liste n'existe pas.`, `Diese Liste gibt es nicht.`,
++   `Essa lista não existe.`, `Такого списка нет.`],
++  [`The address of a list must start with https://`, `La dirección de una lista debe empezar por https://`,
++   `L'adresse d'une liste doit commencer par https://`, `Die Adresse einer Liste muss mit https:// beginnen`,
++   `O endereço de uma lista deve começar com https://`, `Адрес списка должен начинаться с https://`],
++  [`The settings could not be saved.`, `No se pudieron guardar los ajustes.`, `Les paramètres n'ont pas pu être enregistrés.`,
++   `Die Einstellungen konnten nicht gespeichert werden.`, `Não foi possível salvar as configurações.`,
++   `Не удалось сохранить настройки.`],
++  [`The filters could not be built again; the previous ones stay in use.`,
++   `No se pudieron volver a crear los filtros; siguen en uso los anteriores.`,
++   `Les filtres n'ont pas pu être reconstruits ; les précédents restent utilisés.`,
++   `Die Filter konnten nicht neu aufgebaut werden; die bisherigen bleiben aktiv.`,
++   `Não foi possível recriar os filtros; os anteriores continuam em uso.`,
++   `Не удалось пересобрать фильтры; используются прежние.`],
++  [`updated`, `actualizada`, `mise à jour`, `aktualisiert`, `atualizada`, `обновлён`],
++  [`unchanged`, `sin cambios`, `inchangée`, `unverändert`, `sem alterações`, `без изменений`],
++  [`missing`, `falta`, `manquante`, `fehlt`, `faltando`, `отсутствует`],
++  [`download failed`, `la descarga falló`, `échec du téléchargement`, `Download fehlgeschlagen`, `o download falhou`,
++   `загрузка не удалась`],
++  [`too large or unreadable`, `demasiado grande o ilegible`, `trop grande ou illisible`, `zu groß oder unlesbar`,
++   `grande demais ou ilegível`, `слишком большой или нечитаемый`],
++  // More lists
++  [`The lists uBlock Origin offers besides its defaults: cookie notices and other annoyances, more privacy, ` +
++       `and lists for regions and languages. A list you switch on is downloaded from its address and is in ` +
++       `use at once.`,
++   `Las listas que uBlock Origin ofrece además de las predeterminadas: avisos de cookies y otras molestias, más ` +
++       `privacidad y listas para regiones e idiomas. Una lista que activas se descarga de su dirección y se usa ` +
++       `al instante.`,
++   `Les listes qu'uBlock Origin propose en plus de celles par défaut : bandeaux de cookies et autres nuisances, ` +
++       `plus de confidentialité, et listes pour les régions et les langues. Une liste activée est téléchargée ` +
++       `depuis son adresse et utilisée aussitôt.`,
++   `Die Listen, die uBlock Origin neben seinen Standardlisten anbietet: Cookie-Hinweise und andere ` +
++       `Belästigungen, mehr Datenschutz und Listen für Regionen und Sprachen. Eine eingeschaltete Liste wird ` +
++       `von ihrer Adresse geladen und gilt sofort.`,
++   `As listas que o uBlock Origin oferece além das padrão: avisos de cookies e outros incômodos, mais ` +
++       `privacidade e listas para regiões e idiomas. Uma lista que você liga é baixada do seu endereço e entra ` +
++       `em uso na hora.`,
++   `Списки, которые uBlock Origin предлагает помимо стандартных: уведомления о cookie и другие раздражители, ` +
++       `больше конфиденциальности и списки для регионов и языков. Включённый список загружается со своего ` +
++       `адреса и сразу используется.`],
++  [`Ads`, `Anuncios`, `Publicités`, `Werbung`, `Anúncios`, `Реклама`],
++  [`Annoyances and cookie notices`, `Molestias y avisos de cookies`, `Nuisances et bandeaux de cookies`,
++   `Belästigungen und Cookie-Hinweise`, `Incômodos e avisos de cookies`, `Раздражители и уведомления о cookie`],
++  [`Malware and phishing`, `Malware y phishing`, `Logiciels malveillants et hameçonnage`, `Schadsoftware und Phishing`,
++   `Malware e phishing`, `Вредоносное ПО и фишинг`],
++  [`Multipurpose`, `Multiuso`, `Polyvalentes`, `Mehrzweck`, `Multiuso`, `Универсальные`],
++  [`Regions and languages`, `Regiones e idiomas`, `Régions et langues`, `Regionen und Sprachen`, `Regiões e idiomas`,
++   `Регионы и языки`],
++  [`Add a list`, `Añadir una lista`, `Ajouter une liste`, `Eine Liste hinzufügen`, `Adicionar uma lista`,
++   `Добавить список`],
++  [`Give the address of a filter list. It must be a secure address.`,
++   `Indica la dirección de una lista de filtros. Debe ser una dirección segura.`,
++   `Indiquez l'adresse d'une liste de filtres. Ce doit être une adresse sécurisée.`,
++   `Gib die Adresse einer Filterliste an. Es muss eine sichere Adresse sein.`,
++   `Informe o endereço de uma lista de filtros. Deve ser um endereço seguro.`,
++   `Укажите адрес списка фильтров. Это должен быть защищённый адрес.`],
++  [`Add`, `Añadir`, `Ajouter`, `Hinzufügen`, `Adicionar`, `Добавить`],
++  [`Address of the list`, `Dirección de la lista`, `Adresse de la liste`, `Adresse der Liste`, `Endereço da lista`,
++   `Адрес списка`],
++  [`Rules of a list you add block and hide like any other. They cannot use the powerful scripts that only ` +
++       `uBlock Origin's own lists may use.`,
++   `Las reglas de una lista que añades bloquean y ocultan como cualquier otra. No pueden usar los scripts ` +
++       `potentes que solo las listas propias de uBlock Origin pueden usar.`,
++   `Les règles d'une liste que vous ajoutez bloquent et masquent comme les autres. Elles ne peuvent pas utiliser ` +
++       `les scripts puissants réservés aux listes d'uBlock Origin.`,
++   `Regeln einer hinzugefügten Liste blockieren und blenden aus wie jede andere. Sie können die mächtigen ` +
++       `Skripte nicht nutzen, die nur die eigenen Listen von uBlock Origin verwenden dürfen.`,
++   `As regras de uma lista que você adiciona bloqueiam e ocultam como qualquer outra. Elas não podem usar os ` +
++       `scripts poderosos que só as listas do próprio uBlock Origin podem usar.`,
++   `Правила добавленного списка блокируют и скрывают, как любые другие. Они не могут использовать мощные ` +
++       `скрипты, доступные только собственным спискам uBlock Origin.`],
++  // My filters
++  [`Your own rules, one per line, written like the rules of the lists.`,
++   `Tus propias reglas, una por línea, escritas como las reglas de las listas.`,
++   `Vos propres règles, une par ligne, écrites comme les règles des listes.`,
++   `Deine eigenen Regeln, eine pro Zeile, geschrieben wie die Regeln der Listen.`,
++   `Suas próprias regras, uma por linha, escritas como as regras das listas.`,
++   `Ваши собственные правила, по одному в строке, в том же виде, что и правила списков.`],
++  [`blocks a host,`, `bloquea un servidor,`, `bloque un hôte,`, `blockiert einen Host,`, `bloqueia um host,`,
++   `блокирует хост,`],
++  [`hides something on a site, and`, `oculta algo en un sitio, y`, `masque quelque chose sur un site, et`,
++   `blendet etwas auf einer Website aus, und`, `oculta algo em um site, e`, `скрывает что-то на сайте, а`],
++  [`allows a site.`, `permite un sitio.`, `autorise un site.`, `erlaubt eine Website.`, `permite um site.`,
++   `разрешает сайт.`],
++  [`Allow custom filters requiring trust: your own filters may use what only uBlock Origin's lists may use ` +
++       `(scriptlets that set cookies, click elements or change what a page reads, and rules that send a ` +
++       `request elsewhere). Only for filters you understand.`,
++   `Permitir filtros personalizados que requieren confianza: tus filtros podrán usar lo que solo las listas de ` +
++       `uBlock Origin pueden usar (scriptlets que ponen cookies, hacen clic en elementos o cambian lo que lee una ` +
++       `página, y reglas que envían una solicitud a otro lugar). Solo para filtros que entiendas.`,
++   `Autoriser les filtres personnalisés nécessitant la confiance : vos filtres pourront utiliser ce que seules ` +
++       `les listes d'uBlock Origin peuvent utiliser (scriptlets qui posent des cookies, cliquent sur des éléments ` +
++       `ou changent ce que lit une page, et règles qui envoient une requête ailleurs). Seulement pour des filtres ` +
++       `que vous comprenez.`,
++   `Eigene Filter erlauben, die Vertrauen erfordern: Deine Filter dürfen nutzen, was sonst nur die Listen von ` +
++       `uBlock Origin dürfen (Scriptlets, die Cookies setzen, Elemente anklicken oder ändern, was eine Seite ` +
++       `liest, und Regeln, die eine Anfrage woandershin senden). Nur für Filter, die du verstehst.`,
++   `Permitir filtros personalizados que exigem confiança: seus filtros poderão usar o que só as listas do ` +
++       `uBlock Origin podem usar (scriptlets que definem cookies, clicam em elementos ou mudam o que uma página ` +
++       `lê, e regras que enviam uma solicitação para outro lugar). Só para filtros que você entende.`,
++   `Разрешить пользовательские фильтры, требующие доверия: ваши фильтры смогут использовать то, что доступно ` +
++       `только спискам uBlock Origin (скриптлеты, которые ставят cookie, нажимают на элементы или меняют то, что ` +
++       `читает страница, и правила, отправляющие запрос в другое место). Только для понятных вам фильтров.`],
++  [`Save`, `Guardar`, `Enregistrer`, `Speichern`, `Salvar`, `Сохранить`],
++  [`Undo changes`, `Deshacer cambios`, `Annuler les modifications`, `Änderungen verwerfen`, `Desfazer alterações`,
++   `Отменить изменения`],
++  [`Import and append`, `Importar y añadir`, `Importer et ajouter`, `Importieren und anhängen`, `Importar e adicionar`,
++   `Импортировать и добавить`],
++  [`Export`, `Exportar`, `Exporter`, `Exportieren`, `Exportar`, `Экспортировать`],
++  [`Your filters were saved and are in use.`, `Tus filtros se guardaron y están en uso.`,
++   `Vos filtres ont été enregistrés et sont utilisés.`, `Deine Filter wurden gespeichert und sind aktiv.`,
++   `Seus filtros foram salvos e estão em uso.`, `Ваши фильтры сохранены и используются.`],
++  [`Your filters may now use what needs trust.`, `Tus filtros ya pueden usar lo que requiere confianza.`,
++   `Vos filtres peuvent désormais utiliser ce qui nécessite la confiance.`,
++   `Deine Filter dürfen jetzt nutzen, was Vertrauen erfordert.`, `Seus filtros agora podem usar o que exige confiança.`,
++   `Теперь ваши фильтры могут использовать то, что требует доверия.`],
++  [`Your filters no longer use what needs trust.`, `Tus filtros ya no usan lo que requiere confianza.`,
++   `Vos filtres n'utilisent plus ce qui nécessite la confiance.`, `Deine Filter nutzen nicht mehr, was Vertrauen erfordert.`,
++   `Seus filtros não usam mais o que exige confiança.`, `Ваши фильтры больше не используют то, что требует доверия.`],
++  [`That file is larger than 1 MB.`, `Ese archivo tiene más de 1 MB.`, `Ce fichier dépasse 1 MB.`,
++   `Diese Datei ist größer als 1 MB.`, `Esse arquivo tem mais de 1 MB.`, `Этот файл больше 1 MB.`],
++  [`That file is empty.`, `Ese archivo está vacío.`, `Ce fichier est vide.`, `Diese Datei ist leer.`,
++   `Esse arquivo está vazio.`, `Этот файл пуст.`],
++  [`Your filters were saved as a file.`, `Tus filtros se guardaron como archivo.`,
++   `Vos filtres ont été enregistrés dans un fichier.`, `Deine Filter wurden als Datei gespeichert.`,
++   `Seus filtros foram salvos como arquivo.`, `Ваши фильтры сохранены в файл.`],
++  // My rules
++  [`uBlock Origin's dynamic filtering: one rule per line,`, `El filtrado dinámico de uBlock Origin: una regla por línea,`,
++   `Le filtrage dynamique d'uBlock Origin : une règle par ligne,`,
++   `Das dynamische Filtern von uBlock Origin: eine Regel pro Zeile,`,
++   `A filtragem dinâmica do uBlock Origin: uma regra por linha,`, `Динамическая фильтрация uBlock Origin: одно правило в строке,`],
++  [`blocks scripts from other sites everywhere,`, `bloquea los scripts de otros sitios en todas partes,`,
++   `bloque partout les scripts d'autres sites,`, `blockiert überall Skripte anderer Websites,`,
++   `bloqueia scripts de outros sites em todo lugar,`, `везде блокирует скрипты с других сайтов,`],
++  [`leaves them to the lists on example.com,`, `los deja a las listas en example.com,`,
++   `les laisse aux listes sur example.com,`, `überlässt sie auf example.com den Listen,`,
++   `deixa-os para as listas em example.com,`, `оставляет их спискам на example.com,`],
++  [`lets a host through on a site whatever the lists say. Types:`,
++   `deja pasar un servidor en un sitio digan lo que digan las listas. Tipos:`,
++   `laisse passer un hôte sur un site quoi que disent les listes. Types :`,
++   `lässt einen Host auf einer Website durch, egal was die Listen sagen. Typen:`,
++   `deixa passar um host em um site, digam o que disserem as listas. Tipos:`,
++   `пропускает хост на сайте, что бы ни говорили списки. Типы:`],
++  [`; actions:`, `; acciones:`, `; actions :`, `; Aktionen:`, `; ações:`, `; действия:`],
++  [`. The most specific rule decides.`, `. Decide la regla más específica.`, `. La règle la plus précise décide.`,
++   `. Die genaueste Regel entscheidet.`, `. Decide a regra mais específica.`, `. Решает самое точное правило.`],
++  [`Your rules are saved and in use.`, `Tus reglas se guardaron y están en uso.`,
++   `Vos règles sont enregistrées et utilisées.`, `Deine Regeln sind gespeichert und aktiv.`,
++   `Suas regras foram salvas e estão em uso.`, `Ваши правила сохранены и используются.`],
++  [`Your rules are larger than 1 MB: nothing was saved.`, `Tus reglas superan 1 MB: no se guardó nada.`,
++   `Vos règles dépassent 1 MB : rien n'a été enregistré.`, `Deine Regeln sind größer als 1 MB: Nichts wurde gespeichert.`,
++   `Suas regras passam de 1 MB: nada foi salvo.`, `Ваши правила больше 1 MB: ничего не сохранено.`],
++  [`Your rules are not plain text: nothing was saved.`, `Tus reglas no son texto plano: no se guardó nada.`,
++   `Vos règles ne sont pas du texte brut : rien n'a été enregistré.`,
++   `Deine Regeln sind kein reiner Text: Nichts wurde gespeichert.`, `Suas regras não são texto simples: nada foi salvo.`,
++   `Ваши правила не являются простым текстом: ничего не сохранено.`],
++  // Sites
++  [`Ads and trackers are allowed on these sites: nothing is blocked or hidden there.`,
++   `Se permiten anuncios y rastreadores en estos sitios: allí no se bloquea ni se oculta nada.`,
++   `Les publicités et les traqueurs sont autorisés sur ces sites : rien n'y est bloqué ni masqué.`,
++   `Werbung und Tracker sind auf diesen Websites erlaubt: Dort wird nichts blockiert oder ausgeblendet.`,
++   `Anúncios e rastreadores são permitidos nestes sites: nada é bloqueado ou ocultado neles.`,
++   `На этих сайтах реклама и трекеры разрешены: там ничего не блокируется и не скрывается.`],
++  [`Allow`, `Permitir`, `Autoriser`, `Erlauben`, `Permitir`, `Разрешить`],
++  [`Site to allow`, `Sitio que permitir`, `Site à autoriser`, `Zu erlaubende Website`, `Site a permitir`,
++   `Сайт для разрешения`],
++  [`Switches from the menu`, `Interruptores del menú`, `Interrupteurs du menu`, `Schalter aus dem Menü`,
++   `Interruptores do menu`, `Переключатели из меню`],
++  [`What the menu of the shield in the toolbar changed for a site: no pop-ups, no large media, no hiding, ` +
++       `no remote fonts or no JavaScript.`,
++   `Lo que el menú del escudo de la barra de herramientas cambió para un sitio: sin ventanas emergentes, sin ` +
++       `multimedia grande, sin ocultación, sin fuentes remotas o sin JavaScript.`,
++   `Ce que le menu du bouclier de la barre d'outils a changé pour un site : pas de fenêtres surgissantes, pas ` +
++       `de médias volumineux, pas de masquage, pas de polices distantes ou pas de JavaScript.`,
++   `Was das Menü des Schilds in der Symbolleiste für eine Website geändert hat: keine Pop-ups, keine großen ` +
++       `Medien, kein Ausblenden, keine externen Schriftarten oder kein JavaScript.`,
++   `O que o menu do escudo na barra de ferramentas mudou para um site: sem pop-ups, sem mídia grande, sem ` +
++       `ocultação, sem fontes remotas ou sem JavaScript.`,
++   `Что меню щита на панели инструментов изменило для сайта: без всплывающих окон, без больших медиа, без ` +
++       `скрытия, без удалённых шрифтов или без JavaScript.`],
++  [`None.`, `Ninguno.`, `Aucun.`, `Keine.`, `Nenhum.`, `Нет.`],
++  [`None: blocking is on everywhere.`, `Ninguno: el bloqueo está activo en todas partes.`,
++   `Aucun : le blocage est actif partout.`, `Keine: Das Blockieren ist überall aktiv.`,
++   `Nenhum: o bloqueio está ligado em todo lugar.`, `Нет: блокировка включена везде.`],
++  [`Remove`, `Quitar`, `Retirer`, `Entfernen`, `Remover`, `Удалить`],
++  [`no pop-ups`, `sin ventanas emergentes`, `pas de fenêtres surgissantes`, `keine Pop-ups`, `sem pop-ups`,
++   `без всплывающих окон`],
++  [`no large media`, `sin multimedia grande`, `pas de médias volumineux`, `keine großen Medien`, `sem mídia grande`,
++   `без больших медиа`],
++  [`no hiding`, `sin ocultación`, `pas de masquage`, `kein Ausblenden`, `sem ocultação`, `без скрытия`],
++  [`no remote fonts`, `sin fuentes remotas`, `pas de polices distantes`, `keine externen Schriftarten`,
++   `sem fontes remotas`, `без удалённых шрифтов`],
++  [`no JavaScript`, `sin JavaScript`, `pas de JavaScript`, `kein JavaScript`, `sem JavaScript`, `без JavaScript`],
++  [`strict blocking off`, `bloqueo estricto desactivado`, `blocage strict désactivé`, `striktes Blockieren aus`,
++   `bloqueio estrito desligado`, `строгая блокировка выключена`],
++  [`large media allowed`, `multimedia grande permitida`, `médias volumineux autorisés`, `große Medien erlaubt`,
++   `mídia grande permitida`, `большие медиа разрешены`],
++  [`hiding allowed`, `ocultación permitida`, `masquage autorisé`, `Ausblenden erlaubt`, `ocultação permitida`,
++   `скрытие разрешено`],
++  [`remote fonts allowed`, `fuentes remotas permitidas`, `polices distantes autorisées`, `externe Schriftarten erlaubt`,
++   `fontes remotas permitidas`, `удалённые шрифты разрешены`],
++  [`no third-party scripts`, `sin scripts de terceros`, `pas de scripts tiers`, `keine Skripte von Drittanbietern`,
++   `sem scripts de terceiros`, `без сторонних скриптов`],
++  [`no third-party frames`, `sin marcos de terceros`, `pas de cadres tiers`, `keine Frames von Drittanbietern`,
++   `sem frames de terceiros`, `без сторонних фреймов`],
++  [`third-party scripts allowed`, `scripts de terceros permitidos`, `scripts tiers autorisés`,
++   `Skripte von Drittanbietern erlaubt`, `scripts de terceiros permitidos`, `сторонние скрипты разрешены`],
++  [`third-party frames allowed`, `marcos de terceros permitidos`, `cadres tiers autorisés`,
++   `Frames von Drittanbietern erlaubt`, `frames de terceiros permitidos`, `сторонние фреймы разрешены`],
++  // Logger
++  [`The requests of the open tabs, the newest first: every blocked one, and while this page is open also ` +
++       `those let through. It is kept only in memory: nothing is stored or sent. "Block" adds a rule for a ` +
++       `host to My filters; "Allow" lets a blocked host through on that site; "Why?" names the rule that ` +
++       `blocked the request or let it through, and its list.`,
++   `Las solicitudes de las pestañas abiertas, las más nuevas primero: todas las bloqueadas y, mientras esta ` +
++       `página está abierta, también las que pasaron. Solo se guarda en memoria: no se almacena ni se envía ` +
++       `nada. "Bloquear" añade una regla para un servidor a Mis filtros; "Permitir" deja pasar un servidor ` +
++       `bloqueado en ese sitio; "¿Por qué?" indica la regla que bloqueó o dejó pasar la solicitud, y su lista.`,
++   `Les requêtes des onglets ouverts, les plus récentes d'abord : chaque requête bloquée et, tant que cette ` +
++       `page est ouverte, aussi celles laissées passer. Tout reste en mémoire : rien n'est stocké ni envoyé. ` +
++       `« Bloquer » ajoute une règle pour un hôte à Mes filtres ; « Autoriser » laisse passer un hôte bloqué sur ` +
++       `ce site ; « Pourquoi ? » indique la règle qui a bloqué ou laissé passer la requête, et sa liste.`,
++   `Die Anfragen der offenen Tabs, die neuesten zuerst: jede blockierte und, solange diese Seite offen ist, ` +
++       `auch die durchgelassenen. Alles bleibt nur im Speicher: Nichts wird gespeichert oder gesendet. ` +
++       `"Blockieren" fügt Meine Filter eine Regel für einen Host hinzu; "Erlauben" lässt einen blockierten Host ` +
++       `auf dieser Website durch; "Warum?" nennt die Regel, die die Anfrage blockiert oder durchgelassen hat, ` +
++       `und ihre Liste.`,
++   `As solicitações das abas abertas, as mais novas primeiro: todas as bloqueadas e, enquanto esta página ` +
++       `está aberta, também as que passaram. Fica só na memória: nada é armazenado ou enviado. "Bloquear" ` +
++       `adiciona uma regra para um host em Meus filtros; "Permitir" deixa passar um host bloqueado nesse site; ` +
++       `"Por quê?" mostra a regra que bloqueou ou deixou passar a solicitação, e sua lista.`,
++   `Запросы открытых вкладок, новые сверху: все заблокированные, а пока эта страница открыта, ещё и ` +
++       `пропущенные. Всё хранится только в памяти: ничего не сохраняется и не отправляется. «Блокировать» ` +
++       `добавляет правило для хоста в Мои фильтры; «Разрешить» пропускает заблокированный хост на этом сайте; ` +
++       `«Почему?» показывает правило, которое заблокировало или пропустило запрос, и его список.`],
++  [`Tab`, `Pestaña`, `Onglet`, `Registerkarte`, `Aba`, `Вкладка`],
++  [`Show`, `Mostrar`, `Afficher`, `Anzeigen`, `Mostrar`, `Показать`],
++  [`All`, `Todas`, `Toutes`, `Alle`, `Todas`, `Все`],
++  [`Blocked`, `Bloqueadas`, `Bloquées`, `Blockiert`, `Bloqueadas`, `Заблокированные`],
++  [`Let through`, `Permitidas`, `Laissées passer`, `Durchgelassen`, `Liberadas`, `Пропущенные`],
++  [`Show only addresses with`, `Mostrar solo direcciones con`, `N'afficher que les adresses contenant`,
++   `Nur Adressen anzeigen mit`, `Mostrar só endereços com`, `Показывать только адреса с`],
++  [`Filter`, `Filtrar`, `Filtrer`, `Filtern`, `Filtrar`, `Фильтр`],
++  [`No tab has requests to show yet`, `Ninguna pestaña tiene solicitudes que mostrar aún`,
++   `Aucun onglet n'a encore de requêtes à afficher`, `Noch kein Tab hat Anfragen zum Anzeigen`,
++   `Nenhuma aba tem solicitações para mostrar ainda`, `Пока ни у одной вкладки нет запросов для показа`],
++  [`blocked`, `bloqueada`, `bloquée`, `blockiert`, `bloqueada`, `заблокирован`],
++  [`let through`, `permitida`, `laissée passer`, `durchgelassen`, `liberada`, `пропущен`],
++  [`Block`, `Bloquear`, `Bloquer`, `Blockieren`, `Bloquear`, `Блокировать`],
++  [`Why?`, `¿Por qué?`, `Pourquoi ?`, `Warum?`, `Por quê?`, `Почему?`],
++  [`Which rule blocked this request or let it through`, `Qué regla bloqueó esta solicitud o la dejó pasar`,
++   `Quelle règle a bloqué cette requête ou l'a laissée passer`,
++   `Welche Regel diese Anfrage blockiert oder durchgelassen hat`,
++   `Qual regra bloqueou esta solicitação ou a deixou passar`, `Какое правило заблокировало или пропустило этот запрос`],
++  [`Looking it up... (the first time takes a few seconds)`, `Buscando... (la primera vez tarda unos segundos)`,
++   `Recherche... (la première fois prend quelques secondes)`, `Wird gesucht... (beim ersten Mal dauert es ein paar Sekunden)`,
++   `Procurando... (na primeira vez leva alguns segundos)`, `Поиск... (в первый раз занимает несколько секунд)`],
++  [`No answer.`, `Sin respuesta.`, `Pas de réponse.`, `Keine Antwort.`, `Sem resposta.`, `Нет ответа.`],
++  [`No rule matched`, `Ninguna regla coincidió`, `Aucune règle ne correspond`, `Keine Regel passte`,
++   `Nenhuma regra correspondeu`, `Ни одно правило не подошло`],
++  [`Blocked by a rule that is not in the lists in use now (it changed since, or strict blocking or a ` +
++       `pop-up rule)`,
++   `Bloqueada por una regla que no está en las listas en uso ahora (cambió desde entonces, o bloqueo estricto o ` +
++       `una regla de ventanas emergentes)`,
++   `Bloquée par une règle absente des listes utilisées maintenant (elle a changé depuis, ou blocage strict ou ` +
++       `règle de fenêtres surgissantes)`,
++   `Blockiert von einer Regel, die nicht in den jetzt aktiven Listen steht (sie hat sich seither geändert, oder ` +
++       `striktes Blockieren oder eine Pop-up-Regel)`,
++   `Bloqueada por uma regra que não está nas listas em uso agora (mudou desde então, ou bloqueio estrito ou ` +
++       `uma regra de pop-ups)`,
++   `Заблокировано правилом, которого нет в используемых сейчас списках (оно изменилось с тех пор, или строгая ` +
++       `блокировка, или правило всплывающих окон)`],
++  // messages
++  [`Working...`, `Trabajando...`, `En cours...`, `Wird ausgeführt...`, `Trabalhando...`, `Выполняется...`],
++  [`Resetting...`, `Restableciendo...`, `Réinitialisation...`, `Wird zurückgesetzt...`, `Restaurando o padrão...`,
++   `Сброс...`],
++  [`Restoring...`, `Restaurando...`, `Restauration...`, `Wird wiederhergestellt...`, `Restaurando...`,
++   `Восстановление...`],
++  [`The setting is in use.`, `El ajuste está en uso.`, `Le paramètre est appliqué.`, `Die Einstellung ist aktiv.`,
++   `A configuração está em uso.`, `Настройка применена.`],
++  [`This is not a setting.`, `Esto no es un ajuste.`, `Ce n'est pas un paramètre.`, `Das ist keine Einstellung.`,
++   `Isso não é uma configuração.`, `Это не настройка.`],
++  [`Give a whole number of kB, from 1 to 1048576.`, `Indica un número entero de kB, de 1 a 1048576.`,
++   `Indiquez un nombre entier de kB, de 1 à 1048576.`, `Gib eine ganze Zahl in kB an, von 1 bis 1048576.`,
++   `Informe um número inteiro de kB, de 1 a 1048576.`, `Укажите целое число kB от 1 до 1048576.`],
++  [`The browser did not answer. Reload the page and try again.`,
++   `El navegador no respondió. Vuelve a cargar la página e inténtalo de nuevo.`,
++   `Le navigateur n'a pas répondu. Rechargez la page et réessayez.`,
++   `Der Browser hat nicht geantwortet. Lade die Seite neu und versuche es noch einmal.`,
++   `O navegador não respondeu. Recarregue a página e tente de novo.`,
++   `Браузер не ответил. Перезагрузите страницу и попробуйте ещё раз.`],
++  [`This file is not a backup of Thoron's ad blocking.`,
++   `Este archivo no es una copia de seguridad del bloqueo de anuncios de Thoron.`,
++   `Ce fichier n'est pas une sauvegarde du blocage des publicités de Thoron.`,
++   `Diese Datei ist keine Sicherung des Werbeblockers von Thoron.`,
++   `Este arquivo não é uma cópia de segurança do bloqueio de anúncios do Thoron.`,
++   `Этот файл не является резервной копией блокировки рекламы Thoron.`],
++  [`The backup was saved as a file.`, `La copia de seguridad se guardó como archivo.`,
++   `La sauvegarde a été enregistrée dans un fichier.`, `Die Sicherung wurde als Datei gespeichert.`,
++   `A cópia de segurança foi salva como arquivo.`, `Резервная копия сохранена в файл.`],
++  [`This file is too large to be a backup.`, `Este archivo es demasiado grande para ser una copia de seguridad.`,
++   `Ce fichier est trop volumineux pour être une sauvegarde.`, `Diese Datei ist zu groß für eine Sicherung.`,
++   `Este arquivo é grande demais para ser uma cópia de segurança.`, `Этот файл слишком велик для резервной копии.`],
++  [`The backup was restored.`, `La copia de seguridad se restauró.`, `La sauvegarde a été restaurée.`,
++   `Die Sicherung wurde wiederhergestellt.`, `A cópia de segurança foi restaurada.`, `Резервная копия восстановлена.`],
++  [`Ad blocking is back to its defaults.`, `El bloqueo de anuncios volvió a sus valores predeterminados.`,
++   `Le blocage des publicités est revenu à ses valeurs par défaut.`, `Der Werbeblocker ist auf die Standardwerte zurückgesetzt.`,
++   `O bloqueio de anúncios voltou ao padrão.`, `Блокировка рекламы возвращена к значениям по умолчанию.`],
++  [`Reset ad blocking to its defaults? Your own rules, the lists you added, allowed sites and switches are ` +
++       `removed, and every setting goes back to its default. Back up first if you may want them again.`,
++   `¿Restablecer el bloqueo de anuncios? Se quitarán tus reglas, las listas que añadiste, los sitios permitidos ` +
++       `y los interruptores, y cada ajuste volverá a su valor predeterminado. Haz antes una copia de seguridad ` +
++       `si quizá los quieras de nuevo.`,
++   `Réinitialiser le blocage des publicités ? Vos règles, les listes ajoutées, les sites autorisés et les ` +
++       `interrupteurs seront retirés, et chaque paramètre reviendra à sa valeur par défaut. Faites d'abord une ` +
++       `sauvegarde si vous pourriez en avoir besoin.`,
++   `Den Werbeblocker zurücksetzen? Deine Regeln, hinzugefügten Listen, erlaubten Websites und Schalter werden ` +
++       `entfernt, und jede Einstellung kehrt zum Standard zurück. Sichere zuerst, falls du sie wieder brauchst.`,
++   `Restaurar o bloqueio de anúncios ao padrão? Suas regras, as listas que você adicionou, os sites permitidos ` +
++       `e os interruptores serão removidos, e cada configuração voltará ao padrão. Faça uma cópia de segurança ` +
++       `antes se talvez quiser tudo de volta.`,
++   `Сбросить блокировку рекламы? Ваши правила, добавленные списки, разрешённые сайты и переключатели будут ` +
++       `удалены, а все настройки вернутся к значениям по умолчанию. Сначала сделайте резервную копию, если они ` +
++       `могут понадобиться.`],
++  // the menu of the shield
++  [`Thoron`, `Thoron`, `Thoron`, `Thoron`, `Thoron`, `Thoron`],
++  [`Tools`, `Herramientas`, `Outils`, `Werkzeuge`, `Ferramentas`, `Инструменты`],
++  [`Strict blocking stopped this page: your filter lists name it as a whole.`,
++   `El bloqueo estricto detuvo esta página: tus listas de filtros la bloquean entera.`,
++   `Le blocage strict a arrêté cette page : vos listes de filtres la bloquent en entier.`,
++   `Striktes Blockieren hat diese Seite gestoppt: Deine Filterlisten blockieren sie ganz.`,
++   `O bloqueio estrito parou esta página: suas listas de filtros a bloqueiam inteira.`,
++   `Строгая блокировка остановила эту страницу: ваши списки фильтров блокируют её целиком.`],
++  [`Open it now`, `Abrirla ahora`, `L'ouvrir maintenant`, `Jetzt öffnen`, `Abrir agora`, `Открыть сейчас`],
++  [`Always on this site`, `Siempre en este sitio`, `Toujours sur ce site`, `Immer auf dieser Website`,
++   `Sempre neste site`, `Всегда на этом сайте`],
++  [`Open this site until you close the browser`, `Abrir este sitio hasta que cierres el navegador`,
++   `Ouvrir ce site jusqu'à la fermeture du navigateur`, `Diese Website öffnen, bis du den Browser schließt`,
++   `Abrir este site até você fechar o navegador`, `Открывать этот сайт до закрытия браузера`],
++  [`Never stop pages of this site again (strict blocking off for it)`,
++   `No volver a detener páginas de este sitio (bloqueo estricto desactivado para él)`,
++   `Ne plus jamais arrêter les pages de ce site (blocage strict désactivé pour lui)`,
++   `Seiten dieser Website nie mehr stoppen (striktes Blockieren für sie aus)`,
++   `Nunca mais parar páginas deste site (bloqueio estrito desligado para ele)`,
++   `Больше не останавливать страницы этого сайта (строгая блокировка для него выключена)`],
++  [`Nothing is blocked on this kind of page.`, `En este tipo de página no se bloquea nada.`,
++   `Rien n'est bloqué sur ce type de page.`, `Auf dieser Art von Seite wird nichts blockiert.`,
++   `Nada é bloqueado neste tipo de página.`, `На таких страницах ничего не блокируется.`],
++  [`Blocking is on for this site.`, `El bloqueo está activo en este sitio.`, `Le blocage est actif sur ce site.`,
++   `Das Blockieren ist für diese Website an.`, `O bloqueio está ligado para este site.`,
++   `Блокировка включена для этого сайта.`],
++  [`Ads and trackers are allowed on this site.`, `Se permiten anuncios y rastreadores en este sitio.`,
++   `Les publicités et les traqueurs sont autorisés sur ce site.`, `Werbung und Tracker sind auf dieser Website erlaubt.`,
++   `Anúncios e rastreadores são permitidos neste site.`, `На этом сайте реклама и трекеры разрешены.`],
++  [`Turn ad blocking off for this site`, `Desactivar el bloqueo de anuncios en este sitio`,
++   `Désactiver le blocage des publicités sur ce site`, `Werbeblocker für diese Website ausschalten`,
++   `Desligar o bloqueio de anúncios neste site`, `Выключить блокировку рекламы для этого сайта`],
++  [`Turn ad blocking on for this site`, `Activar el bloqueo de anuncios en este sitio`,
++   `Activer le blocage des publicités sur ce site`, `Werbeblocker für diese Website einschalten`,
++   `Ligar o bloqueio de anúncios neste site`, `Включить блокировку рекламы для этого сайта`],
++  [`blocked on this page`, `bloqueados en esta página`, `bloqués sur cette page`, `auf dieser Seite blockiert`,
++   `bloqueados nesta página`, `заблокировано на этой странице`],
++  [`domains connected`, `dominios conectados`, `domaines connectés`, `Domains verbunden`, `domínios conectados`,
++   `доменов подключено`],
++  [`blocked since you started counting`, `bloqueados desde que empezaste a contar`, `bloqués depuis le début du décompte`,
++   `blockiert seit Beginn der Zählung`, `bloqueados desde o início da contagem`, `заблокировано с начала подсчёта`],
++  [`Block element`, `Bloquear elemento`, `Bloquer un élément`, `Element blockieren`, `Bloquear elemento`,
++   `Блокировать элемент`],
++  [`Zapper`, `Borrador`, `Effaceur`, `Entferner`, `Apagador`, `Стиратель`],
++  [`For this site`, `Para este sitio`, `Pour ce site`, `Für diese Website`, `Para este site`, `Для этого сайта`],
++  [`Pop-ups`, `Ventanas emer\u00ADgentes`, `Fenêtres sur\u00ADgissantes`, `Popup-Fenster`, `Janelas pop-up`, `Всплы\u00ADвающие окна`],
++  [`Large media`, `Multi\u00ADmedia grande`, `Médias volu\u00ADmineux`, `Große Medien`, `Mídia grande`, `Большие медиа`],
++  [`No hiding`, `Sin ocul\u00ADtación`, `Sans mas\u00ADquage`, `Kein Aus\u00ADblenden`, `Sem ocul\u00ADtação`, `Без скрытия`],
++  [`Remote fonts`, `Fuentes remotas`, `Polices dis\u00ADtantes`, `Externe Schrift\u00ADarten`, `Fontes remotas`, `Уда\u00ADлённые шрифты`],
++  [`JavaScript`, `JavaScript`, `JavaScript`, `JavaScript`, `JavaScript`, `JavaScript`],
++  [`3rd-party scripts`, `Scripts de terceros`, `Scripts tiers`, `Skripte von Dritten`, `Scripts de ter\u00ADceiros`,
++   `Сто\u00ADронние скрипты`],
++  [`3rd-party frames`, `Marcos de terceros`, `Cadres tiers`, `Frames von Dritten`, `Frames de ter\u00ADceiros`,
++   `Сто\u00ADронние фреймы`],
++  [`Pick an element on the page and make a rule that hides it`,
++   `Elegir un elemento de la página y crear una regla que lo oculte`,
++   `Choisir un élément de la page et créer une règle qui le masque`,
++   `Ein Element der Seite auswählen und eine Regel erstellen, die es ausblendet`,
++   `Escolher um elemento da página e criar uma regra que o oculte`,
++   `Выбрать элемент на странице и создать правило, которое его скрывает`],
++  [`Click elements on the page to remove them until it reloads`,
++   `Haz clic en elementos de la página para quitarlos hasta que se recargue`,
++   `Cliquez sur des éléments de la page pour les retirer jusqu'au rechargement`,
++   `Elemente auf der Seite anklicken, um sie bis zum Neuladen zu entfernen`,
++   `Clique em elementos da página para removê-los até ela recarregar`,
++   `Щёлкайте элементы на странице, чтобы убрать их до перезагрузки`],
++  [`See every request that was blocked on this tab`, `Ver cada solicitud bloqueada en esta pestaña`,
++   `Voir chaque requête bloquée dans cet onglet`, `Jede blockierte Anfrage in diesem Tab sehen`,
++   `Ver cada solicitação bloqueada nesta aba`, `Посмотреть все заблокированные запросы этой вкладки`],
++  [`Filter lists, your own rules and all settings`, `Listas de filtros, tus reglas y todos los ajustes`,
++   `Listes de filtres, vos règles et tous les paramètres`, `Filterlisten, eigene Regeln und alle Einstellungen`,
++   `Listas de filtros, suas regras e todas as configurações`, `Списки фильтров, ваши правила и все настройки`],
++  [`Block pop-ups on this site`, `Bloquear ventanas emergentes en este sitio`,
++   `Bloquer les fenêtres surgissantes sur ce site`, `Popup-Fenster auf dieser Website blockieren`,
++   `Bloquear janelas pop-up neste site`, `Блокировать всплывающие окна на этом сайте`],
++  [`Do not hide anything on this site (no cosmetic filtering)`,
++   `No ocultar nada en este sitio (sin filtrado cosmético)`, `Ne rien masquer sur ce site (pas de filtrage cosmétique)`,
++   `Auf dieser Website nichts ausblenden (kein kosmetisches Filtern)`,
++   `Não ocultar nada neste site (sem filtragem cosmética)`,
++   `Ничего не скрывать на этом сайте (без косметической фильтрации)`],
++  [`Block fonts from other sites on this site`, `Bloquear fuentes de otros sitios en este sitio`,
++   `Bloquer les polices d'autres sites sur ce site`, `Schriftarten anderer Websites auf dieser Website blockieren`,
++   `Bloquear fontes de outros sites neste site`, `Блокировать шрифты других сайтов на этом сайте`],
++  [`Block JavaScript on this site`, `Bloquear JavaScript en este sitio`, `Bloquer JavaScript sur ce site`,
++   `JavaScript auf dieser Website blockieren`, `Bloquear JavaScript neste site`, `Блокировать JavaScript на этом сайте`],
++  [`Block scripts from other sites on this site`, `Bloquear scripts de otros sitios en este sitio`,
++   `Bloquer les scripts d'autres sites sur ce site`, `Skripte anderer Websites auf dieser Website blockieren`,
++   `Bloquear scripts de outros sites neste site`, `Блокировать скрипты других сайтов на этом сайте`],
++  [`Block frames from other sites on this site`, `Bloquear marcos de otros sitios en este sitio`,
++   `Bloquer les cadres d'autres sites sur ce site`, `Frames anderer Websites auf dieser Website blockieren`,
++   `Bloquear frames de outros sites neste site`, `Блокировать фреймы других сайтов на этом сайте`],
++  [`Rules for this page`, `Reglas para esta página`, `Règles pour cette page`, `Regeln für diese Seite`,
++   `Regras para esta página`, `Правила для этой страницы`],
++  [`(not saved)`, `(sin guardar)`, `(non enregistré)`, `(nicht gespeichert)`, `(não salvo)`, `(не сохранено)`],
++  [`Requests`, `Solicitudes`, `Requêtes`, `Anfragen`, `Solicitações`, `Запросы`],
++  [`Everywhere`, `En todas partes`, `Partout`, `Überall`, `Em todo lugar`, `Везде`],
++  [`This site`, `Este sitio`, `Ce site`, `Diese Website`, `Este site`, `Этот сайт`],
++  [`Reload`, `Recargar`, `Recharger`, `Neu laden`, `Recarregar`, `Перезагрузить`],
++  [`Revert`, `Revertir`, `Annuler`, `Zurücknehmen`, `Reverter`, `Вернуть`],
++  [`Reload the page with these rules`, `Recargar la página con estas reglas`, `Recharger la page avec ces règles`,
++   `Die Seite mit diesen Regeln neu laden`, `Recarregar a página com estas regras`,
++   `Перезагрузить страницу с этими правилами`],
++  [`Take back what was changed here and not saved`, `Deshacer lo que se cambió aquí y no se guardó`,
++   `Annuler ce qui a été changé ici et non enregistré`, `Zurücknehmen, was hier geändert und nicht gespeichert wurde`,
++   `Desfazer o que foi mudado aqui e não salvo`, `Отменить то, что изменено здесь и не сохранено`],
++  [`Keep what was changed here in My rules`, `Guardar lo que se cambió aquí en Mis reglas`,
++   `Garder ce qui a été changé ici dans Mes règles`, `Hier Geändertes in Meine Regeln übernehmen`,
++   `Manter o que foi mudado aqui em Minhas regras`, `Сохранить изменения в Мои правила`],
++  [`Blocked on this page`, `Bloqueados en esta página`, `Bloqués sur cette page`, `Auf dieser Seite blockiert`,
++   `Bloqueados nesta página`, `Заблокировано на этой странице`],
++  [`Nothing blocked yet`, `Nada bloqueado aún`, `Rien de bloqué pour l'instant`, `Noch nichts blockiert`,
++   `Nada bloqueado ainda`, `Пока ничего не заблокировано`],
++  [`All requests`, `Todas las solicitudes`, `Toutes les requêtes`, `Alle Anfragen`, `Todas as solicitações`, `Все запросы`],
++  [`Images`, `Imágenes`, `Images`, `Bilder`, `Imagens`, `Изображения`],
++  [`3rd-party`, `De terceros`, `Tiers`, `Von Dritten`, `De terceiros`, `Сторонние`],
++  [`Inline scripts`, `Scripts en línea`, `Scripts intégrés`, `Eingebettete Skripte`, `Scripts embutidos`,
++   `Встроенные скрипты`],
++  [`1st-party scripts`, `Scripts del propio sitio`, `Scripts du site lui-même`, `Skripte der Website selbst`,
++   `Scripts do próprio site`, `Собственные скрипты сайта`],
++  [`Leave to the lists`, `Dejar a las listas`, `Laisser aux listes`, `Den Listen überlassen`, `Deixar para as listas`,
++   `Оставить спискам`],
++  [`on this site`, `en este sitio`, `sur ce site`, `auf dieser Website`, `neste site`, `на этом сайте`],
++  [`on every site`, `en todos los sitios`, `sur tous les sites`, `auf allen Websites`, `em todos os sites`,
++   `на всех сайтах`],
++  [`from a broader rule`, `de una regla más amplia`, `d'une règle plus large`, `aus einer allgemeineren Regel`,
++   `de uma regra mais ampla`, `из более общего правила`],
++  [`click again to remove the rule`, `haz clic de nuevo para quitar la regla`, `cliquez à nouveau pour retirer la règle`,
++   `erneut klicken, um die Regel zu entfernen`, `clique de novo para remover a regra`,
++   `щёлкните ещё раз, чтобы удалить правило`],
++];
++
++// Sentences with a part that changes. Each language writes the sentence with $1, $2... for the parts;
++// the parts listed in `t` are themselves translated (a list name, a label), the others stay as they are.
++const PATTERNS = [
++  [/^Block audio and video files larger than ([\d,.\s]+) KB on this site$/, {},
++   [`Bloquear archivos de audio y vídeo de más de $1 KB en este sitio`,
++    `Bloquer les fichiers audio et vidéo de plus de $1 KB sur ce site`,
++    `Audio- und Videodateien über $1 KB auf dieser Website blockieren`,
++    `Bloquear arquivos de áudio e vídeo maiores que $1 KB neste site`,
++    `Блокировать аудио и видео больше $1 KB на этом сайте`]],
++  [/^(.+) was added and is in use\.$/, {}, [`$1 se añadió y está en uso.`, `$1 a été ajoutée et est utilisée.`,
++    `$1 wurde hinzugefügt und ist aktiv.`, `$1 foi adicionada e está em uso.`, `$1 добавлен и используется.`]],
++  [/^(.+) is in use\.$/, {}, [`$1 está en uso.`, `$1 est utilisée.`, `$1 ist aktiv.`, `$1 está em uso.`,
++    `$1 используется.`]],
++  [/^(.+) is switched off\.$/, {}, [`$1 está desactivada.`, `$1 est désactivée.`, `$1 ist ausgeschaltet.`,
++    `$1 está desligada.`, `$1 выключен.`]],
++  [/^(.+) was removed\.$/, {}, [`$1 se quitó.`, `$1 a été retirée.`, `$1 wurde entfernt.`, `$1 foi removida.`,
++    `$1 удалён.`]],
++  [/^These lines are not rules and are not used: (.*)$/, {},
++   [`Estas líneas no son reglas y no se usan: $1`, `Ces lignes ne sont pas des règles et ne sont pas utilisées : $1`,
++    `Diese Zeilen sind keine Regeln und werden nicht genutzt: $1`, `Estas linhas não são regras e não são usadas: $1`,
++    `Эти строки не являются правилами и не используются: $1`]],
++  [/^(.+?) Some parts could not be: (.*)$/, {t: [1]},
++   [`$1 Algunas partes no se pudieron: $2`, `$1 Certaines parties n'ont pas pu l'être : $2`,
++    `$1 Einige Teile gingen nicht: $2`, `$1 Algumas partes não puderam: $2`, `$1 Некоторые части не удалось: $2`]],
++  [/^No shortcut for: (.+)\.$/, {t: [1]}, [`Sin atajo para: $1.`, `Aucun raccourci pour : $1.`,
++    `Kein Tastenkürzel für: $1.`, `Sem atalho para: $1.`, `Нет сочетания для: $1.`]],
++  [/^Shortcut: (.+)$/, {t: [1]}, [`Atajo: $1`, `Raccourci : $1`, `Tastenkürzel: $1`, `Atalho: $1`, `Сочетание: $1`]],
++  [/^((?:Ctrl\+|Alt\+|Shift\+)+\w+): (.+)\.$/, {t: [2]}, [`$1: $2.`, `$1 : $2.`, `$1: $2.`, `$1: $2.`, `$1: $2.`]],
++  [/^([\d,.\s]+) ads and trackers blocked so far\.$/, {},
++   [`$1 anuncios y rastreadores bloqueados hasta ahora.`, `$1 publicités et traqueurs bloqués jusqu'ici.`,
++    `$1 Werbungen und Tracker bisher blockiert.`, `$1 anúncios e rastreadores bloqueados até agora.`,
++    `Заблокировано рекламы и трекеров: $1.`]],
++  [/^(.+) is no longer allowed\.$/, {}, [`$1 ya no está permitido.`, `$1 n'est plus autorisé.`,
++    `$1 ist nicht mehr erlaubt.`, `$1 não é mais permitido.`, `$1 больше не разрешён.`]],
++  [/^The switches for (.+) are off\.$/, {}, [`Los interruptores de $1 están desactivados.`,
++    `Les interrupteurs de $1 sont désactivés.`, `Die Schalter für $1 sind aus.`, `Os interruptores de $1 estão desligados.`,
++    `Переключатели для $1 выключены.`]],
++  [/^Ads and trackers are allowed on (.+)\.$/, {}, [`Se permiten anuncios y rastreadores en $1.`,
++    `Les publicités et les traqueurs sont autorisés sur $1.`, `Werbung und Tracker sind auf $1 erlaubt.`,
++    `Anúncios e rastreadores são permitidos em $1.`, `Реклама и трекеры разрешены на $1.`]],
++  [/^Blocked by My rules: (.+)$/, {}, [`Bloqueada por Mis reglas: $1`, `Bloquée par Mes règles : $1`,
++    `Blockiert von Meine Regeln: $1`, `Bloqueada por Minhas regras: $1`, `Заблокировано Моими правилами: $1`]],
++  [/^Blocked by the switch "(.+)" in the menu for this site$/, {t: [1]},
++   [`Bloqueada por el interruptor "$1" del menú para este sitio`, `Bloquée par l'interrupteur « $1 » du menu pour ce site`,
++    `Blockiert vom Schalter "$1" im Menü für diese Website`, `Bloqueada pelo interruptor "$1" do menu para este site`,
++    `Заблокировано переключателем «$1» в меню для этого сайта`]],
++  [/^Blocked by (.+) \(([^()]+)\), which wins over (.+) \(([^()]+)\)$/, {t: [2, 4]},
++   [`Bloqueada por $1 ($2), que gana a $3 ($4)`, `Bloquée par $1 ($2), qui l'emporte sur $3 ($4)`,
++    `Blockiert von $1 ($2), das $3 ($4) schlägt`, `Bloqueada por $1 ($2), que vence $3 ($4)`,
++    `Заблокировано $1 ($2), что важнее $3 ($4)`]],
++  [/^Blocked by (.+) \(([^()]+)\)$/, {t: [2]}, [`Bloqueada por $1 ($2)`, `Bloquée par $1 ($2)`, `Blockiert von $1 ($2)`,
++    `Bloqueada por $1 ($2)`, `Заблокировано $1 ($2)`]],
++  [/^Let through by My rules: (.+)$/, {}, [`Permitida por Mis reglas: $1`, `Laissée passer par Mes règles : $1`,
++    `Durchgelassen von Meine Regeln: $1`, `Liberada por Minhas regras: $1`, `Пропущено Моими правилами: $1`]],
++  [/^Let through by (.+) \(([^()]+)\), which wins over (.+) \(([^()]+)\)$/, {t: [2, 4]},
++   [`Permitida por $1 ($2), que gana a $3 ($4)`, `Laissée passer par $1 ($2), qui l'emporte sur $3 ($4)`,
++    `Durchgelassen von $1 ($2), das $3 ($4) schlägt`, `Liberada por $1 ($2), que vence $3 ($4)`,
++    `Пропущено $1 ($2), что важнее $3 ($4)`]],
++  [/^Let through by (.+) \(([^()]+)\)$/, {t: [2]}, [`Permitida por $1 ($2)`, `Laissée passer par $1 ($2)`,
++    `Durchgelassen von $1 ($2)`, `Liberada por $1 ($2)`, `Пропущено $1 ($2)`]],
++  [/^No rule of the lists matched \(My rules leave it to them: (.+)\)$/, {},
++   [`Ninguna regla de las listas coincidió (Mis reglas se lo dejan a ellas: $1)`,
++    `Aucune règle des listes ne correspond (Mes règles les laissent décider : $1)`,
++    `Keine Regel der Listen passte (Meine Regeln überlassen es ihnen: $1)`,
++    `Nenhuma regra das listas correspondeu (Minhas regras deixam para elas: $1)`,
++    `Ни одно правило списков не подошло (Мои правила оставляют это им: $1)`]],
++  [/^(.+) was added to My filters\.$/, {}, [`$1 se añadió a Mis filtros.`, `$1 a été ajoutée à Mes filtres.`,
++    `$1 wurde Meine Filter hinzugefügt.`, `$1 foi adicionada a Meus filtros.`, `$1 добавлено в Мои фильтры.`]],
++  [/^Last looked for updates: (.+)$/, {}, [`Última búsqueda de actualizaciones: $1`,
++    `Dernière recherche de mises à jour : $1`, `Zuletzt nach Updates gesucht: $1`,
++    `Última verificação de atualizações: $1`, `Последняя проверка обновлений: $1`]],
++  [/^([\d,.\s]+) lines were added below your filters\. Save to use them\.$/, {},
++   [`Se añadieron $1 líneas bajo tus filtros. Guarda para usarlas.`,
++    `$1 lignes ont été ajoutées sous vos filtres. Enregistrez pour les utiliser.`,
++    `$1 Zeilen wurden unter deinen Filtern angefügt. Speichere, um sie zu nutzen.`,
++    `$1 linhas foram adicionadas abaixo dos seus filtros. Salve para usá-las.`,
++    `Под вашими фильтрами добавлено строк: $1. Сохраните, чтобы использовать их.`]],
++  [/^Blocked on this page \(([\d,.\s]+)\)$/, {}, [`Bloqueados en esta página ($1)`, `Bloqués sur cette page ($1)`,
++    `Auf dieser Seite blockiert ($1)`, `Bloqueados nesta página ($1)`, `Заблокировано на этой странице ($1)`]],
++  [/^([\d,.\s]+) of ([\d,.\s]+)$/, {}, [`$1 de $2`, `$1 sur $2`, `$1 von $2`, `$1 de $2`, `$1 из $2`]],
++  [/^([\d,.\s]+) shown$/, {}, [`$1 mostradas`, `$1 affichées`, `$1 angezeigt`, `$1 mostradas`, `Показано: $1`]],
++  [/^([\d,.\s]+) requests, ([\d,.\s]+) blocked$/, {}, [`$1 solicitudes, $2 bloqueadas`, `$1 requêtes, $2 bloquées`,
++    `$1 Anfragen, $2 blockiert`, `$1 solicitações, $2 bloqueadas`, `Запросов: $1, заблокировано: $2`]],
++  [/^1 rule - (.+)$/, {t: [1]}, [`1 regla - $1`, `1 règle - $1`, `1 Regel - $1`, `1 regra - $1`, `1 правило - $1`]],
++  [/^1 rule$/, {}, [`1 regla`, `1 règle`, `1 Regel`, `1 regra`, `1 правило`]],
++  [/^([\d,.\s]+) rules - (.+)$/, {t: [2]}, [`$1 reglas - $2`, `$1 règles - $2`, `$1 Regeln - $2`, `$1 regras - $2`,
++    `Правил: $1 - $2`]],
++  [/^([\d,.\s]+) rules$/, {}, [`$1 reglas`, `$1 règles`, `$1 Regeln`, `$1 regras`, `Правил: $1`]],
++  [/^1 rule in use$/, {}, [`1 regla en uso`, `1 règle utilisée`, `1 Regel aktiv`, `1 regra em uso`,
++    `1 правило используется`]],
++  [/^([\d,.\s]+) rules in use$/, {}, [`$1 reglas en uso`, `$1 règles utilisées`, `$1 Regeln aktiv`, `$1 regras em uso`,
++    `Используется правил: $1`]],
++  [/^([\d,.\s]+) in use$/, {}, [`$1 en uso`, `$1 utilisée(s)`, `$1 aktiv`, `$1 em uso`, `Используется: $1`]],
++  [/^kept: (.+)$/, {t: [1]}, [`se mantuvo la anterior: $1`, `l'ancienne est gardée : $1`, `die alte bleibt: $1`,
++    `a anterior foi mantida: $1`, `оставлен прежний: $1`]],
++  // the grid's buttons: "Block: example.com on this site (from a broader rule)"
++  [/^(Allow|Block|Leave to the lists): (.+) (on this site|on every site) \((from a broader rule|click again to remove the rule)\)$/,
++   {t: [1, 2, 3, 4]}, [`$1: $2 $3 ($4)`, `$1 : $2 $3 ($4)`, `$1: $2 $3 ($4)`, `$1: $2 $3 ($4)`, `$1: $2 $3 ($4)`]],
++  [/^(Allow|Block|Leave to the lists): (.+) (on this site|on every site)$/, {t: [1, 2, 3]},
++   [`$1: $2 $3`, `$1 : $2 $3`, `$1: $2 $3`, `$1: $2 $3`, `$1: $2 $3`]],
++];
++
++const lang = (document.documentElement.lang || 'en').toLowerCase().split('-')[0];
++const column = LANGS.indexOf(lang);
++const exact = column < 0 ? null : new Map(ROWS.map((row) => [row[0], row[column + 1]]));
++
++// The translation of one text (its spaces at the ends kept), or null when there is none.
++function translated(text) {
++  // the pages wrap long lines: spaces and line ends count as one space
++  const trimmed = text.trim().replace(/\s+/g, ' ');
++  if (!trimmed) {
++    return null;
++  }
++  let out = exact.get(trimmed);
++  if (out === undefined) {
++    for (const [pattern, how, forms] of PATTERNS) {
++      const match = trimmed.match(pattern);
++      if (match) {
++        const parts = match.slice(1).map((part, i) =>
++            ((how.t || []).includes(i + 1) ? exact.get(part) ?? part : part) ?? '');
++        out = forms[column].replace(/\$(\d)/g, (m, n) => parts[Number(n) - 1] ?? '');
++        break;
++      }
++    }
++  }
++  if (out === undefined && trimmed.includes(', ')) {
++    // a list of names, each of which has one ("no pop-ups, no hiding")
++    const parts = trimmed.split(', ').map((part) => exact.get(part) ?? null);
++    if (parts.every((part) => part !== null)) {
++      out = parts.join(', ');
++    }
++  }
++  if (out === undefined || out === trimmed) {
++    return null;
++  }
++  return text.match(/^\s*/)[0] + out + text.match(/\s*$/)[0];
++}
++
++// Never translated: code, rules, addresses, request types, what a person types.
++const KEEP = 'code, pre, textarea, script, style';
++const KEEP_PARENT = 'td.url, td.type, .url, .host, .site';
++const ATTRIBUTES = ['title', 'aria-label', 'placeholder'];
++
++function translateNode(node) {
++  if (node.nodeType === Node.TEXT_NODE) {
++    const parent = node.parentElement;
++    if (!parent || parent.closest(KEEP) || parent.matches(KEEP_PARENT)) {
++      return;
++    }
++    const to = translated(node.nodeValue);
++    if (to !== null) {
++      node.nodeValue = to;
++    }
++    return;
++  }
++  if (node.nodeType !== Node.ELEMENT_NODE) {
++    return;
++  }
++  for (const name of ATTRIBUTES) {
++    const value = node.getAttribute(name);
++    const to = value === null ? null : translated(value);
++    if (to !== null) {
++      node.setAttribute(name, to);
++    }
++  }
++  if (!node.matches(KEEP)) {
++    for (const child of node.childNodes) {
++      translateNode(child);
++    }
++  }
++}
++
++if (exact) {
++  // A language written right to left: what is written left to right (rules, addresses) stays so.
++  if (document.documentElement.dir === 'rtl') {
++    const style = document.createElement('style');
++    style.textContent = 'code, pre, textarea, .url, td.url, .host, .site, input, .grid-row.domain .name,' +
++                        ' .grid-row.host .name { direction: ltr; unicode-bidi: isolate; }' +
++                        ' td.url .why { direction: rtl; }';
++    document.head.append(style);
++  }
++  translateNode(document.documentElement);
++  new MutationObserver((records) => {
++    for (const record of records) {
++      if (record.type === 'childList') {
++        record.addedNodes.forEach(translateNode);
++      } else if (record.type === 'characterData') {
++        translateNode(record.target);
++      } else if (record.type === 'attributes') {
++        const value = record.target.getAttribute(record.attributeName);
++        const to = value === null ? null : translated(value);
++        if (to !== null) {
++          record.target.setAttribute(record.attributeName, to);
++        }
++      }
++    }
++  }).observe(document.documentElement, {childList: true, subtree: true, characterData: true, attributes: true,
++                                        attributeFilter: ATTRIBUTES});
++  // the question before a reset
++  const ask = window.confirm.bind(window);
++  window.confirm = (message) => ask(translated(String(message)) ?? message);
++}
 diff --git a/components/thoron_adblock/list_fetch.cc b/components/thoron_adblock/list_fetch.cc
 new file mode 100644
 index 0000000000000000000000000000000000000000..e920d1f545b40abcb3119c2021177e99ab7962a5
@@ -10050,10 +10958,10 @@ index 0000000000000000000000000000000000000000..bb5e6c8789e8a4e07c5d7069027b5132
 +}
 diff --git a/components/thoron_adblock/popup_page.html b/components/thoron_adblock/popup_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..4c777af0e061a9ecb3040ac09be4ed4011a567f6
+index 0000000000000000000000000000000000000000..7e01559f21ddfd667f2e2ca1aa93e087702a356a
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.html
-@@ -0,0 +1,223 @@
+@@ -0,0 +1,226 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file. -->
@@ -10110,6 +11018,8 @@ index 0000000000000000000000000000000000000000..4c777af0e061a9ecb3040ac09be4ed40
 +    border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; font: inherit;
 +    font-size: 11px;
 +  }
++  /* the switches in two rows of four: room for longer words in other languages */
++  .row:has(.switch) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 +  .tool:hover, .switch:hover { background: var(--line); }
 +  .tool:disabled, .switch:disabled { opacity: .4; cursor: default; background: transparent; }
 +  .switch[aria-pressed=true] { color: var(--switch-on); }
@@ -10274,6 +11184,7 @@ index 0000000000000000000000000000000000000000..4c777af0e061a9ecb3040ac09be4ed40
 +  <ol id="sites"></ol>
 +</details>
 +
++<script type="module" src="i18n.js"></script>
 +<script type="module" src="popup_page.js"></script>
 +</body>
 +</html>
@@ -13058,10 +13969,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..aef7625da3687b42a46af07112debf93ac8e2bfd
+index 0000000000000000000000000000000000000000..ca793316b3ea111d05e89008ba3bd87d3fa441c3
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,305 @@
+@@ -0,0 +1,306 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -13364,6 +14275,7 @@ index 0000000000000000000000000000000000000000..aef7625da3687b42a46af07112debf93
 +
 +  <p id="message" role="status" aria-live="polite"></p>
 +</main>
++<script type="module" src="i18n.js"></script>
 +<script type="module" src="adblock.js"></script>
 +</body>
 +</html>

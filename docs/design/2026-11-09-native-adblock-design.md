@@ -1567,6 +1567,24 @@ reload; the zapper removes one element and keeps the rest.
   the zapper's starts the zapper (an element clicked is gone); JavaScript's reloads the page without its
   script and, again, with it; a key press that is no shortcut reaches the page, and so does a cleared one.
 
+### 12.38 The pages in the browser's language (P5.51, 2026-11-13)
+
+- **What.** As uBlock Origin's pages follow the browser's language, `chrome://adblock` and the menu of the
+  shield do: English as written, and Spanish, French, German, Portuguese and Russian. Rules, addresses,
+  host names, the names of lists, request types and what a person types stay as they are.
+- **How.** The browser writes its language and direction into `<html lang dir>` when it serves a page
+  (`LocalizedPage`, from the application locale). `i18n.js`, which both pages load first, translates every
+  text the page shows from a table with a column per language: the texts there at the start, every text
+  shown later (a MutationObserver), and titles, labels and placeholders; sentences with a changing part (a
+  number, a name, a rule) by patterns. So the pages' own code stays in English, and a text with no
+  translation stays in English rather than breaking anything. Another language is one more column; for a
+  language written right to left, rules and addresses stay left to right.
+- **Safe to serve.** Like the page's own script, `i18n.js` makes no HTML from text (it only changes text
+  nodes and attributes), and the pages still run no inline script (an engine test checks both).
+- **Checked** by `tools/qa/adblock_i18n_check.py`: with the browser in English the pages are as written;
+  in each of the five languages both pages say so and no text they show is still one of the English texts,
+  beyond names, rules and addresses (the menu with its counts and grid included).
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
