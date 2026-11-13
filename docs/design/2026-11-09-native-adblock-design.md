@@ -1585,6 +1585,22 @@ reload; the zapper removes one element and keeps the rest.
   in each of the five languages both pages say so and no text they show is still one of the English texts,
   beyond names, rules and addresses (the menu with its counts and grid included).
 
+### 12.39 The address bar icon, the picker and the zapper as uBlock Origin's (P5.52, 2026-11-14)
+
+- **The address bar icon.** When the blocker stops something, the address bar shows "Ads and trackers
+  blocked". A click on it now opens the blocker's own menu, as a click on uBlock Origin's icon does, the
+  same menu as the shield in the toolbar (a second click closes it). Each window's shield registers as the
+  one that opens the menu for its tabs (`menu_opener`), so the address bar asks it without knowing it.
+- **The picker** offers, besides the rules for the element and the elements around it, a rule for every
+  address the element loads, as uBlock Origin's: its source (an image, a frame, a video or sound and their
+  `<source>` children, a plugin's data, a video's poster) and its background image. "Pick again" goes back
+  to picking another element without closing.
+- **The zapper**, after taking out an element, lets the page scroll again when something had locked it (a
+  cookie wall or a sign-up box sets `overflow: hidden` on the page), as uBlock Origin's zapper does.
+- **Checked** by `tools/qa/adblock_icon_check.py` (a real window, off the screen: the icon shows after an ad
+  host was stopped; a click on it with Windows UI Automation opens the menu) and by a new step of
+  `adblock_menu_check.py` (a page locked as a cookie wall locks it can scroll after the zapper).
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

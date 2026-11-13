@@ -20,7 +20,8 @@ the large-media limit, an element to pick and one to zap. Steps:
     power     with the big switch off, the ad host is asked for; on again, it is not
     picker    "Block element", a click on the element and Enter: a rule for the site is in My filters and
               the element is hidden after a reload
-    zapper    "Zapper" and a click on an element: it is gone, the rest of the page stays
+    zapper    "Zapper" and a click on an element: it is gone, the rest of the page stays, and a page that
+              was locked (no scrolling, as under a cookie wall) can scroll again
 
     py -3 -I tools/qa/adblock_menu_check.py --browser <out>\\thoron.exe --work <scratch dir>
 Exit status 0 only when every step passes.
@@ -158,6 +159,8 @@ def zapper_problems(result: dict) -> list[str]:
         out.append("the zapped element is still in the page")
     if not result.get("kept"):
         out.append("the zapper took more than the element")
+    if result.get("locked") is not False:
+        out.append("the page cannot scroll after the zapper took out what had locked it")
     return out
 
 
@@ -226,6 +229,7 @@ READ_PAGE = """JSON.stringify({sound: window.report && window.report.sound,
   promo: (() => { const e = document.getElementById('pick-target');
     return !e ? 'gone' : getComputedStyle(e).display === 'none' ? 'hidden' : 'shown'; })(),
   zapped: !document.getElementById('zap-me'), kept: !!document.getElementById('keep'),
+  locked: getComputedStyle(document.documentElement).overflowY === 'hidden',
   box: Math.round(document.getElementById('ad-box').getBoundingClientRect().width),
   frame: Math.round(document.getElementById('ad-frame').getBoundingClientRect().width)})"""
 
@@ -334,7 +338,9 @@ def run(browser: Path, work: Path, host: str, generic: str) -> list[str]:
             found = picker_problems(mine, r.read_page().get("promo"))
             print(f"{'PASS' if not found else 'FAIL'}  picker: My filters {mine.strip()!r}")
             problems += [f"picker: {p}" for p in found]
-            # the zapper
+            # the zapper; the page is locked as a cookie wall locks it (the zapper unlocks it, as uBlock
+            # Origin's does)
+            r.page.call("Runtime.evaluate", expression="document.documentElement.style.overflow = 'hidden'; 1")
             r.click_menu("#zapper")
             time.sleep(1)
             r.click_page("zap-me")

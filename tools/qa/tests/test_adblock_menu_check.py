@@ -70,9 +70,10 @@ class ProblemsTests(unittest.TestCase):
         self.assertEqual(len(mc.collapse_problems({})), 2)
 
     def test_the_zapper_must_take_the_element_out(self):
-        self.assertEqual(mc.zapper_problems({"zapped": True, "kept": True}), [])
-        self.assertEqual(len(mc.zapper_problems({"zapped": False, "kept": True})), 1)
-        self.assertEqual(len(mc.zapper_problems({"zapped": True, "kept": False})), 1)
+        self.assertEqual(mc.zapper_problems({"zapped": True, "kept": True, "locked": False}), [])
+        self.assertEqual(len(mc.zapper_problems({"zapped": False, "kept": True, "locked": False})), 1)
+        self.assertEqual(len(mc.zapper_problems({"zapped": True, "kept": False, "locked": False})), 1)
+        self.assertEqual(len(mc.zapper_problems({"zapped": True, "kept": True, "locked": True})), 1)
 
 
 if __name__ == "__main__":

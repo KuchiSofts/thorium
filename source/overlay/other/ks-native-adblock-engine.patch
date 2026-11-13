@@ -78,10 +78,10 @@ index 0f7d54fe9798d8726656c6cd8f30ea2194b8c4e1..908235300b443a23bea4c2a9b39d0715
        "//sandbox:sandbox_unittests",
 diff --git a/components/thoron_adblock/BUILD.gn b/components/thoron_adblock/BUILD.gn
 new file mode 100644
-index 0000000000000000000000000000000000000000..9b4ccc627d83436966dca516e74bac911c40fdec
+index 0000000000000000000000000000000000000000..21d0800312aa33d3298c535d9527184f5da185c8
 --- /dev/null
 +++ b/components/thoron_adblock/BUILD.gn
-@@ -0,0 +1,246 @@
+@@ -0,0 +1,248 @@
 +# Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +# found in the LICENSE file.
 +
@@ -184,6 +184,8 @@ index 0000000000000000000000000000000000000000..9b4ccc627d83436966dca516e74bac91
 +    "engine_service.h",
 +    "list_fetch.cc",
 +    "list_fetch.h",
++    "menu_opener.cc",
++    "menu_opener.h",
 +    "picker.cc",
 +    "picker.h",
 +    "list_store.cc",
@@ -9693,6 +9695,94 @@ index 0000000000000000000000000000000000000000..397ecb69ddb3e4d84730c1d49cb23d57
 +}  // namespace thoron_adblock
 +
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_UPDATER_H_
+diff --git a/components/thoron_adblock/menu_opener.cc b/components/thoron_adblock/menu_opener.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..ee030e7821435e992c6d55886cf53580223d28dc
+--- /dev/null
++++ b/components/thoron_adblock/menu_opener.cc
+@@ -0,0 +1,41 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/thoron_adblock/menu_opener.h"
++
++#include <algorithm>
++#include <vector>
++
++#include "base/memory/raw_ptr.h"
++#include "base/no_destructor.h"
++
++namespace thoron_adblock {
++
++namespace {
++
++std::vector<raw_ptr<MenuOpener>>& Openers() {
++  static base::NoDestructor<std::vector<raw_ptr<MenuOpener>>> openers;
++  return *openers;
++}
++
++}  // namespace
++
++void AddMenuOpener(MenuOpener* opener) {
++  Openers().push_back(opener);
++}
++
++void RemoveMenuOpener(MenuOpener* opener) {
++  std::erase(Openers(), opener);
++}
++
++bool OpenMenuFor(content::WebContents* tab) {
++  if (!tab) {
++    return false;
++  }
++  // a copy: opening a menu must not change the list being walked
++  const std::vector<raw_ptr<MenuOpener>> openers = Openers();
++  return std::any_of(openers.begin(), openers.end(),
++                     [tab](MenuOpener* opener) { return opener->OpenMenuFor(tab); });
++}
++
++}  // namespace thoron_adblock
+diff --git a/components/thoron_adblock/menu_opener.h b/components/thoron_adblock/menu_opener.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..3318af32f2e6c94783c2ab0784cebeb102bee31a
+--- /dev/null
++++ b/components/thoron_adblock/menu_opener.h
+@@ -0,0 +1,35 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_THORON_ADBLOCK_MENU_OPENER_H_
++#define COMPONENTS_THORON_ADBLOCK_MENU_OPENER_H_
++
++namespace content {
++class WebContents;
++}  // namespace content
++
++namespace thoron_adblock {
++
++// What opens the menu of the built-in blocker for a tab: the shield in each
++// window's toolbar. Other parts of the window (the address bar's icon for
++// blocked ads) ask through OpenMenuFor and need not know the shield. UI thread
++// only.
++class MenuOpener {
++ public:
++  // True when `tab` is in this opener's window and its menu was opened (or
++  // closed, when it was open: a second click closes it, as the shield's does).
++  virtual bool OpenMenuFor(content::WebContents* tab) = 0;
++
++ protected:
++  virtual ~MenuOpener() = default;
++};
++
++void AddMenuOpener(MenuOpener* opener);
++void RemoveMenuOpener(MenuOpener* opener);
++
++// Asks every opener; true when one opened the menu for `tab`.
++bool OpenMenuFor(content::WebContents* tab);
++
++}  // namespace thoron_adblock
++
++#endif  // COMPONENTS_THORON_ADBLOCK_MENU_OPENER_H_
 diff --git a/components/thoron_adblock/new_window.cc b/components/thoron_adblock/new_window.cc
 new file mode 100644
 index 0000000000000000000000000000000000000000..cd3f53fd489aefbd4fabd2126ea83868e541e5fa
@@ -10413,10 +10503,10 @@ index 0000000000000000000000000000000000000000..312772150b64523b7d2df30c95f579bb
 +#endif  // COMPONENTS_THORON_ADBLOCK_PICKER_H_
 diff --git a/components/thoron_adblock/picker.js b/components/thoron_adblock/picker.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..85c1cfde2c6da4169e22f414dcd10aa4b3d2ec17
+index 0000000000000000000000000000000000000000..ccf205720e2b38f2ba68769278a1f16d0fd6f8df
 --- /dev/null
 +++ b/components/thoron_adblock/picker.js
-@@ -0,0 +1,350 @@
+@@ -0,0 +1,389 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +//
@@ -10539,17 +10629,36 @@ index 0000000000000000000000000000000000000000..85c1cfde2c6da4169e22f414dcd10aa4
 +      return 0;
 +    }
 +  };
-+  const candidates = (element) => {
++  // The addresses an element loads, as uBlock Origin's picker offers them: its source (an image, a frame,
++  // a video or sound and their <source> children, a plugin's data, a video's poster) and its background
++  // image.
++  const addresses = (element) => {
++    const found = [element.currentSrc, element.src, element.getAttribute('data'), element.getAttribute('poster')];
++    for (const source of element.querySelectorAll ? element.querySelectorAll(':scope > source[src]') : []) {
++      found.push(source.src);
++    }
++    const background = getComputedStyle(element).backgroundImage || '';
++    for (const match of background.matchAll(/url\(["']?([^"')]+)["']?\)/g)) {
++      found.push(match[1]);
++    }
 +    const out = [];
-+    const src = element.currentSrc || element.src;
-+    if (typeof src === 'string' && /^https?:/.test(src)) {
++    for (const value of found) {
++      if (typeof value !== 'string' || !value) {
++        continue;
++      }
 +      try {
-+        const url = new URL(src);
-+        out.push(`||${url.hostname}${url.pathname}^`);
++        const url = new URL(value, location.href);
++        if (/^https?:$/.test(url.protocol)) {
++          out.push(`||${url.hostname}${url.pathname}^`);
++        }
 +      } catch (e) {
 +        // not an address
 +      }
 +    }
++    return out;
++  };
++  const candidates = (element) => {
++    const out = addresses(element);
 +    const chain = [];
 +    for (let e = element; e && e !== doc.body && e !== doc.documentElement && chain.length < 6; e = e.parentElement) {
 +      chain.push(e);
@@ -10657,6 +10766,17 @@ index 0000000000000000000000000000000000000000..85c1cfde2c6da4169e22f414dcd10aa4
 +    const cancel = doc.createElement('button');
 +    cancel.textContent = 'Cancel';
 +    cancel.addEventListener('click', stop);
++    // back to picking another element, as uBlock Origin's "Pick"
++    const again = doc.createElement('button');
++    again.textContent = 'Pick again';
++    again.addEventListener('click', () => {
++      unpreview();
++      panel.remove();
++      panel = null;
++      picked = null;
++      show(null);
++      hint.style.display = '';
++    });
 +    const create = doc.createElement('button');
 +    create.className = 'main';
 +    create.textContent = 'Create';
@@ -10690,7 +10810,7 @@ index 0000000000000000000000000000000000000000..85c1cfde2c6da4169e22f414dcd10aa4
 +    });
 +    const row = doc.createElement('div');
 +    row.className = 'row';
-+    row.append(counter, previewButton, cancel, create);
++    row.append(counter, previewButton, again, cancel, create);
 +    panel.append(title, about, text, options, row);
 +    root.append(panel);
 +    update();
@@ -10719,8 +10839,7 @@ index 0000000000000000000000000000000000000000..85c1cfde2c6da4169e22f414dcd10aa4
 +      return;
 +    }
 +    if (zapper) {
-+      element.remove();
-+      show(null);
++      zap(element);
 +    } else {
 +      openPanel(element);
 +    }
@@ -10738,11 +10857,21 @@ index 0000000000000000000000000000000000000000..85c1cfde2c6da4169e22f414dcd10aa4
 +      stop();
 +    } else if (zapper && (event.key === 'Delete' || event.key === 'Backspace') && hovered) {
 +      event.preventDefault();
-+      hovered.remove();
++      zap(hovered);
 +      hovered = null;
-+      show(null);
 +    }
 +  };
++  // The zapper takes an element out; when that was an overlay that had locked the page (a cookie wall, a
++  // sign-up box), the page can scroll again, as uBlock Origin's zapper does.
++  function zap(element) {
++    element.remove();
++    show(null);
++    for (const e of [doc.documentElement, doc.body]) {
++      if (e && getComputedStyle(e).overflowY === 'hidden') {
++        e.style.setProperty('overflow', 'auto', 'important');
++      }
++    }
++  }
 +  const listeners = [['mousemove', onMove], ['click', onClick], ['mousedown', swallow], ['mouseup', swallow],
 +                     ['pointerdown', swallow], ['pointerup', swallow], ['auxclick', swallow], ['keydown', onKey]];
 +  for (const [type, handler] of listeners) {

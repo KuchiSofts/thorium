@@ -44,13 +44,15 @@ It is **off by default** until its last correctness checks are done.
 ### Use it
 
 - **The shield in the toolbar:** while the blocker is on, a shield sits next to the extensions button.
-  Its number is what was blocked on the page you look at. Click it for the menu:
+  Its number is what was blocked on the page you look at. Click it for the menu (the "Ads and trackers
+  blocked" icon in the address bar opens the same menu):
   - the big **power button** switches blocking off or on for this site (the page reloads);
   - the counts: blocked on this page (and its share of the page's requests), domains connected out of
     all the page asked, blocked so far;
   - **Block element:** click the thing you want gone, choose or edit the rule, press Enter or
     Create. The rule goes into My filters and works at once;
-  - **Zapper:** click things to remove them until the page reloads; Esc stops;
+  - **Zapper:** click things to remove them until the page reloads; Esc stops. A page a cookie wall had
+    locked can scroll again;
   - or right-click the thing on the page and choose **Block element...**: the picker opens on it;
   - **Logger:** the requests of your open tabs, blocked and let through; "Block" or "Allow" on a row
     makes a rule for that host; "Why?" names the rule that blocked it or let it through, and its list;
