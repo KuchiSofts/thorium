@@ -1050,6 +1050,237 @@ index 8fd509761c46c149bba8fd2bd80606ab65927c32..7060dba40678b1a05af3182240c04d1c
  </enum>
  
  <!-- LINT.ThenChange(//chrome/browser/renderer_context_menu/render_view_context_menu.cc:RenderViewContextMenuItem) -->
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/BUILD.gn b/chrome/browser/ui/browser_web_contents_delegate/BUILD.gn
+index 7dbf9fb2fdb74c29b8f149ab7c7bbc098d95a371..03cca407d80287fec2894dcc318b1ca4389f7549 100644
+--- a/chrome/browser/ui/browser_web_contents_delegate/BUILD.gn
++++ b/chrome/browser/ui/browser_web_contents_delegate/BUILD.gn
+@@ -10,6 +10,8 @@ if (!is_android) {
+     sources = [
+       "browser_web_contents_delegate.cc",
+       "browser_web_contents_delegate.h",
++      "thoron_adblock_shortcuts.cc",
++      "thoron_adblock_shortcuts.h",
+     ]
+     deps = [
+       "//base",
+@@ -43,6 +45,8 @@ if (!is_android) {
+       "//components/javascript_dialogs",
+       "//components/page_load_metrics/browser",
+       "//components/printing/browser",
++      "//components/thoron_adblock",
++      "//components/thoron_adblock:features",
+       "//content/public/browser",
+       "//ui/base",
+     ]
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+index 5405cffb491b80b37779cc9ba2d8a0bfea368b99..5120ef99e6e59ce0f02b767078ecc6c94fcf93b6 100644
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -38,6 +38,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
++#include "chrome/browser/ui/browser_web_contents_delegate/thoron_adblock_shortcuts.h"
+ #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
+ #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
+ #include "chrome/browser/ui/exclusive_access/fullscreen_tab_params.h"
+@@ -359,6 +360,12 @@ BrowserWebContentsDelegate::PreHandleKeyboardEvent(
+     return content::KeyboardEventProcessingResult::HANDLED;
+   }
+ 
++  // Thoron's ad blocker: uBlock Origin's keyboard shortcuts, as set on
++  // chrome://adblock (none unless the person sets them).
++  if (thoron_adblock::HandleShortcut(source, event)) {
++    return content::KeyboardEventProcessingResult::HANDLED;
++  }
++
+   return window_->PreHandleKeyboardEvent(event);
+ }
+ 
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/thoron_adblock_shortcuts.cc b/chrome/browser/ui/browser_web_contents_delegate/thoron_adblock_shortcuts.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..fbf9e91b23d38b0d8c43c559f9add62d29599214
+--- /dev/null
++++ b/chrome/browser/ui/browser_web_contents_delegate/thoron_adblock_shortcuts.cc
+@@ -0,0 +1,141 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/browser_web_contents_delegate/thoron_adblock_shortcuts.h"
++
++#include "base/feature_list.h"
++#include "base/strings/strcat.h"
++#include "base/strings/string_number_conversions.h"
++#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
++#include "chrome/browser/profiles/profile.h"
++#include "components/content_settings/core/browser/host_content_settings_map.h"
++#include "components/input/native_web_keyboard_event.h"
++#include "components/thoron_adblock/engine_service.h"
++#include "components/thoron_adblock/features.h"
++#include "components/thoron_adblock/picker.h"
++#include "components/thoron_adblock/proxying_url_loader_factory.h"
++#include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/page_navigator.h"
++#include "content/public/browser/reload_type.h"
++#include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/web_contents.h"
++#include "third_party/blink/public/common/input/web_input_event.h"
++#include "ui/base/page_transition_types.h"
++#include "ui/base/window_open_disposition.h"
++#include "url/gurl.h"
++
++namespace thoron_adblock {
++
++namespace {
++
++// Windows key codes (ui::KeyboardCode) of the keys a shortcut may end in.
++constexpr int kKeyA = 0x41;
++constexpr int kKeyZ = 0x5A;
++constexpr int kKey0 = 0x30;
++constexpr int kKey9 = 0x39;
++constexpr int kKeyF1 = 0x70;
++constexpr int kKeyF12 = 0x7B;
++
++void Open(content::WebContents* tab, const char* url) {
++  tab->OpenURL(content::OpenURLParams(GURL(url), content::Referrer(),
++                                      WindowOpenDisposition::kNewForegroundTab,
++                                      ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
++                                      /*is_renderer_initiated=*/false),
++               /*navigation_handle_callback=*/{});
++}
++
++void Reload(content::WebContents* tab) {
++  tab->GetController().Reload(content::ReloadType::NORMAL, true);
++}
++
++}  // namespace
++
++std::string ShortcutKeys(const input::NativeWebKeyboardEvent& event) {
++  using blink::WebInputEvent;
++  const int modifiers = event.GetModifiers();
++  // the Windows key and AltGr are never part of one
++  if (modifiers & (WebInputEvent::kMetaKey | WebInputEvent::kAltGrKey)) {
++    return std::string();
++  }
++  const int code = event.windows_key_code;
++  std::string key;
++  if ((code >= kKeyA && code <= kKeyZ) || (code >= kKey0 && code <= kKey9)) {
++    key = std::string(1, static_cast<char>(code));
++  } else if (code >= kKeyF1 && code <= kKeyF12) {
++    key = base::StrCat({"F", base::NumberToString(code - kKeyF1 + 1)});
++  } else {
++    return std::string();
++  }
++  std::string keys;
++  if (modifiers & WebInputEvent::kControlKey) {
++    keys += "Ctrl+";
++  }
++  if (modifiers & WebInputEvent::kAltKey) {
++    keys += "Alt+";
++  }
++  if (modifiers & WebInputEvent::kShiftKey) {
++    keys += "Shift+";
++  }
++  keys += key;
++  return EngineService::ValidKeys(keys) ? keys : std::string();
++}
++
++bool HandleShortcut(content::WebContents* tab,
++                    const input::NativeWebKeyboardEvent& event) {
++  if (!tab || event.GetType() != blink::WebInputEvent::Type::kRawKeyDown ||
++      !base::FeatureList::IsEnabled(kThoronNativeAdblock)) {
++    return false;
++  }
++  EngineService& service = EngineService::Get();
++  if (service.shortcuts().empty()) {
++    return false;
++  }
++  const std::string keys = ShortcutKeys(event);
++  const std::string command = keys.empty() ? std::string()
++                                           : service.ShortcutCommand(keys);
++  if (command.empty()) {
++    return false;
++  }
++  if (command == "logger") {
++    Open(tab, "chrome://adblock/#logger");
++    return true;
++  }
++  if (command == "dashboard") {
++    Open(tab, "chrome://adblock/");
++    return true;
++  }
++  // the rest act on the page of the tab, when it is one the blocker works on
++  const GURL site = tab->GetPrimaryMainFrame()->GetLastCommittedURL();
++  if (!site.SchemeIsHTTPOrHTTPS()) {
++    return false;
++  }
++  HostContentSettingsMap* settings = HostContentSettingsMapFactory::GetForProfile(
++      Profile::FromBrowserContext(tab->GetBrowserContext()));
++  if (command == "picker" || command == "zapper") {
++    StartPicker(tab, /*zapper=*/command == "zapper");
++  } else if (command == "power") {
++    // as the menu's big button: the "Ads and trackers" site setting
++    settings->SetContentSettingDefaultScope(
++        site, GURL(), ContentSettingsType::ADS,
++        ProxyingURLLoaderFactory::AdsAllowedOn(settings, site)
++            ? CONTENT_SETTING_DEFAULT
++            : CONTENT_SETTING_ALLOW);
++    Reload(tab);
++  } else if (command == "cosmetic") {
++    service.SetSiteSwitch(site, "cosmetic", !service.SiteSwitch(site, "cosmetic"));
++    Reload(tab);
++  } else if (command == "javascript") {
++    const bool blocked =
++        settings->GetContentSetting(site, site, ContentSettingsType::JAVASCRIPT) ==
++        CONTENT_SETTING_BLOCK;
++    settings->SetContentSettingDefaultScope(
++        site, GURL(), ContentSettingsType::JAVASCRIPT,
++        blocked ? CONTENT_SETTING_DEFAULT : CONTENT_SETTING_BLOCK);
++    Reload(tab);
++  } else {
++    return false;
++  }
++  return true;
++}
++
++}  // namespace thoron_adblock
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/thoron_adblock_shortcuts.h b/chrome/browser/ui/browser_web_contents_delegate/thoron_adblock_shortcuts.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..5ace492dd1a60c29b3c3dd04efae222848bdbb08
+--- /dev/null
++++ b/chrome/browser/ui/browser_web_contents_delegate/thoron_adblock_shortcuts.h
+@@ -0,0 +1,31 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_BROWSER_WEB_CONTENTS_DELEGATE_THORON_ADBLOCK_SHORTCUTS_H_
++#define CHROME_BROWSER_UI_BROWSER_WEB_CONTENTS_DELEGATE_THORON_ADBLOCK_SHORTCUTS_H_
++
++#include <string>
++
++namespace content {
++class WebContents;
++}  // namespace content
++
++namespace input {
++struct NativeWebKeyboardEvent;
++}  // namespace input
++
++namespace thoron_adblock {
++
++// The keys of a key press as chrome://adblock writes a shortcut ("Ctrl+Alt+Z"),
++// or "" for one that cannot be a shortcut.
++std::string ShortcutKeys(const input::NativeWebKeyboardEvent& event);
++
++// uBlock Origin's keyboard shortcuts, for the tab the key was pressed in: true
++// when the press is one of the shortcuts set on chrome://adblock and its
++// command was run (the page does not get the key then).
++bool HandleShortcut(content::WebContents* tab,
++                    const input::NativeWebKeyboardEvent& event);
++
++}  // namespace thoron_adblock
++
++#endif  // CHROME_BROWSER_UI_BROWSER_WEB_CONTENTS_DELEGATE_THORON_ADBLOCK_SHORTCUTS_H_
 diff --git a/chrome/browser/ui/views/toolbar/thoron_adblock_button.cc b/chrome/browser/ui/views/toolbar/thoron_adblock_button.cc
 new file mode 100644
 index 0000000000000000000000000000000000000000..a31a90935ed3cc0fef6e649777d81cbe68c29477
@@ -1874,10 +2105,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..acd8a05fc5bc7f1226b4ee68f0fc0300a103742b
+index 0000000000000000000000000000000000000000..da47e4bc07ee05047458bf2ac463f80082ae9663
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,573 @@
+@@ -0,0 +1,591 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1988,6 +2219,7 @@ index 0000000000000000000000000000000000000000..acd8a05fc5bc7f1226b4ee68f0fc0300
 +    Register("clearSwitches", &ThoronAdblockHandler::ClearSwitches);
 +    Register("getLog", &ThoronAdblockHandler::GetLog);
 +    Register("setTrustMyFilters", &ThoronAdblockHandler::SetTrustMyFilters);
++    Register("setShortcut", &ThoronAdblockHandler::SetShortcut);
 +    Register("explainRequest", &ThoronAdblockHandler::ExplainRequest);
 +    Register("getSettings", &ThoronAdblockHandler::GetSettings);
 +    Register("allowPattern", &ThoronAdblockHandler::AllowPattern);
@@ -2228,6 +2460,11 @@ index 0000000000000000000000000000000000000000..acd8a05fc5bc7f1226b4ee68f0fc0300
 +      settings.Set(name, Service().Option(name));
 +    }
 +    settings.Set("media-kb", Service().large_media_kb());
++    base::DictValue shortcuts;
++    for (const auto& [command, keys] : Service().shortcuts()) {
++      shortcuts.Set(command, keys);
++    }
++    settings.Set("shortcuts", std::move(shortcuts));
 +    settings.Set("javascript", SiteSettings()->GetDefaultContentSetting(
 +                                   ContentSettingsType::JAVASCRIPT) ==
 +                                   CONTENT_SETTING_BLOCK);
@@ -2331,6 +2568,18 @@ index 0000000000000000000000000000000000000000..acd8a05fc5bc7f1226b4ee68f0fc0300
 +      }
 +    }
 +    ResolveJavascriptCallback(base::Value(*id), tabs);
++  }
++
++  // uBlock Origin's keyboard shortcuts: [id, command, keys] ("" clears).
++  void SetShortcut(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 2);
++    if (!id || !args[1].is_string() || !args[2].is_string()) {
++      return;
++    }
++    Answer(*id, Service().SetShortcut(args[1].GetString(), args[2].GetString())
++                    ? std::string()
++                    : std::string("That cannot be a shortcut: use Ctrl or Alt "
++                                  "with a letter, a digit or F1 to F12."));
 +  }
 +
 +  // "Allow custom filters requiring trust": [id, on].

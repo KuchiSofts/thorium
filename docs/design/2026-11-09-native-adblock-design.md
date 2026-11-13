@@ -1551,6 +1551,22 @@ reload; the zapper removes one element and keeps the rest.
   Origin's badware list: blocked and offered; "Open it now" opens it and saves no switch; another blocked
   site stays blocked; "Always on this site" opens it and saves `no-strict` for it.
 
+### 12.37 Keyboard shortcuts (P5.50, 2026-11-13)
+
+- **What.** uBlock Origin's commands as keyboard shortcuts, set under "Shortcuts" on `chrome://adblock` (an
+  extension sets them on Chromium's shortcuts page, which a built-in blocker has no part in): the element
+  picker, the zapper, the logger, the settings, blocking off or on for the site (as the menu's big button),
+  hiding off or on for the site, JavaScript off or on for the site. None is set unless the person sets it,
+  as in uBlock Origin. A box takes the keys pressed in it: Ctrl or Alt (and Shift) with a letter, a digit or
+  F1 to F12, so typing is never taken; keys another command had move to the new one; Clear takes one out.
+- **How.** The browser asks first, before the page and before its own shortcuts, while a page has the focus
+  (`BrowserWebContentsDelegate::PreHandleKeyboardEvent` calls `HandleShortcut`); a key press that is a
+  shortcut does not reach the page, any other does. The keys are written the same way in the page and in
+  the browser ("Ctrl+Alt+Z") and kept in `options.json`; what the file holds is checked as when it is set.
+- **Checked** by `tools/qa/adblock_shortcuts_check.py`: two shortcuts set by pressing keys in their boxes;
+  the zapper's starts the zapper (an element clicked is gone); JavaScript's reloads the page without its
+  script and, again, with it; a key press that is no shortcut reaches the page, and so does a cleared one.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
