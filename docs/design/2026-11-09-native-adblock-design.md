@@ -1495,6 +1495,27 @@ reload; the zapper removes one element and keeps the rest.
   blocked at 50 kB and loads at 200 kB; `options.json` has both) and by `adblock_context_check.py` (with
   the setting off, a right-click opens the menu without "Block element...").
 
+### 12.34 The logger's "Why?" (P5.47, 2026-11-13)
+
+- **What.** As uBlock Origin's logger names the filter of each request, a "Why?" button on every row of the
+  logger says which rule blocked the request or let it through, and from which list: "Blocked by
+  `||ads.example^` (EasyList)", "Let through by `@@||ads.example^$domain=site.example` (My filters), which
+  wins over `||ads.example^` (EasyList)", "Blocked by My rules: `* * 3p-script block`", or "Blocked by the
+  switch ... in the menu for this site". Each row also shows the request's type.
+- **How.** The engine in use does not keep the text of its rules (that would cost memory all the time). The
+  first "Why?" reads the lists in use once more, as the engine was built from them (`RulesInUse`), into a
+  second engine that keeps each rule's text and list (`Explainer`, adblock-rust's debug mode); it is
+  dropped 5 minutes after the last question, and when the lists or own filters change (one being built
+  then is built again). The rule of "My rules" that decides comes from `deciding_rule` (the same walk as
+  for every request, with nothing allocated on the way); the menu's switches are asked as the blocker
+  asks them. The logger records the type of each request for it.
+- **Bounds.** Only web and WebSocket addresses are explained; a type is lower-case letters and "_" (else
+  "other"); at most 200 answers are kept on the page. A request blocked by something that is not a rule of
+  the lists (strict blocking, a pop-up rule) is named as such.
+- **Checked** by `tools/qa/adblock_logger_check.py`: "Why?" on the blocked ad image names the EasyList rule;
+  after "Allow", on the ad image let through, the exception from My filters and the rule it wins over. Two
+  new engine tests (118 in all).
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
