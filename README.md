@@ -77,7 +77,7 @@ changed in each version is in the [changelog](CHANGELOG.md), one line per change
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `█████████░░░░░░░░░░░` 81 of 186 tasks done (44%) · roadmap updated 2026-11-12
+**Overall:** `█████████░░░░░░░░░░░` 82 of 187 tasks done (44%) · roadmap updated 2026-11-12
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -87,7 +87,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/21 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `██████████████░░░░░░` | 40/57 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `██████████████░░░░░░` | 41/58 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `██████████░░░░░░░░░░` | 8/16 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `████████░░░░░░░░░░░░` | 4/10 | 🔄 In progress |
@@ -266,6 +266,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **P5.55** Native ad blocking, the list viewer: "View" shows the rules of a list in use as the engine uses them, read only, with a find box, as uBlock Origin shows a list
 - [x] **P5.56** Native ad blocking, each list on its own schedule: looked for when its "! Expires:" time has passed, from 12 hours to 14 days, as uBlock Origin does
 - [x] **P5.57** Native ad blocking, the logger's filter expressions (words, -word, /regex/) and first or third party, as in uBlock Origin
+- [x] **P5.58** Native ad blocking, uBlock Origin's switch lines in My rules (`no-scripting: <host> true` and the others) applied to the sites' switches and the settings, and written by the export
 - [ ] **P5.30** Native ad blocking, a page in Settings that a person can work with: one switch for the blocker; the filter lists with a checkbox each; add a list by its address and remove it again; "My filters", the person's own rules in the syntax of the lists; the sites where blocking is off
 
 **Security (S)**

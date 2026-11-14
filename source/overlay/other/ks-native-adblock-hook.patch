@@ -842,15 +842,17 @@ index 792412915da65daf1ba2ab756c0292cc42eb865f..812d74d47da946c8783d8b1888d03e69
  
  void ChromeContentRendererClient::RunScriptsAtDocumentEnd(
 diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
-index 2e86cbe5385850937a25695dbee994c8fe846f4d..14d5ec6bfe2549747548325bf424c16911d508c4 100644
+index 2e86cbe5385850937a25695dbee994c8fe846f4d..af3a188e7dbca72010b926e49bff882a852f2dda 100644
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -39,10 +39,15 @@ source_set("configs") {
+@@ -39,10 +39,17 @@ source_set("configs") {
      "chrome_untrusted_web_ui_configs.cc",
      "chrome_web_ui_configs.cc",
      "thorium_easter_eggs.h",
 +    "thoron_adblock_popup_ui.cc",
 +    "thoron_adblock_popup_ui.h",
++    "thoron_adblock_site_javascript.cc",
++    "thoron_adblock_site_javascript.h",
 +    "thoron_adblock_ui.cc",
 +    "thoron_adblock_ui.h",
    ]
@@ -1679,7 +1681,7 @@ index 0000000000000000000000000000000000000000..74bb1e36e87cc5e12248f5c5735b1c20
 +#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_THORON_ADBLOCK_BUTTON_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..1c3bcd46d4dd65e248e2b9633141abc85b140f44
+index 0000000000000000000000000000000000000000..28628440cc35d9cf82cde61c09b1b3d7211f6924
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 @@ -0,0 +1,532 @@
@@ -1687,6 +1689,8 @@ index 0000000000000000000000000000000000000000..1c3bcd46d4dd65e248e2b9633141abc8
 +// found in the LICENSE file.
 +
 +#include "chrome/browser/ui/webui/thoron_adblock_popup_ui.h"
++
++#include "chrome/browser/ui/webui/thoron_adblock_site_javascript.h"
 +
 +#include <algorithm>
 +#include <iterator>
@@ -2134,10 +2138,8 @@ index 0000000000000000000000000000000000000000..1c3bcd46d4dd65e248e2b9633141abc8
 +    const std::string& name = args[0].GetString();
 +    const bool on = args[1].GetBool();
 +    const ContentSettingsType chrome_type = ChromeSwitch(name);
-+    if (chrome_type != ContentSettingsType::DEFAULT) {
-+      Settings()->SetContentSettingDefaultScope(
-+          site, GURL(), chrome_type,
-+          on ? CONTENT_SETTING_BLOCK : CONTENT_SETTING_DEFAULT);
++    if (chrome_type == ContentSettingsType::JAVASCRIPT) {
++      thoron_adblock::SetSiteJavascript(Settings(), site, on);
 +    } else if (name == "popups" || name == "media" || name == "cosmetic" ||
 +               name == "fonts" || name == "3p-script" || name == "3p-frame") {
 +      thoron_adblock::EngineService::Get().SetSiteSwitch(site, name, on);
@@ -2272,12 +2274,82 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +};
 +
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
+diff --git a/chrome/browser/ui/webui/thoron_adblock_site_javascript.cc b/chrome/browser/ui/webui/thoron_adblock_site_javascript.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ecfb150ebd48a46d9609f0a8721617e78f8d267
+--- /dev/null
++++ b/chrome/browser/ui/webui/thoron_adblock_site_javascript.cc
+@@ -0,0 +1,36 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/thoron_adblock_site_javascript.h"
++
++#include "base/strings/strcat.h"
++#include "components/content_settings/core/browser/host_content_settings_map.h"
++#include "components/content_settings/core/common/content_settings.h"
++#include "components/content_settings/core/common/content_settings_pattern.h"
++#include "components/content_settings/core/common/content_settings_types.h"
++#include "url/gurl.h"
++
++namespace thoron_adblock {
++
++void SetSiteJavascript(HostContentSettingsMap* settings,
++                       const GURL& url,
++                       bool blocked) {
++  if (!settings || !url.is_valid() || url.host().empty()) {
++    return;
++  }
++  const ContentSettingsPattern host =
++      ContentSettingsPattern::FromString(base::StrCat({"[*.]", url.host()}));
++  if (!host.IsValid()) {
++    return;
++  }
++  settings->SetContentSettingCustomScope(
++      host, ContentSettingsPattern::Wildcard(), ContentSettingsType::JAVASCRIPT,
++      blocked ? CONTENT_SETTING_BLOCK : CONTENT_SETTING_DEFAULT);
++  if (!blocked) {
++    settings->SetContentSettingDefaultScope(url, GURL(),
++                                            ContentSettingsType::JAVASCRIPT,
++                                            CONTENT_SETTING_DEFAULT);
++  }
++}
++
++}  // namespace thoron_adblock
+diff --git a/chrome/browser/ui/webui/thoron_adblock_site_javascript.h b/chrome/browser/ui/webui/thoron_adblock_site_javascript.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..775954638d4dbf1764c678318776e97d72efc721
+--- /dev/null
++++ b/chrome/browser/ui/webui/thoron_adblock_site_javascript.h
+@@ -0,0 +1,22 @@
++// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_SITE_JAVASCRIPT_H_
++#define CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_SITE_JAVASCRIPT_H_
++
++class GURL;
++class HostContentSettingsMap;
++
++namespace thoron_adblock {
++
++// The ad blocking menu's JavaScript switch for the site of `url`, as uBlock
++// Origin's "no-scripting": for its host and the hosts under it, whatever the
++// scheme. Off also takes back a switch of only that address (as earlier
++// versions set it). A broader site setting the person made stays.
++void SetSiteJavascript(HostContentSettingsMap* settings,
++                       const GURL& url,
++                       bool blocked);
++
++}  // namespace thoron_adblock
++
++#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_SITE_JAVASCRIPT_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..bec97fe1d1fa66fa858f1d4ce15ae6474b1e4ce4
+index 0000000000000000000000000000000000000000..7b7ba6d71b3cea651e85ac225502beb12a7e9e6a
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,677 @@
+@@ -0,0 +1,712 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2308,6 +2380,7 @@ index 0000000000000000000000000000000000000000..bec97fe1d1fa66fa858f1d4ce15ae647
 +#include "chrome/browser/ui/tabs/tab_strip_model.h"
 +#include "components/content_settings/core/browser/host_content_settings_map.h"
 +#include "components/content_settings/core/common/content_settings_pattern.h"
++#include "chrome/browser/ui/webui/thoron_adblock_site_javascript.h"
 +#include "components/thoron_adblock/blocked_count.h"
 +#include "content/public/browser/page.h"
 +#include "content/public/browser/web_contents.h"
@@ -2420,6 +2493,7 @@ index 0000000000000000000000000000000000000000..bec97fe1d1fa66fa858f1d4ce15ae647
 +    Register("getSettings", &ThoronAdblockHandler::GetSettings);
 +    Register("allowPattern", &ThoronAdblockHandler::AllowPattern);
 +    Register("setHostSwitches", &ThoronAdblockHandler::SetHostSwitches);
++    Register("setSiteJavascript", &ThoronAdblockHandler::SetSiteJavascript);
 +    Register("addFilter", &ThoronAdblockHandler::AddFilter);
 +    Register("getMyRules", &ThoronAdblockHandler::GetMyRules);
 +    Register("setMyRules", &ThoronAdblockHandler::SetMyRules);
@@ -2500,6 +2574,20 @@ index 0000000000000000000000000000000000000000..bec97fe1d1fa66fa858f1d4ce15ae647
 +        allowed.Append(setting.primary_pattern.ToString());
 +      }
 +    }
++    // the menu's JavaScript switch, as uBlock Origin's "no-scripting" writes it
++    base::ListValue javascript;
++    for (const ContentSettingPatternSource& setting :
++         SiteSettings()->GetSettingsForOneType(ContentSettingsType::JAVASCRIPT)) {
++      if (setting.source == content_settings::ProviderType::kPrefProvider &&
++          setting.GetContentSetting() == CONTENT_SETTING_BLOCK &&
++          !setting.primary_pattern.MatchesAllHosts()) {
++        const std::string host(
++            setting.primary_pattern.ToRepresentativeUrl().host());
++        if (!host.empty()) {
++          javascript.Append(host);
++        }
++      }
++    }
 +    base::ListValue switches;
 +    for (const auto& [host, names] : Service().site_switches()) {
 +      base::ListValue list;
@@ -2515,6 +2603,7 @@ index 0000000000000000000000000000000000000000..bec97fe1d1fa66fa858f1d4ce15ae647
 +        base::DictValue()
 +            .Set("allowed", std::move(allowed))
 +            .Set("switches", std::move(switches))
++            .Set("javascript", std::move(javascript))
 +            .Set("total", static_cast<double>(
 +                              thoron_adblock::BlockedCount::Total())));
 +  }
@@ -2615,6 +2704,24 @@ index 0000000000000000000000000000000000000000..bec97fe1d1fa66fa858f1d4ce15ae647
 +      }
 +    }
 +    Service().SetHostSwitches(host, names);
++    Answer(*id, std::string());
++  }
++
++  // [id, host, blocked]: the menu's JavaScript switch for a site, as the menu
++  // sets it (uBlock Origin's "no-scripting: <host> true|false").
++  void SetSiteJavascript(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 2);
++    if (!id || !args[1].is_string() || !args[2].is_bool()) {
++      return;
++    }
++    const std::string& host = args[1].GetString();
++    const GURL url("https://" + host + "/");
++    if (host.empty() || host.size() > 253 || !url.is_valid() ||
++        url.host() != host) {
++      Answer(*id, "This is not the name of a site.");
++      return;
++    }
++    thoron_adblock::SetSiteJavascript(SiteSettings(), url, args[2].GetBool());
 +    Answer(*id, std::string());
 +  }
 +

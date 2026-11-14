@@ -110,7 +110,9 @@ Open `chrome://adblock`.
   scripts from other sites everywhere, `example.com * 3p-script noop` gives them back to the lists on
   example.com, `example.com cdn.example.net * allow` lets a host through on a site (also when the menu's
   switches block other sites' scripts or frames). The most specific rule decides. "Import and append"
-  adds the lines of a text file, "Export" saves your rules as one.
+  adds the lines of a text file, "Export" saves your rules as one. uBlock Origin's switch lines work
+  too (`no-scripting: example.com true`, `no-large-media: * true` and the others): when you save, they
+  go to the sites' switches and the settings; Export writes them, so the file also works in uBlock Origin.
 - **Backup:** "Back up to file" saves your lists, own rules, allowed sites, switches and settings in a
   file; "Restore from file" brings them back, on this or another computer; "Reset to default settings"
   starts over (back up first).
