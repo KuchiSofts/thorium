@@ -58,7 +58,9 @@ It is **off by default** until its last correctness checks are done.
   - **Logger:** the requests of your open tabs, blocked and let through; "Block" or "Allow" on a row
     makes a rule for that host; "Why?" names the rule that blocked it or let it through, and its list.
     Show one type of request only, **Pause** to look at what is there, **Clear** to see only what
-    comes next, and **Export** what is shown as a text file;
+    comes next, and **Export** what is shown as a text file. "3p" marks a request to another site;
+    show first or third party only. The filter takes words that must all be there, `-word` for one
+    that must not, and `/.../` for a regular expression;
   - **Settings:** the full page, `chrome://adblock`;
   - switches for this site: pop-ups (no window the site opens, also from a click), large media (sound
     and video over 50 KB, or the size you set), no hiding, remote fonts, JavaScript, 3rd-party scripts and 3rd-party frames

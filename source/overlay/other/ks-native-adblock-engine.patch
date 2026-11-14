@@ -7218,10 +7218,10 @@ index 0000000000000000000000000000000000000000..14d8a42b54fdbb2d0b66c56140e37796
 +}
 diff --git a/components/thoron_adblock/i18n.js b/components/thoron_adblock/i18n.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..69dc59a3f5d07c1526b03a9e9d1b1ebbdfd9d20a
+index 0000000000000000000000000000000000000000..e36211fe9b0f707176aeafa498b4ca0b548fd685
 --- /dev/null
 +++ b/components/thoron_adblock/i18n.js
-@@ -0,0 +1,982 @@
+@@ -0,0 +1,1010 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7488,6 +7488,34 @@ index 0000000000000000000000000000000000000000..69dc59a3f5d07c1526b03a9e9d1b1ebb
 +  [`The allowed sites were saved as a file.`, `Los sitios permitidos se guardaron como archivo.`,
 +   `Les sites autorisés ont été enregistrés dans un fichier.`, `Die erlaubten Websites wurden als Datei gespeichert.`,
 +   `Os sites permitidos foram salvos como arquivo.`, `Разрешённые сайты сохранены в файл.`],
++  [`"3p" marks a request to another site than the tab's. As in uBlock Origin, the filter takes words that ` +
++       `must all be in the address, -word for one that must not be, and /.../ for a regular expression.`,
++   `"3p" marca una solicitud a otro sitio distinto del de la pestaña. Como en uBlock Origin, el filtro acepta ` +
++       `palabras que deben estar todas en la dirección, -palabra para una que no debe estar y /.../ para una ` +
++       `expresión regular.`,
++   `"3p" signale une requête vers un autre site que celui de l'onglet. Comme dans uBlock Origin, le filtre ` +
++       `accepte des mots qui doivent tous figurer dans l'adresse, -mot pour un mot qui ne doit pas y être et ` +
++       `/.../ pour une expression régulière.`,
++   `"3p" kennzeichnet eine Anfrage an eine andere Website als die des Tabs. Wie in uBlock Origin nimmt der ` +
++       `Filter Wörter, die alle in der Adresse stehen müssen, -Wort für eines, das nicht darin stehen darf, ` +
++       `und /.../ für einen regulären Ausdruck.`,
++   `"3p" marca uma solicitação para outro site que não o da aba. Como no uBlock Origin, o filtro aceita ` +
++       `palavras que devem estar todas no endereço, -palavra para uma que não deve estar e /.../ para uma ` +
++       `expressão regular.`,
++   `«3p» отмечает запрос к другому сайту, а не к сайту вкладки. Как в uBlock Origin, фильтр принимает ` +
++       `слова, которые все должны быть в адресе, -слово для того, которого быть не должно, и /.../ для ` +
++       `регулярного выражения.`],
++  [`Party`, `Origen`, `Origine`, `Herkunft`, `Origem`, `Источник`],
++  [`First and third party`, `Propio y de terceros`, `Propre et tiers`, `Eigene und Drittanbieter`,
++   `Próprio e de terceiros`, `Свои и сторонние`],
++  [`First party`, `Propio`, `Propre`, `Eigene`, `Próprio`, `Свои`],
++  [`Third party`, `De terceros`, `Tiers`, `Drittanbieter`, `De terceiros`, `Сторонние`],
++  [`Words that must all be in the address; -word for one that must not be; /.../ for a regular expression`,
++   `Palabras que deben estar todas en la dirección; -palabra para una que no debe estar; /.../ para una expresión regular`,
++   `Mots qui doivent tous figurer dans l'adresse ; -mot pour un mot qui ne doit pas y être ; /.../ pour une expression régulière`,
++   `Wörter, die alle in der Adresse stehen müssen; -Wort für eines, das nicht darin stehen darf; /.../ für einen regulären Ausdruck`,
++   `Palavras que devem estar todas no endereço; -palavra para uma que não deve estar; /.../ para uma expressão regular`,
++   `Слова, которые все должны быть в адресе; -слово для того, которого быть не должно; /.../ для регулярного выражения`],
 +  [`All types`, `Todos los tipos`, `Tous les types`, `Alle Typen`, `Todos os tipos`, `Все типы`],
 +  [`Type`, `Tipo`, `Type`, `Typ`, `Tipo`, `Тип`],
 +  [`Pause`, `Pausar`, `Pause`, `Anhalten`, `Pausar`, `Пауза`],
@@ -14477,10 +14505,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..9159a927b7bec9c1dbc980ade7f95edecb6be554
+index 0000000000000000000000000000000000000000..f295c19a0801ac379af51cf91dc552987a7532f7
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,364 @@
+@@ -0,0 +1,374 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -14595,6 +14623,7 @@ index 0000000000000000000000000000000000000000..9159a927b7bec9c1dbc980ade7f95ede
 +  #log td.act { white-space: nowrap; }
 +  #log td.act button + button { margin-inline-start: 4px; }
 +  #log td.type { white-space: nowrap; color: var(--soft); }
++  #log td.party { white-space: nowrap; color: var(--soft); font-size: 11px; }
 +  #log .why { margin-top: 4px; font-family: system-ui, sans-serif; color: var(--soft); }
 +  /* the list viewer */
 +  #viewer { inline-size: min(1000px, 94vw); max-block-size: 92vh; box-sizing: border-box; padding: 18px 20px;
@@ -14808,6 +14837,9 @@ index 0000000000000000000000000000000000000000..9159a927b7bec9c1dbc980ade7f95ede
 +      those let through. It is kept only in memory: nothing is stored or sent. "Block" adds a rule for a host
 +      to My filters; "Allow" lets a blocked host through on that site; "Why?" names the rule that blocked
 +      the request or let it through, and its list.</p>
++    <p class="note">"3p" marks a request to another site than the tab's. As in uBlock Origin, the filter takes
++      words that must all be in the address, -word for one that must not be, and /.../ for a regular
++      expression.</p>
 +    <div class="row">
 +      <select id="log-tab" aria-label="Tab"></select>
 +      <select id="log-kind" aria-label="Show">
@@ -14818,7 +14850,13 @@ index 0000000000000000000000000000000000000000..9159a927b7bec9c1dbc980ade7f95ede
 +      <select id="log-type" aria-label="Type">
 +        <option value="">All types</option>
 +      </select>
-+      <input id="log-filter" type="text" aria-label="Show only addresses with" placeholder="Filter">
++      <select id="log-party" aria-label="Party">
++        <option value="">First and third party</option>
++        <option value="first">First party</option>
++        <option value="third">Third party</option>
++      </select>
++      <input id="log-filter" type="text" aria-label="Show only addresses with" placeholder="Filter"
++             title="Words that must all be in the address; -word for one that must not be; /.../ for a regular expression">
 +      <button id="log-pause" type="button" aria-pressed="false">Pause</button>
 +      <button id="log-clear" type="button">Clear</button>
 +      <button id="log-export" type="button">Export</button>
@@ -14847,10 +14885,10 @@ index 0000000000000000000000000000000000000000..9159a927b7bec9c1dbc980ade7f95ede
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..1d4194dd5802666c809407cff9b27c79979d6507
+index 0000000000000000000000000000000000000000..8b881d383389a99a50295070798c94e3e27ea3b5
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,1056 @@
+@@ -0,0 +1,1087 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -15636,6 +15674,32 @@ index 0000000000000000000000000000000000000000..1d4194dd5802666c809407cff9b27c79
 +  showLog();
 +}
 +
++// uBlock Origin's logger filter: words that must all be in a request's address (or its type), "-word" for
++// one that must not be, "/.../" for a regular expression (one that is not valid is taken as text). Each word
++// is tested on each of `fields` apart, so a regular expression may anchor at the end of the address.
++function logMatcher(expression) {
++  const tests = expression.trim().split(/\s+/).filter(Boolean).map((word) => {
++    const negate = word.length > 1 && word.startsWith('-');
++    const term = negate ? word.slice(1) : word;
++    let test = null;
++    const pattern = /^\/(.+)\/$/.exec(term);
++    if (pattern) {
++      try {
++        const regex = new RegExp(pattern[1], 'i');
++        test = (text) => regex.test(text);
++      } catch {
++        test = null;
++      }
++    }
++    if (!test) {
++      const lower = term.toLowerCase();
++      test = (text) => text.toLowerCase().includes(lower);
++    }
++    return {negate, test};
++  });
++  return (fields) => tests.every(({negate, test}) => negate !== fields.some(test));
++}
++
 +function showLog() {
 +  const select = $('log-tab');
 +  const chosen = select.value;
@@ -15651,7 +15715,8 @@ index 0000000000000000000000000000000000000000..1d4194dd5802666c809407cff9b27c79
 +    select.value = chosen;
 +  }
 +  const tab = log[Number(select.value)] || {entries: []};
-+  const filter = $('log-filter').value.trim().toLowerCase();
++  const matches = logMatcher($('log-filter').value);
++  const party = $('log-party').value;
 +  const kind = $('log-kind').value;
 +  const typeSelect = $('log-type');
 +  const chosenType = typeSelect.value;
@@ -15664,7 +15729,8 @@ index 0000000000000000000000000000000000000000..1d4194dd5802666c809407cff9b27c79
 +  }));
 +  typeSelect.value = types.includes(chosenType) ? chosenType : '';
 +  const entries = tab.entries.filter((e) => e.time > logClearedAt &&
-+                                            (!filter || e.url.toLowerCase().includes(filter)) &&
++                                            matches([e.url, e.type || 'other']) &&
++                                            (!party || (party === 'third') === !!e.thirdParty) &&
 +                                            (!kind || (kind === 'blocked') === (e.blocked !== false)) &&
 +                                            (!typeSelect.value || (e.type || 'other') === typeSelect.value));
 +  logShown = entries;
@@ -15705,7 +15771,8 @@ index 0000000000000000000000000000000000000000..1d4194dd5802666c809407cff9b27c79
 +      url.append(make('div', 'why', whys.get(key)));
 +    }
 +    row.append(make('td', 'time', new Date(e.time).toLocaleTimeString()),
-+               make('td', 'kind', blocked ? 'blocked' : 'let through'), make('td', 'type', e.type || ''), url, act);
++               make('td', 'kind', blocked ? 'blocked' : 'let through'), make('td', 'type', e.type || ''),
++               make('td', 'party', e.thirdParty ? '3p' : ''), url, act);
 +    return row;
 +  }));
 +}
@@ -15725,6 +15792,7 @@ index 0000000000000000000000000000000000000000..1d4194dd5802666c809407cff9b27c79
 +}
 +
 +$('log-type').addEventListener('change', showLog);
++$('log-party').addEventListener('change', showLog);
 +$('log-pause').addEventListener('click', () => {
 +  logPaused = !logPaused;
 +  $('log-pause').textContent = logPaused ? 'Resume' : 'Pause';
@@ -15739,7 +15807,8 @@ index 0000000000000000000000000000000000000000..1d4194dd5802666c809407cff9b27c79
 +});
 +$('log-export').addEventListener('click', () => {
 +  saveTextFile(`thoron-logger-${today()}.txt`, logShown.map((e) =>
-+      [new Date(e.time).toISOString(), e.blocked !== false ? 'blocked' : 'let through', e.type || 'other', e.url]
++      [new Date(e.time).toISOString(), e.blocked !== false ? 'blocked' : 'let through', e.type || 'other',
++       e.thirdParty ? '3p' : '1p', e.url]
 +          .join('\t')).join('\n') + '\n');
 +  say('What the logger shows was saved as a file.');
 +});

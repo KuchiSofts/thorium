@@ -13,6 +13,10 @@ host. Steps:
     block    "Block" on the plain image adds ||<plain host>^, and the plain host is not asked any more
     why      (P5.47) "Why?" on the blocked ad image names the rule of the lists that blocked it and its list;
              after "Allow", on the ad image let through, the exception of My filters that lets it through
+    party    (P5.57) "Third party" shows the ad and the plain image, marked "3p"; "First party" shows the
+             page's own image and neither of them
+    words    (P5.57) the filter "png -plain" shows the ad image and the page's own, not the plain one; the
+             filter "/first\\.png$/" (a regular expression) only the page's own
 
     py -3 -I tools/qa/adblock_logger_check.py --browser <out>\\thoron.exe --work <scratch dir>
 Exit status 0 only when every step passes.
@@ -44,12 +48,46 @@ SETTLE_S = 3.0
 
 def page_html(host: str) -> str:
     return (f"<!doctype html><title>{TITLE}</title>"
-            f'<img src="http://{host}/ad.png" alt=""><img src="http://{PLAIN_HOST}/pic.png" alt="">')
+            f'<img src="http://{host}/ad.png" alt=""><img src="http://{PLAIN_HOST}/pic.png" alt="">'
+            '<img src="/first.png" alt="">')
 
 
 READ_ROWS = """JSON.stringify(Array.from(document.querySelectorAll('#log-rows tr')).map((tr) =>
   ({kind: tr.className, url: tr.querySelector('td.url').textContent,
+    party: (tr.querySelector('td.party') || {}).textContent || '',
     button: (tr.querySelector('td.act button') || {}).textContent || ''})))"""
+FIRST = f"http://{PAGE_HOST}/first.png"
+
+
+def show(select: str, value: str) -> str:
+    """A script that sets one of the logger's choices (a select or the filter box) as a person would."""
+    event = "input" if select == "log-filter" else "change"
+    return (f"(() => {{ const e = document.getElementById({json.dumps(select)}); e.value = {json.dumps(value)};"
+            f" e.dispatchEvent(new Event({json.dumps(event)})); return 1; }})()")
+
+
+def party_problems(third: list[dict], first: list[dict], host: str) -> list[str]:
+    out = []
+    if not third or any(r["party"] != "3p" for r in third):
+        out.append(f"party: 'Third party' shows {[(r['url'], r['party']) for r in third]}")
+    for part in (f"//{host}/ad.png", f"//{PLAIN_HOST}/pic.png"):
+        if not any(part in r["url"] for r in third):
+            out.append(f"party: 'Third party' does not show {part}")
+    if not any(r["url"].startswith(FIRST) for r in first) or any(r["party"] for r in first):
+        out.append(f"party: 'First party' shows {[(r['url'], r['party']) for r in first]}")
+    return out
+
+
+def words_problems(words: list[dict], regex: list[dict], host: str) -> list[str]:
+    out = []
+    urls = [r["url"] for r in words]
+    if not any(f"//{host}/ad.png" in u for u in urls) or not any(u.startswith(FIRST) for u in urls):
+        out.append(f"words: 'png -plain' does not show the ad image and the page's own: {urls}")
+    if any(PLAIN_HOST in u for u in urls):
+        out.append("words: 'png -plain' shows the plain image")
+    if not regex or any(not r["url"].startswith(FIRST) for r in regex):
+        out.append(f"words: the regular expression shows {[r['url'] for r in regex]}")
+    return out
 CHOOSE_TAB = """(() => { const select = document.getElementById('log-tab');
   const option = Array.from(select.options).find((o) => o.textContent.includes(%s));
   if (!option) return false;
@@ -103,7 +141,7 @@ class Server:
                 name = (self.headers.get("Host") or "").split(":")[0]
                 if name == "127.0.0.1" and self.path == "/warm.html":
                     body, ctype = WARM_HTML.encode(), "text/html; charset=utf-8"
-                elif name == PAGE_HOST:
+                elif name == PAGE_HOST and not self.path.endswith(".png"):
                     body, ctype = page_html(host).encode(), "text/html; charset=utf-8"
                 else:
                     server.asked.add(name)
@@ -169,6 +207,20 @@ def run(browser: Path, work: Path, host: str) -> list[str]:
                 report("filter", filter_problems(rows), [r["kind"] for r in rows])
                 _eval(logger, "document.getElementById('log-kind').value = '';"
                               "document.getElementById('log-kind').dispatchEvent(new Event('change')); 1")
+
+                _eval(logger, show("log-party", "third"))
+                third = json.loads(_eval(logger, READ_ROWS) or "[]")
+                _eval(logger, show("log-party", "first"))
+                first = json.loads(_eval(logger, READ_ROWS) or "[]")
+                _eval(logger, show("log-party", ""))
+                report("party", party_problems(third, first, host), [(r["url"], r["party"]) for r in third + first])
+
+                _eval(logger, show("log-filter", "png -plain"))
+                words = json.loads(_eval(logger, READ_ROWS) or "[]")
+                _eval(logger, show("log-filter", "/first\\.png$/"))
+                regex = json.loads(_eval(logger, READ_ROWS) or "[]")
+                _eval(logger, show("log-filter", ""))
+                report("words", words_problems(words, regex, host), [r["url"] for r in words + regex])
 
                 def press(kind: str, url_part: str) -> None:
                     _eval(logger, "(() => { const tr = Array.from(document.querySelectorAll('#log-rows tr'))"
