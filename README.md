@@ -6,7 +6,7 @@
 
 **A fast, secure and private browser for Windows, based on Thorium and Chromium.**
 
-[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-44%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%20first-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
+[![Status](https://img.shields.io/badge/status-pre--release-F72F8E?style=flat-square)](#roadmap) <!-- progress-badge:start -->[![Roadmap progress](https://img.shields.io/badge/roadmap-46%25-7B2FF7?style=flat-square)](#roadmap)<!-- progress-badge:end --> [![Platforms](https://img.shields.io/badge/platforms-Windows%20first-24292f?style=flat-square)](#platforms) [![CPU](https://img.shields.io/badge/cpu-x64%20%7C%20ARM64-24292f?style=flat-square)](#platforms) [![License](https://img.shields.io/badge/license-BSD--3--Clause-24292f?style=flat-square)](LICENSE.md)
 
 [Why Thoron](#why-thoron) · [Features](#features) · [Install and update](#install-and-update) · [Versions](#versions) · [Roadmap](#roadmap) · [Platforms](#platforms) · [Verify](#verifying-downloads) · [Security](#security) · [Contributing](#contributing) · [Credits](#credits) · [Wiki](https://github.com/KuchiSofts/thoron/wiki)
 
@@ -77,7 +77,7 @@ changed in each version is in the [changelog](CHANGELOG.md), one line per change
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `█████████░░░░░░░░░░░` 82 of 187 tasks done (44%) · roadmap updated 2026-11-12
+**Overall:** `█████████░░░░░░░░░░░` 88 of 193 tasks done (46%) · roadmap updated 2026-11-12
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -87,7 +87,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/21 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `██████████████░░░░░░` | 41/58 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `███████████████░░░░░` | 47/64 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `██████████░░░░░░░░░░` | 8/16 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `████████░░░░░░░░░░░░` | 4/10 | 🔄 In progress |
@@ -267,6 +267,12 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **P5.56** Native ad blocking, each list on its own schedule: looked for when its "! Expires:" time has passed, from 12 hours to 14 days, as uBlock Origin does
 - [x] **P5.57** Native ad blocking, the logger's filter expressions (words, -word, /regex/) and first or third party, as in uBlock Origin
 - [x] **P5.58** Native ad blocking, uBlock Origin's switch lines in My rules (`no-scripting: <host> true` and the others) applied to the sites' switches and the settings, and written by the export
+- [x] **P5.59** Native ad blocking, uBlock Origin's theme choice (as the system, light, dark) for the settings page and the menu
+- [x] **P5.60** Native ad blocking, uBlock Origin's dynamic URL filtering in My rules (`source address type action`)
+- [x] **P5.61** Native ad blocking, the logger lists the hide rules that hid something on a page, as uBlock Origin's
+- [x] **P5.62** Native ad blocking, uBlock Origin's "Temporarily allow large media": a bar after a stopped video lets large media through on the site until the browser closes
+- [x] **P5.63** Native ad blocking, uBlock Origin's temporary rules on the settings page: what the menu's grid changed for now, with "Save them" and "Revert them"
+- [x] **P5.64** Native ad blocking, uBlock Origin's "Temporarily allow large media elements" in the context menu
 - [ ] **P5.30** Native ad blocking, a page in Settings that a person can work with: one switch for the blocker; the filter lists with a checkbox each; add a list by its address and remove it again; "My filters", the person's own rules in the syntax of the lists; the sites where blocking is off
 
 **Security (S)**

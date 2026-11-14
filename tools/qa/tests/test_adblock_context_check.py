@@ -38,5 +38,14 @@ class NewItemsTests(unittest.TestCase):
         self.assertIn("StartsWith('Subscribe to filter list')", cc.invoke_script(cc.SUBSCRIBE))
 
 
+class LargeMediaTests(unittest.TestCase):
+    def test_the_item_lets_the_video_through(self):
+        names = ["Back", "Temporarily allow large media elements"]
+        self.assertEqual(cc.large_media_problems(names, (1, 0), ([False, True], [False, True, False])), [])
+        self.assertEqual(len(cc.large_media_problems(["Back"], (1, 0), ([], []))), 1)
+        self.assertEqual(len(cc.large_media_problems(names, (1, 1), ([False, True], [False, True]))), 2)
+        self.assertIn('src="/big.mp4"', cc.PAGE)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -95,6 +95,9 @@ def default_problems(got: dict) -> list[str]:
         if name == "media-kb":
             if on != DEFAULT_MEDIA_KB:
                 out.append(f"reset: the largest media size is {on} kB, not {DEFAULT_MEDIA_KB}")
+        elif name == "theme":
+            if on != "auto":  # P5.59: as the system unless chosen
+                out.append(f"reset: the theme is {on!r}, not 'auto'")
         elif on != (name in DEFAULT_ON):
             out.append(f"reset: the setting {name} is {'on' if on else 'off'}")
     if got.get("myFilters"):

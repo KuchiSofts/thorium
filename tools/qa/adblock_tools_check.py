@@ -9,6 +9,8 @@ the page saves go to a folder of the run. Steps:
 
     filters     saving My filters with a line that is no filter names that line, and only that line
     types       the logger's type filter offers the page's types; "script" shows only the script
+    hidden      (P5.61) the logger lists the site's and the generic hide rule that hid an element of the
+                page, as "hidden", and not the one that hid nothing
     pause       while paused, a new request of the page is not shown; after "Resume" it is
     clear       after "Clear" nothing is shown, and a request made after it is
     export      the logger's "Export" saves what it shows, one request a line
@@ -48,6 +50,9 @@ MENU_URL = "chrome://adblock-menu.top-chrome/"
 SETTLE_S = 3.0
 GOOD_FILTER = f"||{BLOCKED_HOST}^"
 BAD_FILTER = "||bad-tools.test^$nosuchoption"
+# hide rules of the site and for every site, and one that hides nothing on the page
+HIDE_RULES = f"{PAGE_HOST}##.thoron-promo\n##.thoron-generic-ad\n{PAGE_HOST}##.not-on-the-page\n"
+HIDDEN = {"##.thoron-promo", "##.thoron-generic-ad"}
 IMPORTED_SITES = "imported-one.test\n[*.]imported-two.test\n# a note\nhttps://imported-three.test/page\n"
 WANTED_SITES = ("[*.]imported-one.test", "[*.]imported-two.test", "[*.]imported-three.test")
 IMPORTED_RULES = "* imported-rule.test * block\n"
@@ -58,11 +63,13 @@ COLORBLIND_ALLOW = ("#1a73e8", "#8ab4f8")
 def page_html() -> str:
     return (f"<!doctype html><title>{TITLE}</title>"
             f'<img src="http://{BLOCKED_HOST}/ad.png" alt=""><img src="http://{PLAIN_HOST}/pic.png" alt="">'
-            f'<script src="http://{PLAIN_HOST}/plain.js"></script>')
+            f'<script src="http://{PLAIN_HOST}/plain.js"></script>'
+            '<div class="thoron-promo">promo</div><div class="thoron-generic-ad">ad</div>')
 
 
 READ_ROWS = """JSON.stringify(Array.from(document.querySelectorAll('#log-rows tr')).map((tr) =>
   ({kind: tr.className, type: tr.querySelector('td.type').textContent,
+    shown: tr.querySelector('td.kind').textContent,
     url: tr.querySelector('td.url').firstChild.textContent})))"""
 CHOOSE_TAB = """(() => { const select = document.getElementById('log-tab');
   const option = Array.from(select.options).find((o) => o.textContent.includes(%s));
@@ -109,6 +116,16 @@ def types_problems(options: list[str], rows: list[dict], script_rows: list[dict]
         out.append(f"types: 'script' shows {[r['type'] for r in script_rows]}")
     elif not any(f"//{PLAIN_HOST}/plain.js" in r["url"] for r in script_rows):
         out.append("types: 'script' does not show the page's script")
+    return out
+
+
+def hidden_problems(rows: list[dict]) -> list[str]:
+    cosmetic = [r for r in rows if r["type"] == "cosmetic"]
+    out = []
+    if {r["url"] for r in cosmetic} != HIDDEN:
+        out.append(f"hidden: the hide rules listed are {sorted(r['url'] for r in cosmetic)}, not {sorted(HIDDEN)}")
+    if any(r.get("shown") != "hidden" for r in cosmetic):
+        out.append(f"hidden: they are shown as {sorted({r.get('shown') for r in cosmetic})}")
     return out
 
 
@@ -295,7 +312,7 @@ def run(browser: Path, work: Path) -> list[str]:
 
                 # filters: the line that is no filter is named after saving
                 _eval(settings, "(() => { const box = document.getElementById('my-filters');"
-                                f" box.value = {json.dumps(GOOD_FILTER + chr(10) + BAD_FILTER + chr(10))};"
+                                f" box.value = {json.dumps(GOOD_FILTER + chr(10) + BAD_FILTER + chr(10) + HIDE_RULES)};"
                                 " box.dispatchEvent(new Event('input'));"
                                 " document.getElementById('save-filters').click(); return 1; })()")
                 message = _wait_message(settings, "not filters", 30)
@@ -312,6 +329,7 @@ def run(browser: Path, work: Path) -> list[str]:
                 script_rows = json.loads(_eval(settings, READ_ROWS) or "[]")
                 _eval(settings, choose_type(""))
                 report("types", types_problems(options, rows, script_rows), options)
+                report("hidden", hidden_problems(rows), sorted(r["url"] for r in rows if r["type"] == "cosmetic"))
 
                 # pause: what is shown stays as it is until "Resume"
                 _eval(settings, "document.getElementById('log-pause').click(); 1")

@@ -19,6 +19,16 @@ class FiltersTests(unittest.TestCase):
         self.assertIn("good filter", found[0])
 
 
+class HiddenTests(unittest.TestCase):
+    def test_the_hide_rules_that_hid_something(self):
+        rows = [{"kind": "blocked", "type": "cosmetic", "url": u, "shown": "hidden"} for u in sorted(tc.HIDDEN)]
+        self.assertEqual(tc.hidden_problems(rows + [row("pic.png")]), [])
+        self.assertEqual(len(tc.hidden_problems(rows[:1])), 1)
+        rows[0]["shown"] = "blocked"
+        self.assertEqual(len(tc.hidden_problems(rows)), 1)
+        self.assertIn('class="thoron-promo"', tc.page_html())
+
+
 class LoggerTests(unittest.TestCase):
     def test_types(self):
         rows = [{"kind": "blocked", "type": "image", "url": f"http://{tc.BLOCKED_HOST}/ad.png"},

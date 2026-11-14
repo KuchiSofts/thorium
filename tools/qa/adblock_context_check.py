@@ -9,8 +9,9 @@ every other name fails, so nothing leaves the PC), chooses "Block element..." in
 Automation, and checks that the picker opened on that very element: Enter puts a rule for it in My filters,
 and after a reload the element is hidden. On a subscribe link (abp:subscribe), "Subscribe to filter list..." opens
 the page that asks about the list; in a frame of another site, "Block element in frame..." starts the picker in
-that frame, and the rule it makes is for the frame's site (P5.53). Then, with "Make use of the context menu" off on chrome://adblock
-(P5.46), a right-click opens the menu without the item.
+that frame, and the rule it makes is for the frame's site (P5.53). With the site's large media stopped, "Temporarily
+allow large media elements" takes the bar of the stopped video away and the video is let through (P5.64). Then,
+with "Make use of the context menu" off on chrome://adblock (P5.46), a right-click opens the menu without the item.
 
     py -3 -I tools/qa/adblock_context_check.py --browser <out>\\thoron.exe --work <scratch dir>
 Exit status 0 when the step passes (or the check does not apply, on another system).
@@ -40,6 +41,8 @@ PAGE_HOST = "context-check.test"
 FRAME_HOST = "context-frame.test"
 SUBSCRIBE = "Subscribe to filter list"
 IN_FRAME = "Block element in frame"
+LARGE_MEDIA = "Temporarily allow large media"
+VIDEO_BYTES = 200 * 1024
 LIST_URL = "https://lists.example/check.txt"
 ITEM = "Block element"  # the string ends in "...", which Chromium's menus show as one character
 SETTLE_S = 2.5
@@ -47,7 +50,8 @@ PAGE = """<!doctype html><title>Thoron context menu check</title>
 <p>text</p><div id="promo-box" class="promo" style="width:240px;height:90px;background:#c33;color:#fff">a promo</div>
 <p id="keep">this stays</p>
 <a id="sub" href="abp:subscribe?location=https%3A%2F%2Flists.example%2Fcheck.txt&amp;title=Check%20list">a list</a>
-<p><iframe id="frame" src="http://context-frame.test/frame.html" width="400" height="140"></iframe></p>"""
+<p><iframe id="frame" src="http://context-frame.test/frame.html" width="400" height="140"></iframe></p>
+<video id="vid" src="/big.mp4" muted width="200" height="60"></video>"""
 FRAME = """<!doctype html><title>frame</title><body style="margin:0">
 <div id="in-frame" style="width:300px;height:80px;background:#c0c;color:#fff">a promo in a frame</div>"""
 # Finds the menu item by the start of its name among the menu items of the test browser (its process id in
@@ -114,6 +118,26 @@ def frame_problems(my_filters: str) -> list[str]:
     return []
 
 
+def large_media_problems(names: list[str], bars: tuple, log: tuple) -> list[str]:
+    """`bars`, `log`: the bars of stopped media on the page, and for each request of the video in the logger
+    whether it was blocked, before and after the item was chosen."""
+    if not any(name.startswith(LARGE_MEDIA) for name in names):
+        return [f"large media: {LARGE_MEDIA!r} is not in the menu ({names})"]
+    out = []
+    if bars != (1, 0):
+        out.append(f"large media: the bars of stopped media were {bars[0]} then {bars[1]}, not 1 then 0")
+    before, after = log
+    if len(after) <= len(before) or after.count(True) != before.count(True):
+        out.append(f"large media: the video was not let through ({before} then {after})")
+    return out
+
+
+MEDIA_LOG = """(async () => { const {sendWithPromise} = await import('chrome://resources/js/cr.js');
+  const tab = (await sendWithPromise('getLog')).find((t) => t.url.includes('context-check.test')) || {entries: []};
+  return JSON.stringify(tab.entries.filter((e) => e.url.endsWith('/big.mp4')).map((e) => e.blocked !== false));
+})()"""
+
+
 def off_problems(names: list[str]) -> list[str]:
     """With "Make use of the context menu" off: the menu opens, without the item."""
     if not names:
@@ -143,6 +167,16 @@ class Server:
 
             def do_GET(self):
                 name = (self.headers.get("Host") or "").split(":")[0]
+                if self.path.startswith("/big.mp4"):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "video/mp4")
+                    self.send_header("Content-Length", str(VIDEO_BYTES))
+                    self.end_headers()
+                    try:
+                        self.wfile.write(b"\0" * VIDEO_BYTES)
+                    except OSError:
+                        pass  # the browser stopped it
+                    return
                 body = (WARM_HTML if self.path == "/warm.html" else FRAME if name == FRAME_HOST
                         else PAGE).encode()
                 self.send_response(200)
@@ -280,10 +314,37 @@ def run(browser: Path, work: Path) -> list[str]:
                     or frame_problems(mine)
                 print(f"{'PASS' if not found else 'FAIL'}  frame: My filters {mine.strip()!r}")
                 problems += found
-                # "Make use of the context menu" off on chrome://adblock: the item is gone
+                # the site's large media stopped: "Temporarily allow large media elements" (the settings page
+                # stays open, so its logger keeps the requests let through too)
                 settings = WebSocket(_open(port, "chrome://adblock/")["webSocketDebuggerUrl"])
+
+                def media_log() -> list[bool]:
+                    reply = settings.call("Runtime.evaluate", expression=MEDIA_LOG, returnByValue=True,
+                                          awaitPromise=True)
+                    return json.loads(reply.get("result", {}).get("value") or "[]")
+
                 try:
                     time.sleep(1.5)
+                    settings.call("Runtime.evaluate", awaitPromise=True, expression=(
+                        "(async () => (await import('chrome://resources/js/cr.js')).sendWithPromise("
+                        f"'setHostSwitches', {json.dumps(PAGE_HOST)}, ['media']))()"))
+                    urllib.request.urlopen(f"http://127.0.0.1:{port}/json/activate/{page_target['id']}",
+                                           timeout=10).read()
+                    page.call("Page.reload")
+                    time.sleep(SETTLE_S + 2)
+                    bars_before = _eval(page, "document.querySelectorAll('thoron-large-media').length")
+                    log_before = media_log()
+                    right_click("keep")
+                    names = [n for n in uia(LIST).splitlines() if n.strip()]
+                    uia(invoke_script(LARGE_MEDIA))
+                    time.sleep(SETTLE_S + 1)
+                    bars_after = _eval(page, "document.querySelectorAll('thoron-large-media').length")
+                    log_after = media_log()
+                    found = large_media_problems(names, (bars_before, bars_after), (log_before, log_after))
+                    print(f"{'PASS' if not found else 'FAIL'}  large media: bars {bars_before} then {bars_after}, "
+                          f"video {log_before} then {log_after}")
+                    problems += found
+                    # "Make use of the context menu" off on chrome://adblock: the item is gone
                     _eval(settings, "document.querySelector('[data-setting=\"context-menu\"]').click(); 1")
                     time.sleep(1)
                     off = _eval(settings, "document.querySelector('[data-setting=\"context-menu\"]').checked")

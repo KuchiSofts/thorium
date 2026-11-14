@@ -59,5 +59,13 @@ class StepTests(unittest.TestCase):
         self.assertIn(f'src="http://{gc.OTHER_HOST}/lib.js"', html)
 
 
+class ForNowTests(unittest.TestCase):
+    def test_shown_and_saved(self):
+        rule = gc.saved_rule(gc.PAGE_HOST, gc.OTHER_HOST, "block")
+        before = {"shown": True, "lines": f"+ {rule}"}
+        self.assertEqual(gc.for_now_problems(before, f"{rule}\n", {"shown": False}), [])
+        self.assertEqual(len(gc.for_now_problems({"shown": False}, "", {"shown": True})), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

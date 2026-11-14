@@ -1705,6 +1705,69 @@ What uBlock Origin's dashboard and logger have, and the settings page had not ye
   switches and settings, the lines without meaning named, scripts stopped on the host and a host under
   it, the export, and the menu's switch letting the scripts run again.
 
+### 12.46 The theme of the pages (P5.59, 2026-11-14)
+
+- As uBlock Origin's "Theme": the settings page and the menu as the system has it, light or dark. The
+  choice is kept with the options (`theme` in options.json: none, `light` or `dark`). Both pages are served
+  with it in `<html data-theme>`, so they open in its colours; the menu follows a change the next time it
+  opens. The colours: the system's (`prefers-color-scheme`) unless `data-theme` says otherwise.
+- **Checked** by `tools/qa/adblock_theme_check.py`: as the system with a light and a dark system (emulated),
+  "Light" with a dark system, "Dark" with a light one, for both pages, and the choice after a restart.
+
+### 12.47 Address rules in My rules (P5.60, 2026-11-14)
+
+- uBlock Origin's dynamic URL filtering: `source address type action`, where `address` is an http, https,
+  ws or wss address a request's starts with, `type` `*` or a request type (the blocker's names and uBlock
+  Origin's: `sub_frame`, `xhr`...) and `action` block, allow or noop. They come before the rules of hosts:
+  the longest address decides, then the most specific source (a host covers the hosts under it), then a
+  named type; `noop` leaves the request to the lists. At most 5,000; the last line for the same source,
+  address and type wins. The logger's "Why?" names the address rule that decided.
+- **Checked** by `tools/qa/adblock_urlrules_check.py` (block, allow over a host's block, noop, "Why?",
+  lines that are no rule) and by engine tests (precedence, types, the host in lower case).
+
+### 12.48 Hide rules in the logger (P5.61, 2026-11-14)
+
+- As uBlock Origin's logger: while it is open, the hide rules that hide something on a page loaded since are
+  listed as "hidden" rows (type `cosmetic`), with the rule (`##selector`). The browser tells each document
+  the logger is open; the document looks, after it loaded and at the follow-ups it already makes for late
+  content, which selectors of its hide rules (the site's and the generic ones it was sent) match an element,
+  and reports each once (`DocumentHost.ReportHidden`). The rows are text in the logger only: nothing is
+  counted or changed by them; a report is bounded (200 selectors of at most 1,000 characters) and taken only
+  while the logger is open.
+- **Checked** by `tools/qa/adblock_tools_check.py` (new step: a site's and a generic hide rule that hid an
+  element are listed, one that hid nothing is not).
+
+### 12.49 Temporarily allow large media (P5.62, 2026-11-14)
+
+- As uBlock Origin: with "no large media" on for a site, a video or audio stopped for its size gets a bar
+  just after it ("Large media was blocked. Click to load it."). A click lets large media through on that
+  site until the browser closes, and loads it again. The bar is in a closed shadow tree, made by `media.js`
+  in the isolated world, which the browser sends only to documents whose site blocks large media. Its call
+  (`thoronAllowMedia`) exists only in that world; the renderer and the browser each take it only with the
+  person's click (transient user activation), and the browser only where large media is blocked.
+- **Checked** by `tools/qa/adblock_largemedia_check.py`: the bar after a stopped video, nothing from the
+  page's own world or its own click, a person's click letting the video through, another site still
+  stopped.
+
+### 12.50 Temporary rules on the settings page (P5.63, 2026-11-14)
+
+- As uBlock Origin's My rules with their temporary pane: what the menu's grid changed and did not save shows
+  under "Changed in the menu for now" (`+` a rule in force, not saved; `-` a saved rule taken out for now),
+  with "Save them" (the rules in force become My rules) and "Revert them" (My rules as saved are in force
+  again). The section shows only when there is a change.
+- **Checked** by `tools/qa/adblock_grid_check.py` (new step: a block made in the grid shows on the settings
+  page, "Save them" saves it and the section goes).
+
+### 12.51 Temporarily allow large media elements, in the context menu (P5.64, 2026-11-14)
+
+- uBlock Origin's item of that name, in the page's context menu where the page's site has large media
+  stopped (and "Make use of the context menu" is on): large media is let through on the site until the
+  browser closes, and every frame of the page loads the media its bar was put after again (media.js,
+  `thoronReloadMedia`, run in the isolated world by the browser's message). The browser's own menu is the
+  person's choice, so no click on the page is needed.
+- **Checked** by `tools/qa/adblock_context_check.py` (new step: the item is in the menu, the bar goes and the
+  video is let through).
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

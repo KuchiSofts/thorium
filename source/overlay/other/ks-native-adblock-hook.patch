@@ -426,10 +426,10 @@ index a4c1c51327f52619864f9b13f7fd78162d131cd2..86ab7c825de3fe7010699c6892f58ba5
      if (info.type == type)
        return l10n_util::GetStringUTF16(info.string_id_mid_sentence);
 diff --git a/components/site_settings_strings.grdp b/components/site_settings_strings.grdp
-index ab3c100b747f5ec6244fa719272e29427f723280..07a89f52a61cb02196b9dcbc905c63e1d360e857 100644
+index ab3c100b747f5ec6244fa719272e29427f723280..77c2cca619ba41599c22742bf9e74186c63d8597 100644
 --- a/components/site_settings_strings.grdp
 +++ b/components/site_settings_strings.grdp
-@@ -325,4 +325,63 @@
+@@ -325,4 +325,66 @@
      Offer writing help
    </message>
    </if>
@@ -488,6 +488,9 @@ index ab3c100b747f5ec6244fa719272e29427f723280..07a89f52a61cb02196b9dcbc905c63e1
 +  </message>
 +  <message name="IDS_THORON_ADBLOCK_SUBSCRIBE" desc="Item of the context menu of a link that names a filter list (abp:subscribe): Thoron's ad blocking page then asks whether to add the list, as uBlock Origin's item of that name.">
 +    Subscribe to filter list...
++  </message>
++  <message name="IDS_THORON_ADBLOCK_LARGE_MEDIA" desc="Item of the page's context menu where the site's large media (video and sound over the size set) is blocked: lets it through on the site until the browser closes, as uBlock Origin's item of that name.">
++    Temporarily allow large media elements
 +  </message>
 +  <message name="IDS_THORON_ADBLOCK_BUBBLE_ALLOW" desc="Checkbox in that bubble that turns the blocking off for the site (the page then reloads).">
 +    Always allow ads and trackers on this site
@@ -966,10 +969,10 @@ index a1a37ae476db8cfafbe6947ba77064b3f4eb25cf..eac99c995ef10b4ebc27306a5028e090
  #if !BUILDFLAG(IS_ANDROID)
        kChromeUIAppServiceInternalsHost,
 diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
-index 2ffedc1aad1f2c0145bbfbd1e4a24d06ffd8f474..1a5b0526d9665aeb4774d5028cde0e765e8621ac 100644
+index 2ffedc1aad1f2c0145bbfbd1e4a24d06ffd8f474..786b481c4596e9b68d9b8e8283453e10c9879e46 100644
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
-@@ -394,6 +394,11 @@
+@@ -394,6 +394,13 @@
  #define IDC_CONTENT_CONTEXT_USE_PASSKEY_FROM_ANOTHER_DEVICE 50194
  // Listen to this page context menu.
  #define IDC_CONTENT_CONTEXT_LISTEN_TO_THIS_PAGE 50195
@@ -978,6 +981,8 @@ index 2ffedc1aad1f2c0145bbfbd1e4a24d06ffd8f474..1a5b0526d9665aeb4774d5028cde0e76
 +// Thoron: the picker in the frame that was clicked; a list a link names.
 +#define IDC_CONTENT_CONTEXT_THORON_BLOCK_IN_FRAME 50197
 +#define IDC_CONTENT_CONTEXT_THORON_SUBSCRIBE 50198
++// Thoron: uBlock Origin's "Temporarily allow large media elements".
++#define IDC_CONTENT_CONTEXT_THORON_LARGE_MEDIA 50199
  // Open with items.
  #define IDC_CONTENT_CONTEXT_OPEN_WITH1 50200
  // Context menu items that provide fast access to input methods.
@@ -995,10 +1000,10 @@ index fe5a6b11df6f45e6f3044cdce3da805c1412c1ac..661cb793341e740e7c089de1ba00db7b
        "//mojo/public/cpp/bindings",
        "//pdf:features",
 diff --git a/chrome/browser/renderer_context_menu/render_view_context_menu.cc b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-index b26070424f8c8954d3d0ca18305bcdec7b541265..074e06ab90eafa11c79620432b68c53c7244b29b 100644
+index b26070424f8c8954d3d0ca18305bcdec7b541265..783da6933bd3942a066a7025161375fcd5d4e6a0 100644
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -226,6 +226,10 @@
+@@ -226,6 +226,11 @@
  #include "components/strings/grit/components_strings.h"
  #include "components/supervised_user/core/browser/supervised_user_preferences.h"
  #include "components/supervised_user/core/browser/supervised_user_url_filtering_service.h"
@@ -1006,10 +1011,11 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..074e06ab90eafa11c79620432b68c53c
 +#include "components/thoron_adblock/features.h"
 +#include "components/thoron_adblock/picker.h"
 +#include "components/thoron_adblock/subscribe.h"
++#include "components/thoron_adblock/document_observer.h"
  #include "components/translate/core/browser/translate_download_manager.h"
  #include "components/translate/core/browser/translate_manager.h"
  #include "components/translate/core/browser/translate_prefs.h"
-@@ -237,6 +241,7 @@
+@@ -237,6 +242,7 @@
  #include "content/public/browser/browser_context.h"
  #include "content/public/browser/child_process_security_policy.h"
  #include "content/public/browser/download_manager.h"
@@ -1017,7 +1023,7 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..074e06ab90eafa11c79620432b68c53c
  #include "content/public/browser/navigation_controller.h"
  #include "content/public/browser/navigation_details.h"
  #include "content/public/browser/navigation_entry.h"
-@@ -270,6 +275,7 @@
+@@ -270,6 +276,7 @@
  #include "third_party/blink/public/common/context_menu_data/edit_flags.h"
  #include "third_party/blink/public/common/features.h"
  #include "third_party/blink/public/common/loader/network_utils.h"
@@ -1025,13 +1031,14 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..074e06ab90eafa11c79620432b68c53c
  #include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
  #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
  #include "third_party/blink/public/mojom/forms/form_control_type.mojom-shared.h"
-@@ -687,13 +693,16 @@ int UmaEnumForCommand(int key, UmaEnumIdLookupType type) {
+@@ -687,13 +694,17 @@ int UmaEnumForCommand(int key, UmaEnumIdLookupType type) {
         {IDC_CONTENT_CONTEXT_GLIC_SMART_SUGGESTION, 172},
         {IDC_CONTENT_CONTEXT_INDIGO, 173},
         {IDC_CONTENT_CONTEXT_OPENLINKSAMETAB, 174},
 +       {IDC_CONTENT_CONTEXT_THORON_BLOCK_ELEMENT, 175},
 +       {IDC_CONTENT_CONTEXT_THORON_BLOCK_IN_FRAME, 176},
 +       {IDC_CONTENT_CONTEXT_THORON_SUBSCRIBE, 177},
++       {IDC_CONTENT_CONTEXT_THORON_LARGE_MEDIA, 178},
         // To add new items:
         //   - Add one more line above this comment block, using the UMA value
         //     from the line below this comment block.
@@ -1039,11 +1046,11 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..074e06ab90eafa11c79620432b68c53c
         //   - Add the new item to the RenderViewContextMenuItem enum in
         //     tools/metrics/histograms/metadata/ui/enums.xml.
 -       {kUmaMaxValueKey, 175}});
-+       {kUmaMaxValueKey, 178}});
++       {kUmaMaxValueKey, 179}});
    // LINT.ThenChange(//tools/metrics/histograms/metadata/ui/enums.xml:RenderViewContextMenuItem)
  
    // LINT.IfChange(ContextMenuOptionDesktop)
-@@ -1936,6 +1945,31 @@ void RenderViewContextMenu::AppendDeveloperItems() {
+@@ -1936,6 +1947,38 @@ void RenderViewContextMenu::AppendDeveloperItems() {
      }
    }
  
@@ -1071,11 +1078,18 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..074e06ab90eafa11c79620432b68c53c
 +      menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_THORON_SUBSCRIBE,
 +                                      IDS_THORON_ADBLOCK_SUBSCRIBE);
 +    }
++    // uBlock Origin's "Temporarily allow large media elements", where the
++    // page's site has large media stopped
++    if (frame && thoron_adblock::EngineService::Get().LargeMediaBlocked(
++                     frame->GetOutermostMainFrame()->GetLastCommittedURL())) {
++      menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_THORON_LARGE_MEDIA,
++                                      IDS_THORON_ADBLOCK_LARGE_MEDIA);
++    }
 +  }
    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_INSPECTELEMENT,
                                    IDS_CONTENT_CONTEXT_INSPECTELEMENT);
  }
-@@ -3612,6 +3646,13 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
+@@ -3612,6 +3655,14 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
      case IDC_CONTENT_CONTEXT_RESTART_PACKAGED_APP:
        return IsDevCommandEnabled(id);
  
@@ -1084,12 +1098,13 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..074e06ab90eafa11c79620432b68c53c
 +
 +    case IDC_CONTENT_CONTEXT_THORON_BLOCK_IN_FRAME:
 +    case IDC_CONTENT_CONTEXT_THORON_SUBSCRIBE:
++    case IDC_CONTENT_CONTEXT_THORON_LARGE_MEDIA:
 +      return true;
 +
      case IDC_CONTENT_CONTEXT_TRANSLATE:
        return navigation_allowed && IsTranslateEnabled();
  
-@@ -4322,6 +4363,34 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
+@@ -4322,6 +4373,38 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
        ExecInspectElement();
        break;
  
@@ -1106,6 +1121,10 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..074e06ab90eafa11c79620432b68c53c
 +
 +    case IDC_CONTENT_CONTEXT_THORON_BLOCK_IN_FRAME:
 +      thoron_adblock::StartPickerInFrame(GetRenderFrameHost());
++      break;
++
++    case IDC_CONTENT_CONTEXT_THORON_LARGE_MEDIA:
++      thoron_adblock::AllowLargeMediaOnPage(GetRenderFrameHost());
 +      break;
 +
 +    case IDC_CONTENT_CONTEXT_THORON_SUBSCRIBE: {
@@ -1125,16 +1144,17 @@ index b26070424f8c8954d3d0ca18305bcdec7b541265..074e06ab90eafa11c79620432b68c53c
        ExecInspectBackgroundPage();
        break;
 diff --git a/tools/metrics/histograms/metadata/ui/enums.xml b/tools/metrics/histograms/metadata/ui/enums.xml
-index 8fd509761c46c149bba8fd2bd80606ab65927c32..430515b79111264bcda15e5477d468bae9720b48 100644
+index 8fd509761c46c149bba8fd2bd80606ab65927c32..9ed0a91be1cfcad610f58521e9d6355962b5dc6b 100644
 --- a/tools/metrics/histograms/metadata/ui/enums.xml
 +++ b/tools/metrics/histograms/metadata/ui/enums.xml
-@@ -454,6 +454,9 @@ chromium-metrics-reviews@google.com.
+@@ -454,6 +454,10 @@ chromium-metrics-reviews@google.com.
    <int value="172" label="IDC_CONTENT_CONTEXT_GLIC_SMART_SUGGESTION"/>
    <int value="173" label="IDC_CONTENT_CONTEXT_INDIGO"/>
    <int value="174" label="IDC_CONTENT_CONTEXT_OPENLINKSAMETAB"/>
 +  <int value="175" label="IDC_CONTENT_CONTEXT_THORON_BLOCK_ELEMENT"/>
 +  <int value="176" label="IDC_CONTENT_CONTEXT_THORON_BLOCK_IN_FRAME"/>
 +  <int value="177" label="IDC_CONTENT_CONTEXT_THORON_SUBSCRIBE"/>
++  <int value="178" label="IDC_CONTENT_CONTEXT_THORON_LARGE_MEDIA"/>
  </enum>
  
  <!-- LINT.ThenChange(//chrome/browser/renderer_context_menu/render_view_context_menu.cc:RenderViewContextMenuItem) -->
@@ -1681,10 +1701,10 @@ index 0000000000000000000000000000000000000000..74bb1e36e87cc5e12248f5c5735b1c20
 +#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_THORON_ADBLOCK_BUTTON_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..28628440cc35d9cf82cde61c09b1b3d7211f6924
+index 0000000000000000000000000000000000000000..a0abef07f985b0207f30ab7a4da6093b67382d2f
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
-@@ -0,0 +1,532 @@
+@@ -0,0 +1,539 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1741,10 +1761,16 @@ index 0000000000000000000000000000000000000000..28628440cc35d9cf82cde61c09b1b3d7
 +  std::string page(html);
 +  const std::string locale =
 +      g_browser_process ? g_browser_process->GetApplicationLocale() : "en";
++  // the theme chosen on the settings page ("light" or "dark"; none: as the
++  // system)
++  const std::string& theme = thoron_adblock::EngineService::Get().theme();
 +  base::ReplaceFirstSubstringAfterOffset(
 +      &page, 0, "<html lang=\"en\" dir=\"ltr\">",
 +      base::StrCat({"<html lang=\"", base::EscapeForHTML(locale), "\" dir=\"",
-+                    base::i18n::IsRTL() ? "rtl" : "ltr", "\">"}));
++                    base::i18n::IsRTL() ? "rtl" : "ltr", "\"",
++                    theme.empty() ? "" : " data-theme=\"",
++                    theme.empty() ? "" : theme, theme.empty() ? "" : "\"",
++                    ">"}));
 +  return page;
 +}
 +
@@ -1918,6 +1944,7 @@ index 0000000000000000000000000000000000000000..28628440cc35d9cf82cde61c09b1b3d7
 +    state.Set("mediaKb", thoron_adblock::EngineService::Get().large_media_kb());
 +    state.Set("colorblind",
 +              thoron_adblock::EngineService::Get().Option("colorblind"));
++    state.Set("theme", thoron_adblock::EngineService::Get().theme());
 +    state.Set("blockedPage", BlockedPage(tab, site));
 +    // the grid of rules, unless "I am an advanced user" is off
 +    if (site.is_valid() &&
@@ -2346,10 +2373,10 @@ index 0000000000000000000000000000000000000000..775954638d4dbf1764c678318776e97d
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_SITE_JAVASCRIPT_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..7b7ba6d71b3cea651e85ac225502beb12a7e9e6a
+index 0000000000000000000000000000000000000000..411b5fec184e20b2c55514248cb74609d3fe25b3
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,712 @@
+@@ -0,0 +1,736 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2408,10 +2435,16 @@ index 0000000000000000000000000000000000000000..7b7ba6d71b3cea651e85ac225502beb1
 +  std::string page(html);
 +  const std::string locale =
 +      g_browser_process ? g_browser_process->GetApplicationLocale() : "en";
++  // the theme chosen on the settings page ("light" or "dark"; none: as the
++  // system)
++  const std::string& theme = thoron_adblock::EngineService::Get().theme();
 +  base::ReplaceFirstSubstringAfterOffset(
 +      &page, 0, "<html lang=\"en\" dir=\"ltr\">",
 +      base::StrCat({"<html lang=\"", base::EscapeForHTML(locale), "\" dir=\"",
-+                    base::i18n::IsRTL() ? "rtl" : "ltr", "\">"}));
++                    base::i18n::IsRTL() ? "rtl" : "ltr", "\"",
++                    theme.empty() ? "" : " data-theme=\"",
++                    theme.empty() ? "" : theme, theme.empty() ? "" : "\"",
++                    ">"}));
 +  return page;
 +}
 +
@@ -2496,6 +2529,7 @@ index 0000000000000000000000000000000000000000..7b7ba6d71b3cea651e85ac225502beb1
 +    Register("setSiteJavascript", &ThoronAdblockHandler::SetSiteJavascript);
 +    Register("addFilter", &ThoronAdblockHandler::AddFilter);
 +    Register("getMyRules", &ThoronAdblockHandler::GetMyRules);
++    Register("getRulesForNow", &ThoronAdblockHandler::GetRulesForNow);
 +    Register("setMyRules", &ThoronAdblockHandler::SetMyRules);
 +    Register("setSetting", &ThoronAdblockHandler::SetSetting);
 +  }
@@ -2636,6 +2670,15 @@ index 0000000000000000000000000000000000000000..7b7ba6d71b3cea651e85ac225502beb1
 +    }
 +  }
 +
++  // uBlock Origin's temporary rules: the rules in force now (with what the
++  // menu's grid changed and did not save).
++  void GetRulesForNow(const base::ListValue& args) {
++    if (const std::string* id = AnswerId(args, 0)) {
++      ResolveJavascriptCallback(base::Value(*id),
++                                base::Value(Service().session_rules()));
++    }
++  }
++
 +  void SetMyRules(const base::ListValue& args) {
 +    const std::string* id = AnswerId(args, 1);
 +    if (!id || !args[1].is_string()) {
@@ -2766,6 +2809,8 @@ index 0000000000000000000000000000000000000000..7b7ba6d71b3cea651e85ac225502beb1
 +      settings.Set(name, Service().Option(name));
 +    }
 +    settings.Set("media-kb", Service().large_media_kb());
++    settings.Set("theme",
++                 Service().theme().empty() ? std::string("auto") : Service().theme());
 +    // for the troubleshooting information, as uBlock Origin's support page
 +    settings.Set("version", std::string(version_info::GetVersionNumber()));
 +    base::DictValue shortcuts;
@@ -2798,6 +2843,12 @@ index 0000000000000000000000000000000000000000..7b7ba6d71b3cea651e85ac225502beb1
 +    }
 +    const std::string& name = args[1].GetString();
 +    // "Block media elements larger than N kB": a whole number
++    if (name == "theme") {
++      Answer(*id, args[2].is_string() && Service().SetTheme(args[2].GetString())
++                      ? std::string()
++                      : std::string("This is not a theme."));
++      return;
++    }
 +    if (name == "media-kb") {
 +      Answer(*id, args[2].is_int() && Service().SetLargeMediaKb(args[2].GetInt())
 +                      ? std::string()
@@ -2867,7 +2918,7 @@ index 0000000000000000000000000000000000000000..7b7ba6d71b3cea651e85ac225502beb1
 +          // as uBlock Origin's logger marks them: to another site than the
 +          // tab's (by registrable domain)
 +          const bool third_party =
-+              page.SchemeIsHTTPOrHTTPS() &&
++              entry.type != "cosmetic" && page.SchemeIsHTTPOrHTTPS() &&
 +              !net::registry_controlled_domains::SameDomainOrHost(
 +                  GURL(entry.url), page,
 +                  net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
