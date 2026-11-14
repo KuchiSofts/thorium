@@ -17,6 +17,8 @@ every other host fail.
                whole update is refused, as the new engine would let known ads through
     restart    the "good" profile starts again with no list server: the saved engine blocks the probe
                from the start, and no list is downloaded (the next check is not due)
+    due-one    (P5.56) after "good" each list is looked for again when its "! Expires:" line says; that
+               profile starts again with only easylist's time passed: only easylist is downloaded
     interrupted      easylist is valid but very long, and the browser is killed while it reads the new
                      lists, as a list that crashed the parser would do: the check must already be on record
     after-interrupt  that profile starts again with a good update on offer: nothing is downloaded (or the
@@ -30,6 +32,7 @@ import argparse
 import http.server
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -86,6 +89,8 @@ def served_lists(bundled: dict[str, str], scenario: str) -> dict[str, str]:
     if scenario == "restart":
         return {}
     served = dict(bundled)
+    if scenario == "due-one":
+        scenario = "good"
     easylist = bundled["easylist"].rstrip("\n")
     if scenario in ("good", "after-interrupt"):
         served["easylist"] = f"{easylist}\n{PROBE_RULE}\n"
@@ -108,6 +113,39 @@ def served_lists(bundled: dict[str, str], scenario: str) -> dict[str, str]:
     return served
 
 
+def update_hours(text: str) -> int:
+    """How often a list asks to be looked for, in hours, as the browser reads it (engine.rs,
+    list_update_hours): its first "! Expires:" line near the top; from 12 hours to 14 days; 4 days without."""
+    for line in text.split("\n")[:100]:
+        line = line.strip()
+        if line[:10].lower() != "! expires:":
+            continue
+        rest = line[10:].lstrip()
+        m = re.match(r"[0-9]+", rest)
+        n = int(m.group()) if m else 0
+        if not 0 < n <= 0xFFFFFFFF:
+            return 96
+        hours = n if rest[m.end():].lstrip()[:1] in ("h", "H") else n * 24
+        return max(12, min(hours, 14 * 24))
+    return 96
+
+
+def times_problems(state: dict | None, served: dict[str, str]) -> list[str]:
+    """After a check that downloaded every list: each is looked for again when its "! Expires:" says."""
+    if not isinstance(state, dict):
+        return []
+    checked = state.get("last_check")
+    out = []
+    for list_id, record in (state.get("lists") or {}).items():
+        if list_id not in served:
+            continue
+        want = checked + update_hours(served[list_id]) * 3600
+        got = (record or {}).get("next")
+        if not isinstance(got, (int, float)) or abs(got - want) > 5:
+            out.append(f"{list_id} is looked for again at {got}, not at {want} as its Expires line says")
+    return out
+
+
 def probe_blocked(seen: list[int], made: int, last: int = LAST_ATTEMPTS) -> bool:
     """True when the page made enough attempts and none of the last `last` reached the server."""
     if made < last:
@@ -116,7 +154,7 @@ def probe_blocked(seen: list[int], made: int, last: int = LAST_ATTEMPTS) -> bool
 
 
 def problems(scenario: str, state: dict | None, probe_blocked: bool, list_requests: int,
-             alive: bool = True) -> list[str]:
+             alive: bool = True, requested: tuple[str, ...] = ()) -> list[str]:
     if not isinstance(state, dict):
         return ["no state file: the update check did not run"]
     note = (((state.get("lists") or {}).get("easylist")) or {}).get("note", "")
@@ -143,6 +181,14 @@ def problems(scenario: str, state: dict | None, probe_blocked: bool, list_reques
             out.append(f"{list_requests} list downloads on restart, though no check was due")
         if not probe_blocked:
             out.append("the saved engine was not used: the probe is not blocked")
+    elif scenario == "due-one":
+        if sorted(requested) != ["easylist"]:
+            out.append(f"the lists downloaded were {sorted(requested)}, not only easylist, whose time had come")
+        if not probe_blocked:
+            out.append("the saved engine was not used: the probe is not blocked")
+        nxt = (((state.get("lists") or {}).get("easylist")) or {}).get("next")
+        if not isinstance(nxt, (int, float)) or nxt < time.time():
+            out.append(f"easylist is not looked for again later: {nxt}")
     elif scenario == "interrupted":
         if not state.get("result", "").startswith(INTERRUPTED):
             out.append("the browser was not stopped while it read the new lists, or the check was not on "
@@ -168,6 +214,7 @@ class ListServer:
     def __init__(self, lists: dict[str, str]):
         self.lists = lists
         self.list_requests = 0
+        self.requested: list[str] = []
         self.ticks: list[int] = []
         self.probes: list[int] = []
         server = self
@@ -198,6 +245,7 @@ class ListServer:
                     self._send(200, "text/javascript", b"window.__probe = 1;")
                 elif url.path.startswith("/lists/") and url.path.endswith(".txt"):
                     server.list_requests += 1
+                    server.requested.append(url.path[len("/lists/"):-len(".txt")])
                     text = server.lists.get(url.path[len("/lists/"):-len(".txt")])
                     if text is None:
                         self._send(404, "text/plain", b"not found")
@@ -257,6 +305,14 @@ def _read_state(profile: Path) -> dict | None:
         return None
 
 
+def _make_due(profile: Path, list_id: str) -> None:
+    """Sets the time `list_id` is looked for again a minute back, as if that time had come."""
+    path = profile / STORE_DIR / "state.json"
+    state = json.loads(path.read_text(encoding="utf-8"))
+    state["lists"][list_id]["next"] = time.time() - 60
+    path.write_text(json.dumps(state), encoding="utf-8")
+
+
 def run_scenario(browser: Path, profile: Path, bundled: dict[str, str], scenario: str,
                  timeout_s: int = 120) -> dict:
     with ListServer(served_lists(bundled, scenario)) as server:
@@ -264,7 +320,7 @@ def run_scenario(browser: Path, profile: Path, bundled: dict[str, str], scenario
         proc = _launch(browser, profile, server.port)
         alive = True
         try:
-            if scenario in ("restart", "after-interrupt"):
+            if scenario in ("restart", "after-interrupt", "due-one"):
                 time.sleep(RESTART_S)
                 alive = proc.poll() is None
             elif scenario == "interrupted":
@@ -281,10 +337,12 @@ def run_scenario(browser: Path, profile: Path, bundled: dict[str, str], scenario
             _stop(proc)
         state = _read_state(profile)
         blocked = probe_blocked(server.probes, server.made)
-        found = problems(scenario, state, blocked, server.list_requests, alive)
+        found = problems(scenario, state, blocked, server.list_requests, alive, tuple(server.requested))
+        if scenario == "good":
+            found += times_problems(state, server.lists)
         return {"scenario": scenario, "passed": not found, "problems": found, "alive": alive,
                 "probe_attempts": server.made, "probes_seen": len(server.probes), "probe_blocked": blocked,
-                "list_requests": server.list_requests,
+                "list_requests": server.list_requests, "requested": server.requested,
                 "result": (state or {}).get("result", "")}
 
 
@@ -300,6 +358,8 @@ def run_all(browser: Path, work: Path, lists_file: Path) -> list[dict]:
             results.append(run_scenario(browser, profile, bundled, scenario))
             if scenario == "good":
                 results.append(run_scenario(browser, profile, bundled, "restart"))
+                _make_due(profile, "easylist")
+                results.append(run_scenario(browser, profile, bundled, "due-one"))
             if scenario == "interrupted":
                 results.append(run_scenario(browser, profile, bundled, "after-interrupt"))
         finally:

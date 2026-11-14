@@ -131,7 +131,8 @@ Open `chrome://adblock`.
   set cookies or click elements, for example): turn it on only for filters you understand.
 
 Every change is in use at once, and stays after a restart and after an update of the browser. What you
-choose stays on your computer. A list you add is fetched from its address every few days, without cookies.
+choose stays on your computer. Each list is fetched again as often as it says (from twice a day to every
+two weeks; every 4 days when it does not say), without cookies; the page shows its next check.
 
 Rules of a list you add, and your own rules, block and hide like any other. They cannot use the powerful
 scripts that only uBlock Origin's own lists may use, unless you allow it for your own filters (above).

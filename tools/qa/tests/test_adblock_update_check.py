@@ -65,6 +65,38 @@ class ScenarioTests(unittest.TestCase):
         self.assertEqual(uc.served_lists(self.bundled, "restart"), {})
 
 
+class ExpiresTests(unittest.TestCase):
+    def test_as_the_browser_reads_it(self):
+        self.assertEqual(uc.update_hours("! Title: x\n! Expires: 6 days (update frequency)\n"), 144)
+        self.assertEqual(uc.update_hours("! expires: 36 hours\n"), 36)
+        self.assertEqual(uc.update_hours("! Expires: 8h\n"), 12)
+        self.assertEqual(uc.update_hours("! Expires: 90 days\n"), 336)
+        self.assertEqual(uc.update_hours("! Expires: soon\n"), 96)
+        self.assertEqual(uc.update_hours("||a^\n"), 96)
+        self.assertEqual(uc.update_hours("||a^\n" * 200 + "! Expires: 1 day\n"), 96)
+
+    def test_times(self):
+        served = {"easylist": "! Expires: 1 day\n||a^\n", "easyprivacy": "||b^\n"}
+        state = {"last_check": 1000.0, "lists": {"easylist": {"next": 1000.0 + 86400},
+                                                  "easyprivacy": {"next": 1000.0 + 96 * 3600},
+                                                  "my-filters": {}}}
+        self.assertEqual(uc.times_problems(state, served), [])
+        state["lists"]["easylist"]["next"] = 1000.0 + 96 * 3600
+        self.assertEqual(len(uc.times_problems(state, served)), 1)
+
+    def test_only_the_due_list_is_downloaded(self):
+        state = {"lists": {"easylist": {"note": "unchanged", "next": 4_000_000_000}}}
+        self.assertEqual(uc.problems("due-one", state, True, 1, requested=("easylist",)), [])
+        self.assertEqual(len(uc.problems("due-one", state, True, 2, requested=("easylist", "easyprivacy"))), 1)
+        self.assertEqual(len(uc.problems("due-one", state, True, 0)), 1)
+        state["lists"]["easylist"]["next"] = 5
+        self.assertEqual(len(uc.problems("due-one", state, True, 1, requested=("easylist",))), 1)
+
+    def test_due_one_offers_the_good_lists(self):
+        bundled = {"easylist": "||a^\n", "easyprivacy": "||b^\n"}
+        self.assertEqual(uc.served_lists(bundled, "due-one"), uc.served_lists(bundled, "good"))
+
+
 class VerdictTests(unittest.TestCase):
     def state(self, note):
         return {"version": "1", "engine": True, "lists": {"easylist": {"note": note}},

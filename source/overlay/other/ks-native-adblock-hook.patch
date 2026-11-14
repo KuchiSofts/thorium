@@ -2274,10 +2274,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..2673b5ac6acbfdc1d61ffc8cb075c51375ae7ee0
+index 0000000000000000000000000000000000000000..ba277e56897fca720a09b306efcb74a006fdc973
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,665 @@
+@@ -0,0 +1,667 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2472,6 +2472,8 @@ index 0000000000000000000000000000000000000000..2673b5ac6acbfdc1d61ffc8cb075c513
 +  }
 +
 +  void AnswerState(const std::string& id, base::DictValue state) {
++    // whether "Next check" times apply: lists are looked for on their own
++    state.Set("autoUpdate", Service().Option("auto-update"));
 +    if (IsJavascriptAllowed()) {
 +      ResolveJavascriptCallback(base::Value(id), state);
 +    }
