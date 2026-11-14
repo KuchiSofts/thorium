@@ -7218,10 +7218,10 @@ index 0000000000000000000000000000000000000000..14d8a42b54fdbb2d0b66c56140e37796
 +}
 diff --git a/components/thoron_adblock/i18n.js b/components/thoron_adblock/i18n.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..e36211fe9b0f707176aeafa498b4ca0b548fd685
+index 0000000000000000000000000000000000000000..6031f63ddb269a8b34fee744354c2aaad1754651
 --- /dev/null
 +++ b/components/thoron_adblock/i18n.js
-@@ -0,0 +1,1010 @@
+@@ -0,0 +1,1030 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7525,6 +7525,20 @@ index 0000000000000000000000000000000000000000..e36211fe9b0f707176aeafa498b4ca0b
 +   `O que o registro mostra foi salvo como arquivo.`, `Содержимое журнала сохранено в файл.`],
 +  [`Add the list`, `Añadir la lista`, `Ajouter la liste`, `Liste hinzufügen`, `Adicionar a lista`,
 +   `Добавить список`],
++  [`uBlock Origin's switch lines work here too: "no-large-media: example.com true" and the like are ` +
++       `applied to the sites' switches and the settings when you save, and Export writes them.`,
++   `Las líneas de interruptores de uBlock Origin también funcionan aquí: "no-large-media: example.com true" ` +
++       `y similares se aplican a los interruptores de los sitios y a los ajustes al guardar, y Exportar las escribe.`,
++   `Les lignes d'interrupteurs d'uBlock Origin fonctionnent aussi ici : "no-large-media: example.com true" ` +
++       `et les autres sont appliquées aux interrupteurs des sites et aux paramètres à l'enregistrement, et ` +
++       `Exporter les écrit.`,
++   `Die Schalterzeilen von uBlock Origin funktionieren auch hier: "no-large-media: example.com true" und ` +
++       `ähnliche werden beim Speichern auf die Schalter der Websites und die Einstellungen angewandt, und ` +
++       `Exportieren schreibt sie.`,
++   `As linhas de interruptores do uBlock Origin também funcionam aqui: "no-large-media: example.com true" ` +
++       `e semelhantes são aplicadas aos interruptores dos sites e às configurações ao salvar, e Exportar as escreve.`,
++   `Строки переключателей uBlock Origin работают и здесь: "no-large-media: example.com true" и подобные ` +
++       `применяются к переключателям сайтов и настройкам при сохранении, а Экспорт записывает их.`],
 +  [`View`, `Ver`, `Voir`, `Ansehen`, `Ver`, `Просмотр`],
 +  [`Only the first 200,000 of these lines are shown: the box above finds the others.`,
 +   `Solo se muestran las primeras 200.000 de estas líneas: el cuadro de arriba encuentra las demás.`,
@@ -8024,6 +8038,12 @@ index 0000000000000000000000000000000000000000..e36211fe9b0f707176aeafa498b4ca0b
 +  [/^Next check: (.+)$/, {},
 +   [`Próxima comprobación: $1`, `Prochaine vérification : $1`, `Nächste Prüfung: $1`,
 +    `Próxima verificação: $1`, `Следующая проверка: $1`]],
++  [/^Your rules are saved and in use\. ([\d,.\s]+) switch lines were applied to the sites and the settings\.$/, {},
++   [`Tus reglas están guardadas y en uso. Se aplicaron $1 líneas de interruptores a los sitios y los ajustes.`,
++    `Vos règles sont enregistrées et utilisées. $1 lignes d'interrupteurs ont été appliquées aux sites et aux paramètres.`,
++    `Deine Regeln sind gespeichert und in Gebrauch. $1 Schalterzeilen wurden auf die Websites und Einstellungen angewandt.`,
++    `Suas regras estão salvas e em uso. $1 linhas de interruptores foram aplicadas aos sites e às configurações.`,
++    `Ваши правила сохранены и используются. Строк переключателей применено к сайтам и настройкам: $1.`]],
 +  [/^These lines are not filters this blocker can use: (.*)$/, {},
 +   [`Estas líneas no son filtros que este bloqueador pueda usar: $1`,
 +    `Ces lignes ne sont pas des filtres utilisables par ce bloqueur : $1`,
@@ -14505,10 +14525,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..f295c19a0801ac379af51cf91dc552987a7532f7
+index 0000000000000000000000000000000000000000..d91782a4ba0905bb8285218cdc6e3bc920bcc78e
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,374 @@
+@@ -0,0 +1,376 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -14804,6 +14824,8 @@ index 0000000000000000000000000000000000000000..f295c19a0801ac379af51cf91dc55298
 +      <code>1p-script</code>, <code>3p-script</code>, <code>3p-frame</code>, <code>image</code>,
 +      <code>inline-script</code>; actions: <code>block</code>, <code>allow</code>, <code>noop</code>. The most
 +      specific rule decides.</p>
++    <p class="note">uBlock Origin's switch lines work here too: "no-large-media: example.com true" and the
++      like are applied to the sites' switches and the settings when you save, and Export writes them.</p>
 +    <textarea id="my-rules" rows="10" spellcheck="false" aria-label="My rules"></textarea>
 +    <div class="row">
 +      <button id="save-rules" class="main" type="button">Save</button>
@@ -14885,10 +14907,10 @@ index 0000000000000000000000000000000000000000..f295c19a0801ac379af51cf91dc55298
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..8b881d383389a99a50295070798c94e3e27ea3b5
+index 0000000000000000000000000000000000000000..16d996866e6034b90ababcdf6089776b87ce513d
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,1087 @@
+@@ -0,0 +1,1215 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -15211,13 +15233,139 @@ index 0000000000000000000000000000000000000000..8b881d383389a99a50295070798c94e3
 +  }
 +}
 +
++// uBlock Origin's switch lines in "My rules" ("no-large-media: example.com true"): what each is here. `site`:
++// the switch of a site (its "-" form takes back a default); `all`: the setting for every site.
++const UBO_SWITCHES = {
++  'no-popups': {site: 'popups'},
++  'no-large-media': {site: 'media', all: 'default-media'},
++  'no-cosmetic-filtering': {site: 'cosmetic', all: 'default-cosmetic'},
++  'no-remote-fonts': {site: 'fonts', all: 'default-fonts'},
++  'no-strict-blocking': {site: 'no-strict'},
++  'no-csp-reports': {all: 'block-csp-reports'},
++  'no-scripting': {javascript: true, all: 'javascript'},
++};
++const SWITCH_LINE = /^(no-[a-z-]+):\s+(\S+)\s+(true|false)$/;
++
++// The switch lines of `text`, and the text without them (a switch this page does not know stays a line).
++function switchLines(text) {
++  const lines = [];
++  const rest = [];
++  for (const line of text.split('\n')) {
++    const m = SWITCH_LINE.exec(line.trim());
++    if (m && UBO_SWITCHES[m[1]]) {
++      lines.push({name: m[1], host: m[2].toLowerCase(), on: m[3] === 'true', line: line.trim()});
++    } else {
++      rest.push(line);
++    }
++  }
++  return {lines, rest: rest.join('\n')};
++}
++
++// Makes the switches and settings as the lines say: how many were used, and the ones that could not be.
++async function applySwitchLines(lines) {
++  const problems = [];
++  let applied = 0;
++  const sites = await sendWithPromise('getSites');
++  const settings = await sendWithPromise('getSettings');
++  const current = new Map(sites.switches.map(({host, names}) => [host, new Set(names)]));
++  const touched = new Set();
++  for (const {name, host, on, line} of lines) {
++    const what = UBO_SWITCHES[name];
++    if (host === 'behind-the-scene') {
++      applied++;  // uBlock Origin's name for requests of no page: here there is nothing to switch
++      continue;
++    }
++    if (host === '*') {
++      if (!what.all) {
++        problems.push(`${line} (here only for one site at a time)`);
++        continue;
++      }
++      const error = await sendWithPromise('setSetting', what.all, on);
++      if (error) {
++        problems.push(`${line} (${error})`);
++      } else {
++        settings[what.all] = on;
++        applied++;
++      }
++      continue;
++    }
++    if (what.javascript) {
++      const error = await sendWithPromise('setSiteJavascript', host, on);
++      if (error) {
++        problems.push(`${line} (${error})`);
++      } else {
++        applied++;
++      }
++      continue;
++    }
++    if (!what.site) {
++      problems.push(`${line} (here for every site only)`);
++      continue;
++    }
++    const names = current.get(host) || new Set();
++    names.delete(what.site);
++    names.delete(`-${what.site}`);
++    if (on) {
++      names.add(what.site);
++    } else if (what.all && settings[what.all]) {
++      names.add(`-${what.site}`);  // off on this site, though on for every site
++    }
++    current.set(host, names);
++    touched.add(host);
++    applied++;
++  }
++  for (const host of touched) {
++    const error = await sendWithPromise('setHostSwitches', host, [...current.get(host)]);
++    if (error) {
++      problems.push(`${host} (${error})`);
++    }
++  }
++  return {applied, problems};
++}
++
++// The switches and settings now, as uBlock Origin writes them in "My rules".
++async function currentSwitchLines() {
++  const [sites, settings] = await Promise.all([sendWithPromise('getSites'), sendWithPromise('getSettings')]);
++  const out = [];
++  for (const [name, what] of Object.entries(UBO_SWITCHES)) {
++    if (what.all && settings[what.all]) {
++      out.push(`${name}: * true`);
++    }
++  }
++  for (const {host, names} of sites.switches) {
++    for (const [name, what] of Object.entries(UBO_SWITCHES)) {
++      if (what.site && names.includes(what.site)) {
++        out.push(`${name}: ${host} true`);
++      } else if (what.site && names.includes(`-${what.site}`)) {
++        out.push(`${name}: ${host} false`);
++      }
++    }
++  }
++  for (const host of sites.javascript || []) {
++    out.push(`no-scripting: ${host} true`);
++  }
++  return out;
++}
++
 +$('save-rules').addEventListener('click', async () => {
++  const {lines, rest} = switchLines($('my-rules').value);
++  let used = {applied: 0, problems: []};
++  if (lines.length) {
++    // as uBlock Origin's: the switches go to the sites and the settings, where this page shows them
++    used = await applySwitchLines(lines);
++    $('my-rules').value = rest;
++    refreshSites();
++    showSettings();
++  }
 +  const problems = await sendWithPromise('setMyRules', $('my-rules').value);
 +  const rules = $('my-rules').value.split('\n').filter((l) => l.trim() && !/^\s*[#!]/.test(l)).length -
 +                problems.length;
 +  $('rules-note').textContent = `${rules} ${rules === 1 ? 'rule' : 'rules'} in use`;
-+  if (problems.length) {
-+    say(`These lines are not rules and are not used: ${problems.join(' | ')}`, true);
++  const all = [...problems, ...used.problems];
++  if (all.length) {
++    say(`These lines are not rules and are not used: ${all.join(' | ')}`, true);
++  } else if (used.applied) {
++    say(`Your rules are saved and in use. ${used.applied} switch lines were applied to the sites and the settings.`);
 +  } else {
 +    say('Your rules are saved and in use.');
 +  }
@@ -15238,8 +15386,10 @@ index 0000000000000000000000000000000000000000..8b881d383389a99a50295070798c94e3
 +  box.value = box.value.trim() ? `${box.value.trimEnd()}\n${text}\n` : `${text}\n`;
 +  say(`${text.split('\n').length} lines were added below your rules. Save to use them.`);
 +});
-+$('export-rules').addEventListener('click', () => {
-+  saveTextFile(`my-rules-${today()}.txt`, $('my-rules').value);
++$('export-rules').addEventListener('click', async () => {
++  // with the switches, as uBlock Origin writes them: the file works there too
++  const text = [$('my-rules').value.trimEnd(), ...(await currentSwitchLines())].filter(Boolean).join('\n');
++  saveTextFile(`my-rules-${today()}.txt`, text ? `${text}\n` : '');
 +  say('Your rules were saved as a file.');
 +});
 +

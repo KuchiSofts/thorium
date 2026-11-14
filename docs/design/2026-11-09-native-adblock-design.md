@@ -1687,6 +1687,24 @@ What uBlock Origin's dashboard and logger have, and the settings page had not ye
 - **Checked** by `tools/qa/adblock_logger_check.py` (new steps "party" and "words", with an image of the
   page's own site on the test page) and `adblock_tools_check.py` (the export's party column).
 
+### 12.45 uBlock Origin's switch lines in My rules (P5.58, 2026-11-14)
+
+- **What.** My rules as uBlock Origin exports them hold switch lines too: `no-popups`, `no-large-media`,
+  `no-cosmetic-filtering`, `no-remote-fonts`, `no-scripting`, `no-strict-blocking` and `no-csp-reports`, each
+  as `<switch>: <host> true|false`. Saved here, each is applied where this browser keeps it: a host's line
+  to the switches of that site (`false` takes back a switch that is on for every site), a `*` line to the
+  setting for every site. uBlock Origin's lines for `behind-the-scene` (requests of no page) are taken and
+  change nothing. A line with no meaning here (`no-popups: * true`, a host's `no-csp-reports`) is named
+  and not used. The lines leave the box: the page shows the switches under the sites and the settings.
+- **Export** of My rules writes the rules and every switch now set, as uBlock Origin writes them, so the
+  file works in uBlock Origin too.
+- **JavaScript of a site.** The menu's JavaScript switch and `no-scripting: <host> true` are the same
+  site setting, now for the host and the hosts under it, whatever the scheme, as uBlock Origin's switch
+  (before, only the one address). Off takes back both forms. `thoron_adblock_site_javascript.cc`.
+- **Checked** by `tools/qa/adblock_switchlines_check.py`: uBlock Origin's text applied, the sites'
+  switches and settings, the lines without meaning named, scripts stopped on the host and a host under
+  it, the export, and the menu's switch letting the scripts run again.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
