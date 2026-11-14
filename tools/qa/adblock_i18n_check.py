@@ -44,7 +44,7 @@ SETTLE_S = 3.0
 NAMES = {"ublock", "origin", "thoron", "javascript", "webrtc", "csp", "ip", "ctrl", "alt", "shift", "kb", "mb",
          "https", "example", "com", "easylist"}
 # Texts that are the same word in English and in a language of the table
-SAME = {"Sites", "Sections", "Images", "Tab"}
+SAME = {"Sites", "Sections", "Images", "Tab", "Type", "Pause"}
 LATIN_WORD = re.compile(r"[A-Za-z]{2,}")
 # hosts, addresses and rules inside a text ("Allow: example.com on this site", "||ads^"): never translated
 CODE_LIKE = re.compile(r"\S*[.|^#$@/:=*+]\S*")
@@ -52,8 +52,8 @@ CODE_LIKE = re.compile(r"\S*[.|^#$@/:=*+]\S*")
 # Every text the page shows and every title, label and placeholder, but not code, rules, addresses, request
 # types, host names, the titles of lists or what a person typed.
 READ = r"""(() => {
-  const keep = 'code, pre, textarea, script, style, .url, td.url, td.type, .host, .site, .title, #log-tab,' +
-               ' #my-filters, .grid-row.host .name, .grid-row.domain .name, #lists input, #catalog input';
+  const keep = 'code, pre, textarea, script, style, .url, td.url, td.type, option.type, .host, .site, .title,' +
+               ' #log-tab, #my-filters, .grid-row.host .name, .grid-row.domain .name, #lists input, #catalog input';
   const out = [];
   const walk = (node) => {
     if (node.nodeType === Node.TEXT_NODE) {

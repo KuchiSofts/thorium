@@ -56,7 +56,9 @@ It is **off by default** until its last correctness checks are done.
   - or right-click the thing on the page and choose **Block element...**: the picker opens on it
     (inside a frame, **Block element in frame...** picks in that frame);
   - **Logger:** the requests of your open tabs, blocked and let through; "Block" or "Allow" on a row
-    makes a rule for that host; "Why?" names the rule that blocked it or let it through, and its list;
+    makes a rule for that host; "Why?" names the rule that blocked it or let it through, and its list.
+    Show one type of request only, **Pause** to look at what is there, **Clear** to see only what
+    comes next, and **Export** what is shown as a text file;
   - **Settings:** the full page, `chrome://adblock`;
   - switches for this site: pop-ups (no window the site opens, also from a click), large media (sound
     and video over 50 KB, or the size you set), no hiding, remote fonts, JavaScript, 3rd-party scripts and 3rd-party frames
@@ -81,8 +83,9 @@ It is **off by default** until its last correctness checks are done.
   how many ads and trackers were blocked on the page, and from which sites.
 - **Allow a site:** tick "Always allow ads and trackers on this site" in that bubble, or click the icon
   left of the address, open "Site settings" and set "Ads and trackers" to Allow. Reload the page.
-- **Allow everywhere or manage allowed sites:** Settings, "Privacy and security", "Site settings",
-  "Additional content settings", "Ads and trackers".
+- **Manage allowed sites:** on `chrome://adblock`, under the sites: add one, take one out, or
+  **Import** and **Export** them as a text file (one site a line). To allow everywhere: Settings,
+  "Privacy and security", "Site settings", "Additional content settings", "Ads and trackers".
 
 ### Lists and your own rules
 
@@ -93,7 +96,8 @@ Open `chrome://adblock`.
   (no hiding, no large media, no remote fonts, no JavaScript, no third-party scripts or frames: uBlock
   Origin's "medium mode"), which the menu's switches change for one
   site; ignoring hide rules written for every site; the size of "large media"; "Block element..." in
-  the right-click menu; the grid of rules in the menu ("I am an advanced user"); and, under the lists,
+  the right-click menu; the grid of rules in the menu ("I am an advanced user"), in blue and orange
+  with "Color-blind friendly"; and, under the lists,
   whether they update on their own (otherwise only "Update now" downloads them).
 - **Language:** the settings page and the menu follow the browser's language: English, Spanish,
   French, German, Portuguese or Russian. Rules, addresses and list names stay as they are.
@@ -103,10 +107,13 @@ Open `chrome://adblock`.
 - **My rules:** uBlock Origin's dynamic filtering, one rule per line: `* * 3p-script block` blocks
   scripts from other sites everywhere, `example.com * 3p-script noop` gives them back to the lists on
   example.com, `example.com cdn.example.net * allow` lets a host through on a site (also when the menu's
-  switches block other sites' scripts or frames). The most specific rule decides.
+  switches block other sites' scripts or frames). The most specific rule decides. "Import and append"
+  adds the lines of a text file, "Export" saves your rules as one.
 - **Backup:** "Back up to file" saves your lists, own rules, allowed sites, switches and settings in a
   file; "Restore from file" brings them back, on this or another computer; "Reset to default settings"
   starts over (back up first).
+- **Troubleshooting:** "Copy troubleshooting info" copies the browser's version, the lists in use and
+  the settings you changed, to paste where you ask for help. It holds no address you visited.
 
 - **More lists:** cookie notices, annoyances, more privacy and lists for your region or language, as
   uBlock Origin offers them. Tick a list to add it; untick it to remove it.
@@ -116,6 +123,7 @@ Open `chrome://adblock`.
   first; something that is not a filter list is refused, and the page says why. Remove takes it out again.
 - **My filters:** write your own rules, one per line, and press Save. For example `||ads.example.com^`
   blocks a host, `example.com##.banner` hides something on a site, and `@@||example.com^` allows a site.
+  After Save, the page names any line that is not a filter it can use, and why.
   "Import and append" adds the lines of a text file, "Export" saves your filters as one. "Allow custom
   filters requiring trust" lets your filters use what only uBlock Origin's lists may (scriptlets that
   set cookies or click elements, for example): turn it on only for filters you understand.
@@ -124,11 +132,10 @@ Every change is in use at once, and stays after a restart and after an update of
 choose stays on your computer. A list you add is fetched from its address every few days, without cookies.
 
 Rules of a list you add, and your own rules, block and hide like any other. They cannot use the powerful
-scripts that only uBlock Origin's own lists may use.
+scripts that only uBlock Origin's own lists may use, unless you allow it for your own filters (above).
 
 ### What it cannot do yet
 
-- **Pick an element on a page to hide it.** Planned next.
 - **A few rare kinds of rules** in the lists are not applied yet (ROADMAP P5.26).
 
 ## uBlock Origin

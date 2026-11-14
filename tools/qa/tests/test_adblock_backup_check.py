@@ -36,7 +36,8 @@ class DefaultsTests(unittest.TestCase):
     def test_the_defaults(self):
         got = {"disabled": [], "myFilters": "", "allowed": [], "switches": {},
                "settings": {"badge": True, "webrtc": False, "auto-update": True, "context-menu": True,
-                            "advanced": True, "media-kb": 50, "shortcuts": {"zapper": "Ctrl+Alt+Z"}}}
+                            "advanced": True, "media-kb": 50, "shortcuts": {"zapper": "Ctrl+Alt+Z"},
+                            "colorblind": False, "version": "158.0.8127.3006"}}
         self.assertEqual(bc.default_problems(got), [])
         got["settings"].update({"auto-update": False, "media-kb": 300})
         self.assertEqual(len(bc.default_problems(got)), 2)
