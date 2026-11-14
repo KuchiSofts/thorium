@@ -59,6 +59,7 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** "Copy troubleshooting info" and a color-blind friendly menu, as in uBlock Origin.
 - **Ad blocking:** "View" shows the rules of any list in use, with a find box.
 - **Ad blocking:** each list updates as often as it says (its "Expires" line), as in uBlock Origin.
+- **Ad blocking:** the logger's filter takes uBlock Origin's expressions and marks third-party requests.
 - **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.

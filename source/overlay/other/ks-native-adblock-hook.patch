@@ -2274,10 +2274,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..ba277e56897fca720a09b306efcb74a006fdc973
+index 0000000000000000000000000000000000000000..bec97fe1d1fa66fa858f1d4ce15ae6474b1e4ce4
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,667 @@
+@@ -0,0 +1,677 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2322,6 +2322,7 @@ index 0000000000000000000000000000000000000000..ba277e56897fca720a09b306efcb74a0
 +#include "content/public/browser/url_data_source.h"
 +#include "content/public/browser/web_ui.h"
 +#include "content/public/browser/web_ui_message_handler.h"
++#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 +#include "content/public/common/url_constants.h"
 +#include "services/network/public/cpp/shared_url_loader_factory.h"
 +#include "url/gurl.h"
@@ -2754,12 +2755,21 @@ index 0000000000000000000000000000000000000000..ba277e56897fca720a09b306efcb74a0
 +          continue;
 +        }
 +        base::ListValue list;
++        const GURL& page = tab->GetLastCommittedURL();
 +        for (const auto& entry : entries) {
++          // as uBlock Origin's logger marks them: to another site than the
++          // tab's (by registrable domain)
++          const bool third_party =
++              page.SchemeIsHTTPOrHTTPS() &&
++              !net::registry_controlled_domains::SameDomainOrHost(
++                  GURL(entry.url), page,
++                  net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
 +          list.Append(base::DictValue()
 +                          .Set("time", entry.time.InMillisecondsFSinceUnixEpoch())
 +                          .Set("url", entry.url)
 +                          .Set("blocked", entry.blocked)
-+                          .Set("type", entry.type));
++                          .Set("type", entry.type)
++                          .Set("thirdParty", third_party));
 +        }
 +        tabs.Append(base::DictValue()
 +                        .Set("title", base::UTF16ToUTF8(tab->GetTitle()))

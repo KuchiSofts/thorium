@@ -143,8 +143,8 @@ def export_problems(text: str, rows: list[dict]) -> list[str]:
     out = []
     if len(lines) != len(rows):
         out.append(f"export: {len(lines)} lines for {len(rows)} requests shown")
-    if any(len(fields) != 4 for fields in lines):
-        out.append("export: a line is not time, blocked or let through, type and address")
+    if any(len(fields) != 5 for fields in lines):
+        out.append("export: a line is not time, blocked or let through, type, party and address")
     if sorted(fields[-1] for fields in lines) != sorted(r["url"] for r in rows):
         out.append("export: the addresses are not the ones shown")
     return out

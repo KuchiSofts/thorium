@@ -36,10 +36,10 @@ class LoggerTests(unittest.TestCase):
 
     def test_export(self):
         rows = [row("after-clear.png")]
-        text = f"2026-01-01T00:00:00.000Z\tlet through\timage\t{rows[0]['url']}\n"
+        text = f"2026-01-01T00:00:00.000Z\tlet through\timage\t3p\t{rows[0]['url']}\n"
         self.assertEqual(tc.export_problems(text, rows), [])
         self.assertEqual(len(tc.export_problems("", rows)), 2)
-        self.assertEqual(len(tc.export_problems(f"a\tb\t{rows[0]['url']}\n", rows)), 1)
+        self.assertEqual(len(tc.export_problems(f"a\tb\tc\t{rows[0]['url']}\n", rows)), 1)
 
 
 class FilesTests(unittest.TestCase):

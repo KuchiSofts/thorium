@@ -1676,6 +1676,17 @@ What uBlock Origin's dashboard and logger have, and the settings page had not ye
   its Expires line says; with only EasyList's time passed, only EasyList is downloaded (new "due-one"
   step); every earlier scenario still passes. The reading of the Expires line has engine tests.
 
+### 12.44 The logger's filter and party (P5.57, 2026-11-14)
+
+- **Filter expressions**, as uBlock Origin's logger takes them: words that must all be in a request's
+  address (or its type), `-word` for one that must not be, `/.../` for a regular expression (one that is
+  not valid is taken as text). Each word is tested on the address and on the type apart, so a regular
+  expression may anchor at the end of the address. Matching is done in the page, on what is shown.
+- **First or third party.** The browser marks each request to another site than the tab's ("3p"), by
+  registrable domain as uBlock Origin does; the logger shows the mark, filters by it and exports it.
+- **Checked** by `tools/qa/adblock_logger_check.py` (new steps "party" and "words", with an image of the
+  page's own site on the test page) and `adblock_tools_check.py` (the export's party column).
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

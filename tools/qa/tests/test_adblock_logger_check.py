@@ -34,6 +34,31 @@ class RowsTests(unittest.TestCase):
         html = lc.page_html("ads.example")
         self.assertIn('src="http://ads.example/ad.png"', html)
         self.assertIn(f'src="http://{lc.PLAIN_HOST}/pic.png"', html)
+        self.assertIn('src="/first.png"', html)
+
+
+class PartyAndWordsTests(unittest.TestCase):
+    def rows(self, *urls_and_parties):
+        return [{"kind": "allowed", "url": u, "party": p, "button": ""} for u, p in urls_and_parties]
+
+    def test_party(self):
+        ad, plain = ("http://ads.example/ad.png", "3p"), (f"http://{lc.PLAIN_HOST}/pic.png", "3p")
+        first = (lc.FIRST, "")
+        self.assertEqual(lc.party_problems(self.rows(ad, plain), self.rows(first), "ads.example"), [])
+        self.assertEqual(len(lc.party_problems(self.rows(ad), self.rows(first), "ads.example")), 1)
+        self.assertEqual(len(lc.party_problems(self.rows(ad, plain, (lc.FIRST, "")), self.rows(first),
+                                               "ads.example")), 1)
+        self.assertEqual(len(lc.party_problems(self.rows(ad, plain), self.rows(ad), "ads.example")), 1)
+
+    def test_words(self):
+        ad, plain, first = ("http://ads.example/ad.png", "3p"), (f"http://{lc.PLAIN_HOST}/pic.png", "3p"), (lc.FIRST, "")
+        self.assertEqual(lc.words_problems(self.rows(ad, first), self.rows(first), "ads.example"), [])
+        self.assertEqual(len(lc.words_problems(self.rows(ad, first, plain), self.rows(first), "ads.example")), 1)
+        self.assertEqual(len(lc.words_problems(self.rows(ad), self.rows(ad), "ads.example")), 2)
+
+    def test_the_scripts(self):
+        self.assertIn("new Event(\"input\")", lc.show("log-filter", "png"))
+        self.assertIn("new Event(\"change\")", lc.show("log-party", "third"))
 
 
 if __name__ == "__main__":
