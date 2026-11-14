@@ -2640,10 +2640,10 @@ index 0000000000000000000000000000000000000000..95ab7dc485b0f2eac71ef24a024c18da
 +}
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..2feaeb248c5c75639985c6a02008a552c0ed93c8
+index 0000000000000000000000000000000000000000..75b0f8f79a8c508a85a26ca54e39e33b885d9618
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,1148 @@
+@@ -0,0 +1,1191 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2825,6 +2825,11 @@ index 0000000000000000000000000000000000000000..2feaeb248c5c75639985c6a02008a552
 +        /// The number of rules in a filter list: lines that are not empty, comments ("!") or
 +        /// headers ("[Adblock Plus 2.0]").
 +        fn count_rules(text: &str) -> usize;
++
++        /// How often a list asks to be looked for, in hours: its "! Expires: <n> days" (or "hours")
++        /// line near its top, read as uBlock Origin reads it; 96 (4 days) without one. From 12 hours to
++        /// 14 days, whatever the list says.
++        fn list_update_hours(text: &str) -> u32;
 +
 +        /// True when a list holds an exception that allows every request (for example "@@*",
 +        /// "@@||^" or "@@|http"), with no site limit. A downloaded list with one is refused: no
@@ -3044,6 +3049,26 @@ index 0000000000000000000000000000000000000000..2feaeb248c5c75639985c6a02008a552
 +
 +fn count_rules(text: &str) -> usize {
 +    rule_lines(text).count()
++}
++
++fn list_update_hours(text: &str) -> u32 {
++    const DEFAULT: u32 = 4 * 24;
++    for line in text.lines().take(100) {
++        let line = line.trim();
++        let Some(rest) = line.get(..10).filter(|p| p.eq_ignore_ascii_case("! expires:")).map(|_| &line[10..])
++        else {
++            continue;
++        };
++        let rest = rest.trim_start();
++        let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
++        let n = match rest[..digits].parse::<u32>() {
++            Ok(n) if n > 0 => n,
++            _ => return DEFAULT,
++        };
++        let hours = if rest[digits..].trim_start().starts_with(&['h', 'H'][..]) { n } else { n.saturating_mul(24) };
++        return hours.clamp(12, 14 * 24);
++    }
++    DEFAULT
 +}
 +
 +fn allows_all(line: &str) -> bool {
@@ -3345,6 +3370,24 @@ index 0000000000000000000000000000000000000000..2feaeb248c5c75639985c6a02008a552
 +        assert!(engine.should_block("https://ads.example/a.js", "https://news.example/", "script"));
 +        assert!(!engine.should_block("https://ads.example/wanted.js", "https://news.example/", "script"));
 +        assert!(engine.document_resources("https://news.example/").hide_selectors.contains(&".promo".to_string()));
++    }
++
++    #[test]
++    fn a_list_says_how_often_it_is_looked_for() {
++        assert_eq!(list_update_hours("! Title: x\n! Expires: 6 days (update frequency)\n||a^\n"), 144);
++        assert_eq!(list_update_hours("[Adblock Plus 2.0]\n! Expires: 1 day\n"), 24);
++        assert_eq!(list_update_hours("! expires: 36 hours\n"), 36);
++        assert_eq!(list_update_hours("! EXPIRES:8h\n"), 12, "at least 12 hours");
++        assert_eq!(list_update_hours("! Expires: 90 days\n"), 14 * 24, "at most 14 days");
++        assert_eq!(list_update_hours("||a^\n"), 96);
++        assert_eq!(list_update_hours("! Expires: soon\n! Expires: 1 day\n"), 96, "the first line decides");
++        assert_eq!(list_update_hours("! Expires: 0 days\n"), 96);
++        assert_eq!(list_update_hours("! Expires: 99999999999 days\n"), 96);
++        // the tenth byte inside a letter: no slice through it
++        assert_eq!(list_update_hours("! Expires\u{e9} 1 day\n! Expires: 2 days\n"), 48);
++        let late = format!("{}! Expires: 1 day\n", "||a^\n".repeat(200));
++        assert_eq!(list_update_hours(&late), 96, "only near the top");
++        assert_eq!(list_update_hours(""), 96);
 +    }
 +
 +    #[test]
@@ -7175,10 +7218,10 @@ index 0000000000000000000000000000000000000000..14d8a42b54fdbb2d0b66c56140e37796
 +}
 diff --git a/components/thoron_adblock/i18n.js b/components/thoron_adblock/i18n.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..277d6f9df1137f0b02469b24e1943b6f3e122043
+index 0000000000000000000000000000000000000000..69dc59a3f5d07c1526b03a9e9d1b1ebbdfd9d20a
 --- /dev/null
 +++ b/components/thoron_adblock/i18n.js
-@@ -0,0 +1,979 @@
+@@ -0,0 +1,982 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7950,6 +7993,9 @@ index 0000000000000000000000000000000000000000..277d6f9df1137f0b02469b24e1943b6f
 +   [`$1 de $2 líneas`, `$1 lignes sur $2`, `$1 von $2 Zeilen`, `$1 de $2 linhas`, `$1 из $2 строк`]],
 +  [/^([\d,.\s]+) lines$/, {},
 +   [`$1 líneas`, `$1 lignes`, `$1 Zeilen`, `$1 linhas`, `Строк: $1`]],
++  [/^Next check: (.+)$/, {},
++   [`Próxima comprobación: $1`, `Prochaine vérification : $1`, `Nächste Prüfung: $1`,
++    `Próxima verificação: $1`, `Следующая проверка: $1`]],
 +  [/^These lines are not filters this blocker can use: (.*)$/, {},
 +   [`Estas líneas no son filtros que este bloqueador pueda usar: $1`,
 +    `Ces lignes ne sont pas des filtres utilisables par ce bloqueur : $1`,
@@ -8379,15 +8425,16 @@ index 0000000000000000000000000000000000000000..eed875cd4da34b0f151586a64b5700ff
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_FETCH_H_
 diff --git a/components/thoron_adblock/list_store.cc b/components/thoron_adblock/list_store.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e1404685083072b
+index 0000000000000000000000000000000000000000..578b995ac6395ff6396cbbeb90f878bf95dd5188
 --- /dev/null
 +++ b/components/thoron_adblock/list_store.cc
-@@ -0,0 +1,965 @@
+@@ -0,0 +1,1043 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
 +#include "components/thoron_adblock/list_store.h"
 +
++#include <algorithm>
 +#include <array>
 +#include <utility>
 +
@@ -8616,6 +8663,25 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +  return std::string();
 +}
 +
++// How often a list is looked for: what its "! Expires:" line says.
++base::TimeDelta IntervalOf(std::string_view text) {
++  return base::Hours(list_update_hours(ToStr(text)));
++}
++
++// `lists` (list records by id) with the time each list of `next` is looked for
++// again set in its record.
++base::DictValue WithNext(base::DictValue lists,
++                         const std::map<std::string, base::Time>& next) {
++  for (const auto& [id, at] : next) {
++    base::DictValue* record = lists.FindDict(id);
++    if (!record) {
++      record = lists.Set(id, base::DictValue())->GetIfDict();
++    }
++    record->Set("next", at.InSecondsFSinceUnixEpoch());
++  }
++  return lists;
++}
++
 +base::FilePath StoredListPath(const StorePaths& paths, std::string_view id) {
 +  return paths.store_dir.Append(kStoredLists)
 +      .AppendASCII(base::StrCat({id, ".txt"}));
@@ -8757,6 +8823,7 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +// the copies there are, and leaves the time of the last check as it was.
 +UpdateResult Assemble(const StorePaths& paths,
 +                      std::map<std::string, base::FilePath> downloads,
++                      const std::set<std::string>& attempted,
 +                      std::vector<bool> probes_blocked,
 +                      base::Time now,
 +                      bool settings_changed) {
@@ -8780,8 +8847,15 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +  // browser down with it. With the record, the next update is kUpdateInterval
 +  // away and changed settings are not read again at the next start; without
 +  // it, both would happen at every start.
++  std::map<std::string, base::Time> not_before;
++  if (!settings_changed) {
++    for (const std::string& id : attempted) {
++      not_before[id] = now + kUpdateInterval;
++    }
++  }
 +  WriteState(paths, checked, old_engine_saved,
-+             old_lists ? old_lists->Clone() : base::DictValue(),
++             WithNext(old_lists ? old_lists->Clone() : base::DictValue(),
++                      not_before),
 +             "interrupted: the browser stopped while it was reading lists\n",
 +             old_fingerprint, fingerprint);
 +  std::optional<std::string> bundled_text =
@@ -8792,6 +8866,8 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +  std::string combined;
 +  std::map<std::string, std::string> accepted;
 +  base::DictValue new_lists;
++  // when each list that was looked for is looked for again (DueLists)
++  std::map<std::string, base::Time> next;
 +  for (const ActiveList& source : ActiveLists(settings)) {
 +    const std::string& id = source.id;
 +    // The copy in use now. A built-in list: an earlier update from this
@@ -8817,24 +8893,29 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +    std::string note;
 +    const std::string* chosen = previous ? &*previous : nullptr;
 +    std::string chosen_from = previous_from;
++    const bool tried = !settings_changed && attempted.contains(id);
++    bool fetched = false;
 +    auto it = downloads.find(id);
 +    if (it == downloads.end()) {
-+      note = settings_changed ? "" : "kept: download failed";
++      note = tried ? "kept: download failed" : "";
 +    } else if (std::string raw; !base::ReadFileToStringWithMaxSize(
 +                   it->second, &raw, kMaxListBytes)) {
 +      note = "kept: too large or unreadable";
 +    } else if (auto why = RefuseList(raw, previous_rules)) {
 +      note = base::StrCat({"kept: ", *why});
++      fetched = true;
 +    } else if (previous && raw == *previous) {
 +      note = "unchanged";
++      fetched = true;
 +    } else {
 +      accepted[id] = std::move(raw);
 +      chosen = &accepted[id];
 +      chosen_from = "download";
 +      note = "updated";
++      fetched = true;
 +    }
-+    if (settings_changed && note.empty()) {
-+      // Not an update: the note of the last update stays.
++    if (note.empty()) {
++      // Not an update, or not due: the note of the last update stays.
 +      const std::string* old_note = old ? old->FindString("note") : nullptr;
 +      note = old_note ? *old_note : std::string();
 +    }
@@ -8843,12 +8924,26 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +      continue;
 +    }
 +    base::StrAppend(&combined, {kMarker, id, "\n", *chosen, "\n"});
++    // When it is looked for again: as it says, after a download; soon, after a
++    // failed one; else as it was on record (or, with none, as it says from the
++    // last check).
++    const std::optional<double> old_next =
++        old ? old->FindDouble("next") : std::nullopt;
++    if (fetched) {
++      next[id] = now + IntervalOf(*chosen);
++    } else if (tried) {
++      next[id] = now + std::min(kRetryInterval, IntervalOf(*chosen));
++    } else if (old_next) {
++      next[id] = base::Time::FromSecondsSinceUnixEpoch(*old_next);
++    } else if (!checked.is_null()) {
++      next[id] = checked + IntervalOf(*chosen);
++    }
 +    new_lists.Set(id, base::DictValue()
 +                          .Set("source", chosen_from)
 +                          .Set("rules", static_cast<int>(
 +                                            count_rules(ToStr(*chosen))))
 +                          .Set("note", note));
-+    if (!note.empty()) {
++    if (!note.empty() && (settings_changed || tried)) {
 +      result.summary += base::StrCat({id, ": ", note, "\n"});
 +    }
 +  }
@@ -8879,9 +8974,11 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +    result.summary += "settings changed: the filters were built again\n";
 +  }
 +
-+  // The lists as they were, for when nothing new is used.
++  new_lists = WithNext(std::move(new_lists), next);
++  // The lists as they were, for when nothing new is used (with the times they
++  // are looked for again: a refused update is not downloaded again at once).
 +  base::DictValue kept_lists =
-+      old_lists ? old_lists->Clone() : base::DictValue();
++      WithNext(old_lists ? old_lists->Clone() : base::DictValue(), next);
 +  if (accepted.empty() && !settings_changed) {
 +    // Every list kept its copy, so the entries still name the right files.
 +    WriteState(paths, checked, old_engine_saved, std::move(new_lists),
@@ -8957,7 +9054,7 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +    change.error = "The settings could not be saved.";
 +    return change;
 +  }
-+  change.engine = std::move(Assemble(paths, {}, {}, now, true).engine);
++  change.engine = std::move(Assemble(paths, {}, {}, {}, now, true).engine);
 +  if (!change.engine) {
 +    change.error =
 +        "The filters could not be built again; the previous ones stay in use.";
@@ -8972,7 +9069,8 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +  std::optional<rust::Box<Engine>> engine = LoadFilters(paths, &rebuild);
 +  if (rebuild) {
 +    // It comes with its resources.
-+    return std::move(Assemble(paths, {}, {}, base::Time::Now(), true).engine);
++    return std::move(
++        Assemble(paths, {}, {}, {}, base::Time::Now(), true).engine);
 +  }
 +  if (engine && (*engine)->is_valid()) {
 +    AddResources(paths, **engine);
@@ -9062,12 +9160,33 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +  return now - checked >= kUpdateInterval || checked - now >= kUpdateInterval;
 +}
 +
++std::vector<ActiveList> DueLists(const StorePaths& paths,
++                                 std::vector<ActiveList> lists,
++                                 base::Time now) {
++  std::optional<base::DictValue> state = ReadState(paths);
++  const base::DictValue* records = state ? state->FindDict("lists") : nullptr;
++  const bool all_due = IsUpdateDue(paths, now);
++  std::erase_if(lists, [&](const ActiveList& list) {
++    const base::DictValue* record = records ? records->FindDict(list.id) : nullptr;
++    const std::optional<double> next =
++        record ? record->FindDouble("next") : std::nullopt;
++    if (!next) {
++      return !all_due;
++    }
++    const base::Time at = base::Time::FromSecondsSinceUnixEpoch(*next);
++    // A clock that went backwards must not stop updates for long.
++    return now < at && at - now <= kMaxListInterval;
++  });
++  return lists;
++}
++
 +UpdateResult ApplyUpdate(const StorePaths& paths,
 +                         std::map<std::string, base::FilePath> downloads,
++                         std::set<std::string> attempted,
 +                         std::vector<bool> probes_blocked,
 +                         base::Time now) {
-+  return Assemble(paths, std::move(downloads), std::move(probes_blocked), now,
-+                  false);
++  return Assemble(paths, std::move(downloads), attempted,
++                  std::move(probes_blocked), now, false);
 +}
 +
 +Settings ReadSettings(const StorePaths& paths) {
@@ -9318,6 +9437,11 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +    list.Set("rules", rules.value_or(0));
 +    const std::string* note = info ? info->FindString("note") : nullptr;
 +    list.Set("note", note ? *note : std::string());
++    // when it is looked for again (seconds since 1970), when that is on record
++    if (std::optional<double> next =
++            info ? info->FindDouble("next") : std::nullopt) {
++      list.Set("next", *next);
++    }
 +    return list;
 +  };
 +  base::ListValue lists;
@@ -9350,10 +9474,10 @@ index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e140468
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/list_store.h b/components/thoron_adblock/list_store.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..3dcbea870f53db2e9de671d879f819b640e95d7f
+index 0000000000000000000000000000000000000000..afc6fddd83dd1ffda301852b596e50602d171b45
 --- /dev/null
 +++ b/components/thoron_adblock/list_store.h
-@@ -0,0 +1,198 @@
+@@ -0,0 +1,211 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -9400,8 +9524,12 @@ index 0000000000000000000000000000000000000000..3dcbea870f53db2e9de671d879f819b6
 +// previous copy.
 +inline constexpr size_t kMaxListBytes = 20 * 1024 * 1024;
 +inline constexpr size_t kMinKeptPercent = 50;
-+// Lists are checked for updates at most this often.
++// Lists are checked for updates this often when they do not say (P5.56: each
++// list says how often in its "! Expires:" line, from 12 hours to 14 days).
 +inline constexpr base::TimeDelta kUpdateInterval = base::Days(4);
++inline constexpr base::TimeDelta kMaxListInterval = base::Days(14);
++// A list whose download failed (while others came) is tried again this soon.
++inline constexpr base::TimeDelta kRetryInterval = base::Hours(6);
 +
 +// What a person chose on the settings page (chrome://adblock). It is kept in
 +// the store, for the whole browser like the lists themselves, never in a
@@ -9487,6 +9615,13 @@ index 0000000000000000000000000000000000000000..3dcbea870f53db2e9de671d879f819b6
 +// another browser version.
 +bool IsUpdateDue(const StorePaths& paths, base::Time now);
 +
++// The lists of `lists` that are due to be looked for, each when its own time
++// on record has come (an update writes it from the list's "! Expires:" line, as
++// uBlock Origin does); one without a time on record when IsUpdateDue.
++std::vector<ActiveList> DueLists(const StorePaths& paths,
++                                 std::vector<ActiveList> lists,
++                                 base::Time now);
++
 +// Probe requests that every working engine blocks (ads and trackers that are
 +// in the default lists). An update must still block each probe the current
 +// engine blocks, so no update can turn blocking off.
@@ -9502,14 +9637,16 @@ index 0000000000000000000000000000000000000000..3dcbea870f53db2e9de671d879f819b6
 +  std::string summary;                      // per list: updated or kept, and why
 +};
 +
-+// Checks each download (files in `downloads`, by list id; a missing id means
-+// the download failed), keeps the previous copy of every list that fails a
++// Checks each download (files in `downloads`, by list id; an id of `attempted`
++// that is missing means the download failed; a list that was not attempted was
++// not due and stays as it is), keeps the previous copy of every list that fails a
 +// check, and builds a new engine only when at least one list changed and the
 +// new engine passes the probes. `probes_blocked` holds, per probe, whether the
 +// current engine blocks it. Writes the accepted lists, the engine and a state
 +// file atomically, and deletes the downloads.
 +UpdateResult ApplyUpdate(const StorePaths& paths,
 +                         std::map<std::string, base::FilePath> downloads,
++                         std::set<std::string> attempted,
 +                         std::vector<bool> probes_blocked,
 +                         base::Time now);
 +
@@ -9554,15 +9691,16 @@ index 0000000000000000000000000000000000000000..3dcbea870f53db2e9de671d879f819b6
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_STORE_H_
 diff --git a/components/thoron_adblock/list_updater.cc b/components/thoron_adblock/list_updater.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5db88b2305e4b593bec4b3a80c81b1b2f6434f5f
+index 0000000000000000000000000000000000000000..ad5b01ec37a25516a4ba5e001b5de8eba740a8fc
 --- /dev/null
 +++ b/components/thoron_adblock/list_updater.cc
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,226 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
 +#include "components/thoron_adblock/list_updater.h"
 +
++#include <set>
 +#include <utility>
 +
 +#include "base/files/file_util.h"
@@ -9590,11 +9728,18 @@ index 0000000000000000000000000000000000000000..5db88b2305e4b593bec4b3a80c81b1b2
 +std::optional<std::vector<ActiveList>> ListsToFetch(const StorePaths& paths,
 +                                                    base::Time now,
 +                                                    bool forced) {
-+  if ((!forced && !IsUpdateDue(paths, now)) ||
-+      !base::CreateDirectory(paths.store_dir.Append(kDownloadDir))) {
++  if (!base::CreateDirectory(paths.store_dir.Append(kDownloadDir))) {
 +    return std::nullopt;
 +  }
-+  return ActiveLists(ReadSettings(paths));
++  std::vector<ActiveList> lists = ActiveLists(ReadSettings(paths));
++  if (!forced) {
++    // each list when its own time has come ("Update now": all of them)
++    lists = DueLists(paths, std::move(lists), now);
++    if (lists.empty()) {
++      return std::nullopt;
++    }
++  }
++  return lists;
 +}
 +
 +}  // namespace
@@ -9740,10 +9885,15 @@ index 0000000000000000000000000000000000000000..5db88b2305e4b593bec4b3a80c81b1b2
 +    Finished("No list could be downloaded.\n");
 +    return;
 +  }
++  std::set<std::string> attempted;
++  for (const ActiveList& source : sources_) {
++    attempted.insert(source.id);
++  }
 +  file_runner_->PostTaskAndReplyWithResult(
 +      FROM_HERE,
 +      base::BindOnce(&ApplyUpdate, paths_, std::move(downloads_),
-+                     probe_check_.Run(), base::Time::Now()),
++                     std::move(attempted), probe_check_.Run(),
++                     base::Time::Now()),
 +      base::BindOnce(&ListUpdater::OnApplied, weak_factory_.GetWeakPtr()));
 +  downloads_.clear();
 +}
@@ -14327,10 +14477,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..a65c457aef761e20ad50f5d87d1388b160d26b8f
+index 0000000000000000000000000000000000000000..9159a927b7bec9c1dbc980ade7f95edecb6be554
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,363 @@
+@@ -0,0 +1,364 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -14368,6 +14518,7 @@ index 0000000000000000000000000000000000000000..a65c457aef761e20ad50f5d87d1388b1
 +  .list .title { font-weight: 500; }
 +  .list .url { display: block; font-size: 12px; overflow-wrap: anywhere; }
 +  .list .count { font-size: 12px; color: var(--soft); }
++  .list .next { display: block; font-size: 12px; color: var(--soft); }
 +  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0 0; }
 +  button, .button {
 +    font: inherit; padding: 7px 16px; border-radius: 16px; border: 1px solid var(--line);
@@ -14696,10 +14847,10 @@ index 0000000000000000000000000000000000000000..a65c457aef761e20ad50f5d87d1388b1
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..017b272abc636d895a816827813307d7f78f992c
+index 0000000000000000000000000000000000000000..1d4194dd5802666c809407cff9b27c79979d6507
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,1050 @@
+@@ -0,0 +1,1056 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -14885,7 +15036,8 @@ index 0000000000000000000000000000000000000000..017b272abc636d895a816827813307d7
 +  }
 +}
 +
-+function showLists(lists) {
++// `autoUpdate`: lists are looked for on their own (else only "Update now" does it).
++function showLists(lists, autoUpdate = true) {
 +  showCatalog(lists);
 +  const box = $('lists');
 +  box.replaceChildren();
@@ -14902,6 +15054,11 @@ index 0000000000000000000000000000000000000000..017b272abc636d895a816827813307d7
 +    const title = make('span', 'title', list.title || list.url);
 +    const count = make('span', 'count', `  ${rulesText(list.rules)}${list.note ? ' - ' + list.note : ''}`);
 +    about.append(title, count, make('span', 'url', list.url));
++    if (autoUpdate && list.next > 0 && list.enabled !== false) {
++      const when = new Date(Math.max(list.next * 1000, Date.now()))
++          .toLocaleString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
++      about.append(make('span', 'next', `Next check: ${when}`));
++    }
 +
 +    if (list.builtin) {
 +      const check = make('input');
@@ -15595,7 +15752,7 @@ index 0000000000000000000000000000000000000000..017b272abc636d895a816827813307d7
 +setInterval(refreshLog, 2000);
 +
 +function show(state) {
-+  showLists(state.lists);
++  showLists(state.lists, state.autoUpdate !== false);
 +  $('not-applied').hidden = !state.notApplied;
 +
 +  $('last-check').textContent = state.lastCheck > 0 ?

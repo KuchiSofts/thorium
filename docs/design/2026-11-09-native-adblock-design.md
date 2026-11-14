@@ -1657,6 +1657,25 @@ What uBlock Origin's dashboard and logger have, and the settings page had not ye
   find box, a list added from a local server shown exactly, no "View" for a list switched off, and
   nothing for an unknown id or a path.
 
+### 12.43 Each list on its own schedule (P5.56, 2026-11-14)
+
+- **What.** As uBlock Origin does it, each list is looked for when its own time has come: its
+  "! Expires: <n> days" (or "hours") line near its top says how often, read as uBlock Origin reads it,
+  from 12 hours to 14 days; 4 days without one. EasyList, which says 6 days, is looked for every 6 days; a
+  list of quick fixes that says 1 day, daily. The settings page shows each list's "Next check".
+- **How.** After an update the state file holds, per list, when it is looked for next (`next`): as the
+  list says after a download (also when the download was refused, so a bad update is not fetched again
+  within the hour); 6 hours after a failed download (when other lists came); as before for a list that was
+  not due. The hourly check downloads only the lists that are due (`DueLists`); "Update now" all of them.
+  A list with no time on record (a state of an older version, or none yet) is due as before, 4 days after
+  the last check; a time more than 14 days ahead (a clock that went back) counts as due.
+- **Safety kept.** Before any list is read, the lists being looked for are put on record as not due for
+  4 days: a list that stopped the browser while it was read is not fetched again at every start. Every
+  check an update must pass (size, shrinking, allow-all, probes) is unchanged.
+- **Checked** by `tools/qa/adblock_update_check.py`: after the "good" update each list's next time is what
+  its Expires line says; with only EasyList's time passed, only EasyList is downloaded (new "due-one"
+  step); every earlier scenario still passes. The reading of the Expires line has engine tests.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

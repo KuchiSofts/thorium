@@ -11,6 +11,8 @@ other name fails, so nothing leaves the PC). Steps:
     builtin   "View" on EasyList shows its rules, all of its thousands of lines
     find      "Show only lines with" shows only the lines with the words, and how many of all
     added     a list added from the server shows exactly its text, its name and its "Expires" line
+    next      (P5.56) after "Update now" the added list says when it is looked for again: as its "Expires"
+              line says, 2 days on
     off       a built-in list switched off has no "View"
     refused   an id of no list in use, or something that is no id, gives nothing
 
@@ -115,6 +117,17 @@ def added_problems(seen: dict) -> list[str]:
     return out
 
 
+def next_problems(seen: dict, now: float) -> list[str]:
+    """The added list after "Update now": its time on record 2 days on, and the page says it."""
+    out = []
+    nxt = seen.get("next")
+    if not isinstance(nxt, (int, float)) or abs(nxt - (now + 2 * 86400)) > 300:
+        out.append(f"next: the list is looked for again at {nxt}, not 2 days on ({now + 2 * 86400})")
+    if not str(seen.get("shown", "")).startswith("Next check: "):
+        out.append(f"next: the page says {seen.get('shown')!r}")
+    return out
+
+
 def refused_problems(answers: list) -> list[str]:
     return [] if answers == [None, None, None] else [f"refused: the answers are {answers}"]
 
@@ -170,6 +183,14 @@ def _eval(ws: WebSocket, expression: str):
     return reply.get("result", {}).get("value")
 
 
+def _wait_message(ws: WebSocket, words: str, seconds: float) -> None:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if words in (_eval(ws, "document.getElementById('message').textContent") or ""):
+            return
+        time.sleep(0.5)
+
+
 def _wait_viewer(ws: WebSocket, word: str = "") -> dict:
     seen: dict = {}
     for _ in range(60):
@@ -223,6 +244,15 @@ def run(browser: Path, work: Path) -> list[str]:
                     seen = _wait_viewer(page)
                     report("added", added_problems(seen), {k: seen.get(k) for k in ("title", "about", "count")})
                     _eval(page, "document.getElementById('viewer-close').click(); 1")
+
+                    now = time.time()
+                    _eval(page, "document.getElementById('update-now').click(); 1")
+                    _wait_message(page, "Looked for newer lists", 60)
+                    seen = json.loads(_eval(page, ASK.format(action=(
+                        "JSON.stringify({next: (await sendWithPromise('getState')).lists.find("
+                        f"(l) => l.id === {json.dumps(list_id)}).next, shown: (document.querySelector("
+                        f"'[data-id={json.dumps(list_id)}] .next') || {{}}).textContent || ''}})"))) or "{}")
+                    report("next", next_problems(seen, now), seen)
 
                 _eval(page, f"document.querySelector('[data-id={json.dumps(LIST_OFF)}] input').click(); 1")
                 time.sleep(SETTLE_S + 2)  # the engine is built again

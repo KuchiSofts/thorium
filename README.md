@@ -77,7 +77,7 @@ changed in each version is in the [changelog](CHANGELOG.md), one line per change
 Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always current.
 
 <!-- roadmap:start -->
-**Overall:** `█████████░░░░░░░░░░░` 79 of 184 tasks done (43%) · roadmap updated 2026-11-12
+**Overall:** `█████████░░░░░░░░░░░` 80 of 185 tasks done (43%) · roadmap updated 2026-11-12
 
 | Area | Progress | Done | Status |
 |---|---|---|---|
@@ -87,7 +87,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 | [P2b - ARM64](ROADMAP.md#p2b---arm64) | `░░░░░░░░░░░░░░░░░░░░` | 0/5 | ⬜ Not started |
 | [P3 - Updater v1 + Import](ROADMAP.md#p3---updater-v1--import) | `░░░░░░░░░░░░░░░░░░░░` | 0/21 | ⬜ Not started |
 | [P4 - Updater v2](ROADMAP.md#p4---updater-v2) | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | ⬜ Not started |
-| [P5 - Quality](ROADMAP.md#p5---quality) | `██████████████░░░░░░` | 38/55 | 🔄 In progress |
+| [P5 - Quality](ROADMAP.md#p5---quality) | `██████████████░░░░░░` | 39/56 | 🔄 In progress |
 | [Security (S)](ROADMAP.md#security-s) | `██████████░░░░░░░░░░` | 8/16 | 🔄 In progress |
 | [Quality & performance (Q)](ROADMAP.md#quality--performance-q) | `███░░░░░░░░░░░░░░░░░` | 1/7 | 🔄 In progress |
 | [Docs (D)](ROADMAP.md#docs-d) | `████████░░░░░░░░░░░░` | 4/10 | 🔄 In progress |
@@ -264,6 +264,7 @@ Generated from [`ROADMAP.md`](ROADMAP.md) on every change, so it is always curre
 - [x] **P5.53** Native ad blocking, subscribe links (`abp:subscribe`), "Subscribe to filter list..." and "Block element in frame...", as in uBlock Origin
 - [x] **P5.54** Native ad blocking, the tools of uBlock Origin's dashboard: the logger's pause, clear, export and type filter, My filters checked line by line, import and export of My rules and of allowed sites, troubleshooting info, color-blind colors
 - [x] **P5.55** Native ad blocking, the list viewer: "View" shows the rules of a list in use as the engine uses them, read only, with a find box, as uBlock Origin shows a list
+- [x] **P5.56** Native ad blocking, each list on its own schedule: looked for when its "! Expires:" time has passed, from 12 hours to 14 days, as uBlock Origin does
 - [ ] **P5.30** Native ad blocking, a page in Settings that a person can work with: one switch for the blocker; the filter lists with a checkbox each; add a list by its address and remove it again; "My filters", the person's own rules in the syntax of the lists; the sites where blocking is off
 
 **Security (S)**

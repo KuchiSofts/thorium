@@ -28,6 +28,12 @@ class StepTests(unittest.TestCase):
         self.assertEqual(vc.added_problems(seen), [])
         self.assertEqual(len(vc.added_problems({**seen, "text": "", "about": ""})), 2)
 
+    def test_next(self):
+        now = 1_000_000.0
+        self.assertEqual(vc.next_problems({"next": now + 2 * 86400 + 30, "shown": "Next check: Nov 16, 07:10"}, now), [])
+        self.assertEqual(len(vc.next_problems({"next": now + 4 * 86400, "shown": ""}, now)), 2)
+        self.assertEqual(len(vc.next_problems({}, now)), 2)
+
     def test_refused(self):
         self.assertEqual(vc.refused_problems([None, None, None]), [])
         self.assertEqual(len(vc.refused_problems([None, "x", None])), 1)
