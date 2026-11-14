@@ -53,6 +53,10 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** the zapper lets a page scroll again after taking out what had locked it.
 - **Ad blocking:** subscribe links of filter list sites add the list after asking, as in uBlock Origin.
 - **Ad blocking:** context menu: "Subscribe to filter list..." and "Block element in frame...".
+- **Ad blocking:** the logger can pause, clear, export and filter by type.
+- **Ad blocking:** saving My filters names the lines that are not filters it can use.
+- **Ad blocking:** import and export for My rules and for the allowed sites.
+- **Ad blocking:** "Copy troubleshooting info" and a color-blind friendly menu, as in uBlock Origin.
 - **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.

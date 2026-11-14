@@ -2640,10 +2640,10 @@ index 0000000000000000000000000000000000000000..95ab7dc485b0f2eac71ef24a024c18da
 +}
 diff --git a/components/thoron_adblock/engine.rs b/components/thoron_adblock/engine.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..d6329551f45e99ed7d8cab50cb43350e0a41bdad
+index 0000000000000000000000000000000000000000..2feaeb248c5c75639985c6a02008a552c0ed93c8
 --- /dev/null
 +++ b/components/thoron_adblock/engine.rs
-@@ -0,0 +1,1117 @@
+@@ -0,0 +1,1148 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2845,6 +2845,10 @@ index 0000000000000000000000000000000000000000..d6329551f45e99ed7d8cab50cb43350e
 +
 +        /// What puts both pages into the browser's language (i18n.js): the pages load it first.
 +        fn page_i18n_js() -> &'static str;
++
++        /// The lines of "My filters" that are not filters this blocker can use, each with why (as
++        /// uBlock Origin's editor marks them): at most 50. Comments and headers are not looked at.
++        fn filter_problems(text: &str) -> Vec<String>;
 +
 +        /// The element picker and zapper (picker.js): a function expression the browser calls
 +        /// with "picker" or "zapper".
@@ -3080,6 +3084,23 @@ index 0000000000000000000000000000000000000000..d6329551f45e99ed7d8cab50cb43350e
 +
 +fn page_i18n_js() -> &'static str {
 +    include_str!("i18n.js")
++}
++
++fn filter_problems(text: &str) -> Vec<String> {
++    let mut out = Vec::new();
++    for line in text.lines().map(str::trim) {
++        if out.len() >= 50 {
++            break;
++        }
++        if line.is_empty() || line.starts_with('!') || line.starts_with('[') {
++            continue;
++        }
++        let options = adblock::lists::ParseOptions::default();
++        if let Err(e) = adblock::lists::parse_filter(line, false, options) {
++            out.push(format!("{} ({e})", line.chars().take(200).collect::<String>()));
++        }
++    }
++    out
 +}
 +
 +fn picker_js() -> &'static str {
@@ -3324,6 +3345,16 @@ index 0000000000000000000000000000000000000000..d6329551f45e99ed7d8cab50cb43350e
 +        assert!(engine.should_block("https://ads.example/a.js", "https://news.example/", "script"));
 +        assert!(!engine.should_block("https://ads.example/wanted.js", "https://news.example/", "script"));
 +        assert!(engine.document_resources("https://news.example/").hide_selectors.contains(&".promo".to_string()));
++    }
++
++    #[test]
++    fn my_filters_name_the_lines_that_are_no_filters() {
++        let text = "! a comment\n[Adblock Plus 2.0]\n||ads.example^\nexample.com##.ad\n\
++                    ||bad.example^$nosuchoption\nexample.com##+js(set-constant, a, 1)\n";
++        let problems = filter_problems(text);
++        assert_eq!(problems.len(), 1, "{problems:?}");
++        assert!(problems[0].starts_with("||bad.example^$nosuchoption ("), "{problems:?}");
++        assert!(filter_problems("").is_empty());
 +    }
 +
 +    #[test]
@@ -4207,7 +4238,7 @@ index 0000000000000000000000000000000000000000..b12baf0b2b0f73c0a9748a0e8d7086e7
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..429b2502b7d63ff9410fda762c2f7f64546e9d13
+index 0000000000000000000000000000000000000000..9beb3c5e966a38f12d9e7a2029b845216e4bec17
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
 @@ -0,0 +1,1324 @@
@@ -4366,7 +4397,7 @@ index 0000000000000000000000000000000000000000..429b2502b7d63ff9410fda762c2f7f64
 +    // uBlock Origin's "Auto-update filter lists", "Make use of context menu"
 +    // and "I am an advanced user" (the menu's grid of rules; on here)
 +    {"auto-update", true},       {"context-menu", true},
-+    {"advanced", true},
++    {"advanced", true},          {"colorblind", false},
 +};
 +// "Block media elements larger than N kB": what N is unless changed, and the
 +// most it may be.
@@ -7130,10 +7161,10 @@ index 0000000000000000000000000000000000000000..14d8a42b54fdbb2d0b66c56140e37796
 +}
 diff --git a/components/thoron_adblock/i18n.js b/components/thoron_adblock/i18n.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..3239767cd6e3930c2f43c94e208ddfd5326a1b7c
+index 0000000000000000000000000000000000000000..cd1cf1c0732b5bde0f2a77fadfcb8ba0295b82b1
 --- /dev/null
 +++ b/components/thoron_adblock/i18n.js
-@@ -0,0 +1,898 @@
+@@ -0,0 +1,956 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7364,6 +7395,49 @@ index 0000000000000000000000000000000000000000..3239767cd6e3930c2f43c94e208ddfd5
 +   `Nach neueren Listen gesucht.`, `Procurou listas mais novas.`, `Проверено наличие новых списков.`],
 +  [`The list was added and is in use.`, `La lista se añadió y está en uso.`, `La liste a été ajoutée et est utilisée.`,
 +   `Die Liste wurde hinzugefügt und ist aktiv.`, `A lista foi adicionada e está em uso.`, `Список добавлен и используется.`],
++  [`Color-blind friendly: the menu's grid of rules in blue and orange instead of green and red`,
++   `Apto para daltónicos: la cuadrícula de reglas del menú en azul y naranja en vez de verde y rojo`,
++   `Adapté aux daltoniens : la grille des règles du menu en bleu et orange au lieu de vert et rouge`,
++   `Farbenblind-freundlich: das Regelraster im Menü in Blau und Orange statt Grün und Rot`,
++   `Adequado para daltônicos: a grade de regras do menu em azul e laranja em vez de verde e vermelho`,
++   `Для дальтоников: таблица правил в меню синим и оранжевым вместо зелёного и красного`],
++  [`Troubleshooting`, `Solución de problemas`, `Dépannage`, `Fehlerbehebung`, `Solução de problemas`,
++   `Устранение неполадок`],
++  [`As uBlock Origin's support page: the browser's version, the lists in use and the settings that differ ` +
++       `from the defaults, to paste where you ask for help. No address you visited is in it.`,
++   `Como la página de ayuda de uBlock Origin: la versión del navegador, las listas en uso y los ajustes que ` +
++       `difieren de los predeterminados, para pegarlos donde pidas ayuda. No incluye ninguna dirección visitada.`,
++   `Comme la page d'aide d'uBlock Origin : la version du navigateur, les listes utilisées et les paramètres ` +
++       `modifiés, à coller là où vous demandez de l'aide. Aucune adresse visitée n'y figure.`,
++   `Wie die Hilfeseite von uBlock Origin: die Browserversion, die aktiven Listen und die geänderten ` +
++       `Einstellungen, zum Einfügen dort, wo du um Hilfe bittest. Keine besuchte Adresse ist enthalten.`,
++   `Como a página de suporte do uBlock Origin: a versão do navegador, as listas em uso e as configurações ` +
++       `alteradas, para colar onde você pedir ajuda. Nenhum endereço visitado está incluído.`,
++   `Как страница поддержки uBlock Origin: версия браузера, используемые списки и изменённые настройки, чтобы ` +
++       `вставить туда, где вы просите помощи. Посещённых адресов там нет.`],
++  [`Copy troubleshooting info`, `Copiar información de diagnóstico`, `Copier les informations de dépannage`,
++   `Infos zur Fehlerbehebung kopieren`, `Copiar informações de diagnóstico`, `Скопировать сведения для поддержки`],
++  [`The troubleshooting info was copied.`, `Se copió la información de diagnóstico.`,
++   `Les informations de dépannage ont été copiées.`, `Die Infos zur Fehlerbehebung wurden kopiert.`,
++   `As informações de diagnóstico foram copiadas.`, `Сведения для поддержки скопированы.`],
++  [`The troubleshooting info was saved as a file.`, `La información de diagnóstico se guardó como archivo.`,
++   `Les informations de dépannage ont été enregistrées dans un fichier.`,
++   `Die Infos zur Fehlerbehebung wurden als Datei gespeichert.`,
++   `As informações de diagnóstico foram salvas como arquivo.`, `Сведения для поддержки сохранены в файл.`],
++  [`Import`, `Importar`, `Importer`, `Importieren`, `Importar`, `Импортировать`],
++  [`Your rules were saved as a file.`, `Tus reglas se guardaron como archivo.`,
++   `Vos règles ont été enregistrées dans un fichier.`, `Deine Regeln wurden als Datei gespeichert.`,
++   `Suas regras foram salvas como arquivo.`, `Ваши правила сохранены в файл.`],
++  [`The allowed sites were saved as a file.`, `Los sitios permitidos se guardaron como archivo.`,
++   `Les sites autorisés ont été enregistrés dans un fichier.`, `Die erlaubten Websites wurden als Datei gespeichert.`,
++   `Os sites permitidos foram salvos como arquivo.`, `Разрешённые сайты сохранены в файл.`],
++  [`All types`, `Todos los tipos`, `Tous les types`, `Alle Typen`, `Todos os tipos`, `Все типы`],
++  [`Type`, `Tipo`, `Type`, `Typ`, `Tipo`, `Тип`],
++  [`Pause`, `Pausar`, `Pause`, `Anhalten`, `Pausar`, `Пауза`],
++  [`Resume`, `Reanudar`, `Reprendre`, `Fortsetzen`, `Retomar`, `Продолжить`],
++  [`What the logger shows was saved as a file.`, `Lo que muestra el registro se guardó como archivo.`,
++   `Ce qu'affiche le journal a été enregistré dans un fichier.`, `Was das Protokoll zeigt, wurde als Datei gespeichert.`,
++   `O que o registro mostra foi salvo como arquivo.`, `Содержимое журнала сохранено в файл.`],
 +  [`Add the list`, `Añadir la lista`, `Ajouter la liste`, `Liste hinzufügen`, `Adicionar a lista`,
 +   `Добавить список`],
 +  [`Cancel`, `Cancelar`, `Annuler`, `Abbrechen`, `Cancelar`, `Отмена`],
@@ -7839,6 +7913,21 @@ index 0000000000000000000000000000000000000000..3239767cd6e3930c2f43c94e208ddfd5
 +  [/^Add the filter list "(.+)"\?$/, {}, [`¿Añadir la lista de filtros "$1"?`,
 +    `Ajouter la liste de filtres « $1 » ?`, `Die Filterliste "$1" hinzufügen?`,
 +    `Adicionar a lista de filtros "$1"?`, `Добавить список фильтров «$1»?`]],
++  [/^These lines are not filters this blocker can use: (.*)$/, {},
++   [`Estas líneas no son filtros que este bloqueador pueda usar: $1`,
++    `Ces lignes ne sont pas des filtres utilisables par ce bloqueur : $1`,
++    `Diese Zeilen sind keine Filter, die dieser Blocker nutzen kann: $1`,
++    `Estas linhas não são filtros que este bloqueador possa usar: $1`,
++    `Эти строки не являются фильтрами, которые может использовать этот блокировщик: $1`]],
++  [/^([\d,.\s]+) lines were added below your rules\. Save to use them\.$/, {},
++   [`Se añadieron $1 líneas bajo tus reglas. Guarda para usarlas.`,
++    `$1 lignes ont été ajoutées sous vos règles. Enregistrez pour les utiliser.`,
++    `$1 Zeilen wurden unter deinen Regeln angefügt. Speichere, um sie zu nutzen.`,
++    `$1 linhas foram adicionadas abaixo das suas regras. Salve para usá-las.`,
++    `Под вашими правилами добавлено строк: $1. Сохраните, чтобы использовать их.`]],
++  [/^([\d,.\s]+) sites were allowed\.$/, {},
++   [`Se permitieron $1 sitios.`, `$1 sites ont été autorisés.`, `$1 Websites wurden erlaubt.`,
++    `$1 sites foram permitidos.`, `Разрешено сайтов: $1.`]],
 +  [/^(.+) was added and is in use\.$/, {}, [`$1 se añadió y está en uso.`, `$1 a été ajoutée et est utilisée.`,
 +    `$1 wurde hinzugefügt und ist aktiv.`, `$1 foi adicionada e está em uso.`, `$1 добавлен и используется.`]],
 +  [/^(.+) is in use\.$/, {}, [`$1 está en uso.`, `$1 est utilisée.`, `$1 ist aktiv.`, `$1 está em uso.`,
@@ -7970,7 +8059,7 @@ index 0000000000000000000000000000000000000000..3239767cd6e3930c2f43c94e208ddfd5
 +
 +// Never translated: code, rules, addresses, request types, what a person types.
 +const KEEP = 'code, pre, textarea, script, style';
-+const KEEP_PARENT = 'td.url, td.type, .url, .host, .site';
++const KEEP_PARENT = 'td.url, td.type, option.type, .url, .host, .site';
 +const ATTRIBUTES = ['title', 'aria-label', 'placeholder'];
 +
 +function translateNode(node) {
@@ -11142,10 +11231,10 @@ index 0000000000000000000000000000000000000000..bb5e6c8789e8a4e07c5d7069027b5132
 +}
 diff --git a/components/thoron_adblock/popup_page.html b/components/thoron_adblock/popup_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..7e01559f21ddfd667f2e2ca1aa93e087702a356a
+index 0000000000000000000000000000000000000000..759794b51cd0b38d7ce169e672d80a76272bcf78
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.html
-@@ -0,0 +1,226 @@
+@@ -0,0 +1,229 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file. -->
@@ -11222,6 +11311,9 @@ index 0000000000000000000000000000000000000000..7e01559f21ddfd667f2e2ca1aa93e087
 +  @media (prefers-color-scheme: dark) {
 +    :root { --allow: #81c995; --block: #f28b82; --noop: #9aa0a6; --on-set: #202124; }
 +  }
++  /* uBlock Origin's "Color-blind friendly": blue and orange instead of green and red */
++  body.colorblind { --allow: #1a73e8; --block: #e8710a; }
++  @media (prefers-color-scheme: dark) { body.colorblind { --allow: #8ab4f8; --block: #fdd663; } }
 +  #grid-box[hidden] { display: none; }
 +  #grid-changed { color: var(--block); }
 +  .grid-head, .grid-row { display: grid; grid-template-columns: minmax(0, 1fr) 38px 56px 56px; gap: 6px;
@@ -11374,10 +11466,10 @@ index 0000000000000000000000000000000000000000..7e01559f21ddfd667f2e2ca1aa93e087
 +</html>
 diff --git a/components/thoron_adblock/popup_page.js b/components/thoron_adblock/popup_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..90f437cf8c80681aa1dfee8c088078546a9f68c0
+index 0000000000000000000000000000000000000000..d3cdb487584f17df4549cef4e01123fb08c62103
 --- /dev/null
 +++ b/components/thoron_adblock/popup_page.js
-@@ -0,0 +1,219 @@
+@@ -0,0 +1,220 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -11426,6 +11518,7 @@ index 0000000000000000000000000000000000000000..90f437cf8c80681aa1dfee8c08807854
 +  showSites(next.sites);
 +  showGrid(next.grid);
 +  $('blocked-box').hidden = !next.blockedPage;
++  document.body.classList.toggle('colorblind', !!next.colorblind);
 +}
 +
 +// --- uBlock Origin's grid of rules (dynamic filtering): a change is in force at once, for now; Save keeps
@@ -14153,10 +14246,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..85d139a6cbeeee41d0a9ce1de491b1ff7543af7d
+index 0000000000000000000000000000000000000000..6ba3b8d5c4b2839bae0e1f19b4749c601f59a4f0
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,317 @@
+@@ -0,0 +1,337 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -14317,6 +14410,8 @@ index 0000000000000000000000000000000000000000..85d139a6cbeeee41d0a9ce1de491b1ff
 +    <h3>Appearance</h3>
 +    <label class="option"><input type="checkbox" data-setting="badge">
 +      <span>Show the number of blocked requests on the shield</span></label>
++    <label class="option"><input type="checkbox" data-setting="colorblind">
++      <span>Color-blind friendly: the menu's grid of rules in blue and orange instead of green and red</span></label>
 +    <label class="option"><input type="checkbox" data-setting="context-menu">
 +      <span>Make use of the context menu: "Block element..." when you right-click a page</span></label>
 +    <h3>Privacy</h3>
@@ -14353,6 +14448,12 @@ index 0000000000000000000000000000000000000000..85d139a6cbeeee41d0a9ce1de491b1ff
 +    <h3>Advanced</h3>
 +    <label class="option"><input type="checkbox" data-setting="advanced">
 +      <span>I am an advanced user: the menu of the shield shows the grid of rules for the page</span></label>
++    <h3>Troubleshooting</h3>
++    <p>As uBlock Origin's support page: the browser's version, the lists in use and the settings that differ
++      from the defaults, to paste where you ask for help. No address you visited is in it.</p>
++    <div class="row">
++      <button id="copy-info" type="button">Copy troubleshooting info</button>
++    </div>
 +    <h3>Backup</h3>
 +    <p>A file with your lists, your own rules, allowed sites, switches and these settings. It stays where
 +      you save it; nothing is sent anywhere.</p>
@@ -14431,6 +14532,9 @@ index 0000000000000000000000000000000000000000..85d139a6cbeeee41d0a9ce1de491b1ff
 +    <textarea id="my-rules" rows="10" spellcheck="false" aria-label="My rules"></textarea>
 +    <div class="row">
 +      <button id="save-rules" class="main" type="button">Save</button>
++      <button id="import-rules" type="button">Import and append</button>
++      <button id="export-rules" type="button">Export</button>
++      <input id="import-rules-file" type="file" accept=".txt,text/plain" hidden>
 +      <span id="rules-note"></span>
 +    </div>
 +  </section>
@@ -14442,6 +14546,9 @@ index 0000000000000000000000000000000000000000..85d139a6cbeeee41d0a9ce1de491b1ff
 +    <form id="allow-form" class="row">
 +      <input id="allow-host" type="text" required aria-label="Site to allow" placeholder="example.com">
 +      <button type="submit">Allow</button>
++      <button id="import-sites" type="button">Import</button>
++      <button id="export-sites" type="button">Export</button>
++      <input id="import-sites-file" type="file" accept=".txt,text/plain" hidden>
 +    </form>
 +    <h2 class="row">Switches from the menu</h2>
 +    <p>What the menu of the shield in the toolbar changed for a site: no pop-ups, no large media, no hiding,
@@ -14462,7 +14569,13 @@ index 0000000000000000000000000000000000000000..85d139a6cbeeee41d0a9ce1de491b1ff
 +        <option value="blocked">Blocked</option>
 +        <option value="allowed">Let through</option>
 +      </select>
++      <select id="log-type" aria-label="Type">
++        <option value="">All types</option>
++      </select>
 +      <input id="log-filter" type="text" aria-label="Show only addresses with" placeholder="Filter">
++      <button id="log-pause" type="button" aria-pressed="false">Pause</button>
++      <button id="log-clear" type="button">Clear</button>
++      <button id="log-export" type="button">Export</button>
 +      <span id="log-count"></span>
 +    </div>
 +    <div id="log"><table><tbody id="log-rows"></tbody></table></div>
@@ -14476,10 +14589,10 @@ index 0000000000000000000000000000000000000000..85d139a6cbeeee41d0a9ce1de491b1ff
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98edf29595
+index 0000000000000000000000000000000000000000..916901bf3159a036dfaf723701bc3b0a878a1c6b
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,843 @@
+@@ -0,0 +1,988 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -14491,6 +14604,33 @@ index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98
 +import {sendWithPromise} from 'chrome://resources/js/cr.js';
 +
 +const $ = (id) => document.getElementById(id);
++// Hands `text` to the person as a file named `name` (nothing is sent anywhere).
++function saveTextFile(name, text) {
++  const link = document.createElement('a');
++  link.href = URL.createObjectURL(new Blob([text], {type: 'text/plain'}));
++  link.download = name;
++  document.body.append(link);
++  link.click();
++  link.remove();
++  setTimeout(() => URL.revokeObjectURL(link.href), 10000);
++}
++
++// The text of a file the person picks, or null: none was picked, or it is larger than 1 MB (which is said).
++async function readTextFile(input) {
++  const file = input.files[0];
++  input.value = '';
++  if (!file) {
++    return null;
++  }
++  if (file.size > 1024 * 1024) {
++    say('That file is larger than 1 MB.', true);
++    return null;
++  }
++  return (await file.text()).replace(/\r\n?/g, '\n');
++}
++
++const today = () => new Date().toISOString().slice(0, 10);
++
 +// list id -> its name, for the logger's "Why?" (filled as the lists are shown)
 +const listNames = new Map([['my-filters', 'My filters'], ['my-filters-trusted', 'My filters']]);
 +
@@ -14719,13 +14859,61 @@ index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98
 +  }
 +});
 +
++$('import-rules').addEventListener('click', () => $('import-rules-file').click());
++$('import-rules-file').addEventListener('change', async () => {
++  const read = await readTextFile($('import-rules-file'));
++  if (read === null) {
++    return;
++  }
++  const text = read.trim();
++  if (!text) {
++    say('That file is empty.', true);
++    return;
++  }
++  const box = $('my-rules');
++  box.value = box.value.trim() ? `${box.value.trimEnd()}\n${text}\n` : `${text}\n`;
++  say(`${text.split('\n').length} lines were added below your rules. Save to use them.`);
++});
++$('export-rules').addEventListener('click', () => {
++  saveTextFile(`my-rules-${today()}.txt`, $('my-rules').value);
++  say('Your rules were saved as a file.');
++});
++
++// --- Troubleshooting info, as uBlock Origin's support page: nothing about the pages visited ---
++$('copy-info').addEventListener('click', async () => {
++  const [state, sites, settings] = await Promise.all(
++      [sendWithPromise('getState'), sendWithPromise('getSites'), sendWithPromise('getSettings')]);
++  const changed = Object.entries(SETTING_DEFAULTS)
++      .filter(([name, value]) => name in settings && settings[name] !== value)
++      .map(([name]) => `${name}: ${settings[name]}`);
++  const lines = [
++    `Thoron ${settings.version || ''}`.trim(),
++    `Lists in use:`,
++    ...state.lists.filter((l) => l.enabled !== false).map((l) =>
++        `  ${l.title || l.url} (${l.rules || 0} rules${l.note ? ', ' + l.note : ''})`),
++    `My filters: ${state.myFiltersRules || 0} rules${state.trustMyFilters ? ' (trusted)' : ''}`,
++    `My rules: ${(await sendWithPromise('getMyRules')).split('\n').filter((l) => l.trim() &&
++                                                                         !/^[#!]/.test(l.trim())).length} lines`,
++    `Allowed sites: ${sites.allowed.length}, sites with switches: ${sites.switches.length}`,
++    `Settings changed: ${changed.length ? changed.join(', ') : 'none'}`,
++    `Last looked for updates: ${state.lastCheck > 0 ? new Date(state.lastCheck * 1000).toISOString() : 'never'}`,
++  ];
++  try {
++    await navigator.clipboard.writeText(lines.join('\n') + '\n');
++    say('The troubleshooting info was copied.');
++  } catch (e) {
++    saveTextFile(`thoron-adblock-info-${today()}.txt`, lines.join('\n') + '\n');
++    say('The troubleshooting info was saved as a file.');
++  }
++});
++
 +// --- Backup, restore, reset (as uBlock Origin's) ---
 +const BACKUP_FORMAT = 'thoron-adblock-backup';
 +const SETTING_DEFAULTS = {badge: true, prefetch: false, 'hyperlink-auditing': false, webrtc: false,
 +                          'block-csp-reports': false, 'default-cosmetic': false, 'default-media': false,
 +                          'default-fonts': false, javascript: false, 'ignore-generic': false,
 +                          'default-3p-script': false, 'default-3p-frame': false, 'auto-update': true,
-+                          'context-menu': true, advanced: true, 'media-kb': 50};
++                          'context-menu': true, advanced: true, 'media-kb': 50, colorblind: false};
 +// a setting as the backup keeps it: a number for the one that is a number, else on or off
 +const asSetting = (name, value) => (typeof SETTING_DEFAULTS[name] === 'number' ? Number(value) : !!value);
 +
@@ -15020,6 +15208,37 @@ index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98
 +  }
 +}
 +
++$('export-sites').addEventListener('click', async () => {
++  const sites = await sendWithPromise('getSites');
++  saveTextFile(`allowed-sites-${today()}.txt`, sites.allowed.join('\n') + '\n');
++  say('The allowed sites were saved as a file.');
++});
++$('import-sites').addEventListener('click', () => $('import-sites-file').click());
++$('import-sites-file').addEventListener('change', async () => {
++  // a line is a pattern as exported ([*.]example.com) or a site address, one per line
++  const text = await readTextFile($('import-sites-file'));
++  if (text === null) {
++    return;
++  }
++  const lines = text.split('\n').map((l) => l.trim())
++      .filter((l) => l && !l.startsWith('#') && !l.startsWith('!'))
++      .slice(0, 1000);
++  const have = new Set((await sendWithPromise('getSites')).allowed);
++  let added = 0;
++  for (const line of lines) {
++    if (have.has(line)) {
++      continue;
++    }
++    const pattern = line.startsWith('[*.]');
++    const site = line.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
++    if (!await sendWithPromise(pattern ? 'allowPattern' : 'allowSite', pattern ? line : site)) {
++      added++;
++    }
++  }
++  say(`${added} sites were allowed.`, added === 0 && hosts.length > 0);
++  refreshSites();
++});
++
 +$('allow-form').addEventListener('submit', async (event) => {
 +  event.preventDefault();
 +  const host = $('allow-host').value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
@@ -15036,6 +15255,11 @@ index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98
 +
 +// --- Logger ---
 +let log = [];
++// uBlock Origin's logger tools: a pause (what is shown stays as it is), a clear (only what comes after
++// is shown) and an export of what is shown.
++let logPaused = false;
++let logClearedAt = 0;
++let logShown = [];
 +
 +// The logger's "Why?", as uBlock Origin's logger names the filter of each request: the answers, by request.
 +const whys = new Map();
@@ -15103,8 +15327,21 @@ index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98
 +  const tab = log[Number(select.value)] || {entries: []};
 +  const filter = $('log-filter').value.trim().toLowerCase();
 +  const kind = $('log-kind').value;
-+  const entries = tab.entries.filter((e) => (!filter || e.url.toLowerCase().includes(filter)) &&
-+                                            (!kind || (kind === 'blocked') === (e.blocked !== false)));
++  const typeSelect = $('log-type');
++  const chosenType = typeSelect.value;
++  const types = Array.from(new Set(tab.entries.map((e) => e.type || 'other'))).sort();
++  typeSelect.replaceChildren(typeSelect.options[0], ...types.map((t) => {
++    // a request type, as the browser names it (not translated, as in the type column)
++    const option = make('option', 'type', t);
++    option.value = t;
++    return option;
++  }));
++  typeSelect.value = types.includes(chosenType) ? chosenType : '';
++  const entries = tab.entries.filter((e) => e.time > logClearedAt &&
++                                            (!filter || e.url.toLowerCase().includes(filter)) &&
++                                            (!kind || (kind === 'blocked') === (e.blocked !== false)) &&
++                                            (!typeSelect.value || (e.type || 'other') === typeSelect.value));
++  logShown = entries;
 +  $('log-count').textContent = `${entries.length} shown`;
 +  let site = '';
 +  try {
@@ -15148,13 +15385,38 @@ index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98
 +}
 +
 +async function refreshLog() {
++  let next;
 +  try {
-+    log = await sendWithPromise('getLog');
++    // asked also while paused: the browser keeps the requests let through only while the logger asks
++    next = await sendWithPromise('getLog');
 +  } catch (e) {
 +    return;
 +  }
-+  showLog();
++  if (!logPaused) {
++    log = next;
++    showLog();
++  }
 +}
++
++$('log-type').addEventListener('change', showLog);
++$('log-pause').addEventListener('click', () => {
++  logPaused = !logPaused;
++  $('log-pause').textContent = logPaused ? 'Resume' : 'Pause';
++  $('log-pause').setAttribute('aria-pressed', String(logPaused));
++  if (!logPaused) {
++    refreshLog();
++  }
++});
++$('log-clear').addEventListener('click', () => {
++  logClearedAt = Date.now();
++  showLog();
++});
++$('log-export').addEventListener('click', () => {
++  saveTextFile(`thoron-logger-${today()}.txt`, logShown.map((e) =>
++      [new Date(e.time).toISOString(), e.blocked !== false ? 'blocked' : 'let through', e.type || 'other', e.url]
++          .join('\t')).join('\n') + '\n');
++  say('What the logger shows was saved as a file.');
++});
 +
 +$('log-tab').addEventListener('change', showLog);
 +$('log-kind').addEventListener('change', showLog);
@@ -15231,9 +15493,17 @@ index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98
 +
 +$('my-filters').addEventListener('input', showDirty);
 +
-+$('save-filters').addEventListener('click', () => {
++$('save-filters').addEventListener('click', async () => {
 +  // When the browser refuses the rules, the box keeps what was typed.
-+  change('setMyFilters', [$('my-filters').value], 'Your filters were saved and are in use.');
++  const text = $('my-filters').value;
++  if (!await change('setMyFilters', [text], 'Your filters were saved and are in use.')) {
++    return;
++  }
++  // as uBlock Origin's editor marks them: the lines that are not filters this blocker can use
++  const problems = await sendWithPromise('checkFilters', text);
++  if (problems.length) {
++    say(`These lines are not filters this blocker can use: ${problems.join(' | ')}`, true);
++  }
 +});
 +
 +// As uBlock Origin's: trust for own filters, and importing and exporting them as a text file. A backup
@@ -15246,16 +15516,11 @@ index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98
 +
 +$('import-filters').addEventListener('click', () => $('import-filters-file').click());
 +$('import-filters-file').addEventListener('change', async () => {
-+  const file = $('import-filters-file').files[0];
-+  $('import-filters-file').value = '';
-+  if (!file) {
++  const read = await readTextFile($('import-filters-file'));
++  if (read === null) {
 +    return;
 +  }
-+  if (file.size > 1024 * 1024) {
-+    say('That file is larger than 1 MB.', true);
-+    return;
-+  }
-+  const text = (await file.text()).replace(/\r\n?/g, '\n').trim();
++  const text = read.trim();
 +  if (!text) {
 +    say('That file is empty.', true);
 +    return;
@@ -15267,14 +15532,7 @@ index 0000000000000000000000000000000000000000..ba1d62b60c3476bfd5b09e65dd615c98
 +});
 +
 +$('export-filters').addEventListener('click', () => {
-+  const blob = new Blob([$('my-filters').value], {type: 'text/plain'});
-+  const link = make('a');
-+  link.href = URL.createObjectURL(blob);
-+  link.download = `my-filters-${new Date().toISOString().slice(0, 10)}.txt`;
-+  document.body.append(link);
-+  link.click();
-+  link.remove();
-+  setTimeout(() => URL.revokeObjectURL(link.href), 10000);
++  saveTextFile(`my-filters-${today()}.txt`, $('my-filters').value);
 +  say('Your filters were saved as a file.');
 +});
 +

@@ -1618,6 +1618,29 @@ reload; the zapper removes one element and keeps the rest.
   "Add the list" adds it; without a click nothing opens) and by `adblock_context_check.py` (the item on a
   subscribe link opens the question; in a frame of another site the picker makes a rule for that site).
 
+### 12.41 The tools of the settings page (P5.54, 2026-11-14)
+
+What uBlock Origin's dashboard and logger have, and the settings page had not yet:
+
+- **Logger.** A filter by type (the types of the tab's requests), **Pause** (what is shown stays as it is
+  until **Resume**; the page still asks, as the browser keeps the requests let through only while the logger
+  asks), **Clear** (only what comes after is shown; nothing is deleted in the browser) and **Export** (what
+  is shown, as a text file: time, blocked or let through, type and address, one request a line).
+- **My filters are checked.** After Save, the page names the lines that are not filters this blocker can
+  use, each with why, as uBlock Origin's editor marks them. The engine parses each line on its own
+  (`filter_problems`, at most 50 named, comments and headers skipped); the lines are saved as typed.
+- **Import and export.** For My rules ("Import and append" adds a file's lines below, "Export" saves the box)
+  and for the allowed sites (a site, an address or a pattern as exported, one a line, at most 1,000; "Export"
+  saves the patterns). Files are read and saved by the page only: at most 1 MB, nothing is sent anywhere.
+- **Troubleshooting info**, as uBlock Origin's support page: the browser's version, the lists in use with
+  their rule counts, how many filters, rules, allowed sites and switches there are (not what they say), the
+  settings that differ from the defaults and when lists were last looked for. No address of a page visited
+  or of a site allowed is in it. It goes to the clipboard, or to a file when the clipboard is not offered.
+- **Color-blind friendly**, as uBlock Origin's: the menu's grid of rules in blue and orange instead of green
+  and red (also in the dark theme). Off by default; a backup keeps it.
+- **Checked** by `tools/qa/adblock_tools_check.py`: each tool on a test page, with the saved files read back,
+  and the troubleshooting info checked for addresses it must not hold.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock

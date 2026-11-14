@@ -1679,10 +1679,10 @@ index 0000000000000000000000000000000000000000..74bb1e36e87cc5e12248f5c5735b1c20
 +#endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_THORON_ADBLOCK_BUTTON_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..5dda7f14f1270b0645f0a707264ac257aafbb9fa
+index 0000000000000000000000000000000000000000..1c3bcd46d4dd65e248e2b9633141abc85b140f44
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_popup_ui.cc
-@@ -0,0 +1,530 @@
+@@ -0,0 +1,532 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -1912,6 +1912,8 @@ index 0000000000000000000000000000000000000000..5dda7f14f1270b0645f0a707264ac257
 +    }
 +    state.Set("switches", std::move(switches));
 +    state.Set("mediaKb", thoron_adblock::EngineService::Get().large_media_kb());
++    state.Set("colorblind",
++              thoron_adblock::EngineService::Get().Option("colorblind"));
 +    state.Set("blockedPage", BlockedPage(tab, site));
 +    // the grid of rules, unless "I am an advanced user" is off
 +    if (site.is_valid() &&
@@ -2272,10 +2274,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..8746021df20b34f4885d573a0b69f49047ab499c
+index 0000000000000000000000000000000000000000..46ced60a8caab4962b81e25c531fa616f92e0845
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,614 @@
+@@ -0,0 +1,637 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2297,6 +2299,7 @@ index 0000000000000000000000000000000000000000..8746021df20b34f4885d573a0b69f490
 +#include "base/path_service.h"
 +#include "base/values.h"
 +#include "chrome/browser/browser_process.h"
++#include "components/version_info/version_info.h"
 +#include "base/strings/utf_string_conversions.h"
 +#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 +#include "chrome/browser/profiles/profile.h"
@@ -2410,6 +2413,7 @@ index 0000000000000000000000000000000000000000..8746021df20b34f4885d573a0b69f490
 +    Register("getLog", &ThoronAdblockHandler::GetLog);
 +    Register("setTrustMyFilters", &ThoronAdblockHandler::SetTrustMyFilters);
 +    Register("setShortcut", &ThoronAdblockHandler::SetShortcut);
++    Register("checkFilters", &ThoronAdblockHandler::CheckFilters);
 +    Register("explainRequest", &ThoronAdblockHandler::ExplainRequest);
 +    Register("getSettings", &ThoronAdblockHandler::GetSettings);
 +    Register("allowPattern", &ThoronAdblockHandler::AllowPattern);
@@ -2646,10 +2650,13 @@ index 0000000000000000000000000000000000000000..8746021df20b34f4885d573a0b69f490
 +    for (const char* name :
 +         {"badge", "block-csp-reports", "ignore-generic", "default-media",
 +          "default-cosmetic", "default-fonts", "default-3p-script",
-+          "default-3p-frame", "auto-update", "context-menu", "advanced"}) {
++          "default-3p-frame", "auto-update", "context-menu", "advanced",
++          "colorblind"}) {
 +      settings.Set(name, Service().Option(name));
 +    }
 +    settings.Set("media-kb", Service().large_media_kb());
++    // for the troubleshooting information, as uBlock Origin's support page
++    settings.Set("version", std::string(version_info::GetVersionNumber()));
 +    base::DictValue shortcuts;
 +    for (const auto& [command, keys] : Service().shortcuts()) {
 +      shortcuts.Set(command, keys);
@@ -2758,6 +2765,24 @@ index 0000000000000000000000000000000000000000..8746021df20b34f4885d573a0b69f490
 +      }
 +    }
 +    ResolveJavascriptCallback(base::Value(*id), tabs);
++  }
++
++  // My filters as an editor marks them: [id, text] -> the lines that are not
++  // filters this blocker can use.
++  void CheckFilters(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 1);
++    if (!id || !args[1].is_string()) {
++      return;
++    }
++    const std::string& text = args[1].GetString();
++    base::ListValue problems;
++    if (text.size() <= kMaxRulesLength && base::IsStringUTF8(text)) {
++      for (const rust::String& line :
++           thoron_adblock::filter_problems(rust::Str(text.data(), text.size()))) {
++        problems.Append(std::string(line));
++      }
++    }
++    ResolveJavascriptCallback(base::Value(*id), problems);
 +  }
 +
 +  // uBlock Origin's keyboard shortcuts: [id, command, keys] ("" clears).
