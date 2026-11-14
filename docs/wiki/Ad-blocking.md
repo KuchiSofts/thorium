@@ -118,6 +118,8 @@ Open `chrome://adblock`.
 - **More lists:** cookie notices, annoyances, more privacy and lists for your region or language, as
   uBlock Origin offers them. Tick a list to add it; untick it to remove it.
 - **Filter lists:** every list has a checkbox. A list that is switched off is neither used nor downloaded.
+  **View** shows the rules of a list in use (and what it says about itself); "Show only lines with"
+  finds the lines with some words.
   "Update now" looks for newer lists at once.
 - **Add a list:** paste its address (it must start with `https://`) and press Add. The list is checked
   first; something that is not a filter list is refused, and the page says why. Remove takes it out again.

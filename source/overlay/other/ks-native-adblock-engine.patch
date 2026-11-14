@@ -4238,10 +4238,10 @@ index 0000000000000000000000000000000000000000..b12baf0b2b0f73c0a9748a0e8d7086e7
 +}
 diff --git a/components/thoron_adblock/engine_service.cc b/components/thoron_adblock/engine_service.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..9beb3c5e966a38f12d9e7a2029b845216e4bec17
+index 0000000000000000000000000000000000000000..6aacfaacee0d4576589564414f1ed01db3bc2170
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.cc
-@@ -0,0 +1,1324 @@
+@@ -0,0 +1,1335 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -5433,6 +5433,17 @@ index 0000000000000000000000000000000000000000..9beb3c5e966a38f12d9e7a2029b84521
 +      std::move(callback));
 +}
 +
++void EngineService::ListText(std::string id, ListTextDone done) {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  EnsureStarted();
++  file_runner_->PostTaskAndReplyWithResult(
++      FROM_HERE,
++      base::BindOnce(
++          [](StorePaths paths, std::string id) { return ListInUse(paths, id); },
++          Paths(), std::move(id)),
++      std::move(done));
++}
++
 +void EngineService::SetTrustMyFilters(bool trusted, Changed callback) {
 +  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 +  EnsureStarted();
@@ -5568,10 +5579,10 @@ index 0000000000000000000000000000000000000000..9beb3c5e966a38f12d9e7a2029b84521
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/engine_service.h b/components/thoron_adblock/engine_service.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..a7f1e28716d1a01f9fd829b6d08d3cd28d85fea8
+index 0000000000000000000000000000000000000000..f5838162ebcb9146bddd4b03c47c8ea25304a03b
 --- /dev/null
 +++ b/components/thoron_adblock/engine_service.h
-@@ -0,0 +1,395 @@
+@@ -0,0 +1,398 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -5754,6 +5765,9 @@ index 0000000000000000000000000000000000000000..a7f1e28716d1a01f9fd829b6d08d3cd2
 +  // Every list with its name, address, state and rule count, the person's own
 +  // rules, and how the last update went (list_store.h).
 +  void DescribeSettings(Described callback);
++  // The text of one list as the engine uses it, or nothing (list_store.h).
++  using ListTextDone = base::OnceCallback<void(std::optional<std::string>)>;
++  void ListText(std::string id, ListTextDone done);
 +  // Switches a built-in list on or off.
 +  void SetListEnabled(const std::string& id, bool enabled, Changed callback);
 +  // uBlock Origin's "Allow custom filters requiring trust".
@@ -7161,10 +7175,10 @@ index 0000000000000000000000000000000000000000..14d8a42b54fdbb2d0b66c56140e37796
 +}
 diff --git a/components/thoron_adblock/i18n.js b/components/thoron_adblock/i18n.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..cd1cf1c0732b5bde0f2a77fadfcb8ba0295b82b1
+index 0000000000000000000000000000000000000000..277d6f9df1137f0b02469b24e1943b6f3e122043
 --- /dev/null
 +++ b/components/thoron_adblock/i18n.js
-@@ -0,0 +1,956 @@
+@@ -0,0 +1,979 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -7440,6 +7454,25 @@ index 0000000000000000000000000000000000000000..cd1cf1c0732b5bde0f2a77fadfcb8ba0
 +   `O que o registro mostra foi salvo como arquivo.`, `Содержимое журнала сохранено в файл.`],
 +  [`Add the list`, `Añadir la lista`, `Ajouter la liste`, `Liste hinzufügen`, `Adicionar a lista`,
 +   `Добавить список`],
++  [`View`, `Ver`, `Voir`, `Ansehen`, `Ver`, `Просмотр`],
++  [`Only the first 200,000 of these lines are shown: the box above finds the others.`,
++   `Solo se muestran las primeras 200.000 de estas líneas: el cuadro de arriba encuentra las demás.`,
++   `Seules les 200 000 premières de ces lignes sont affichées : la zone ci-dessus trouve les autres.`,
++   `Nur die ersten 200.000 dieser Zeilen werden gezeigt: Das Feld oben findet die übrigen.`,
++   `Só as primeiras 200.000 destas linhas são mostradas: a caixa acima encontra as outras.`,
++   `Показаны только первые 200 000 из этих строк: поле выше находит остальные.`],
++  [`Show the rules of this list`, `Mostrar las reglas de esta lista`, `Afficher les règles de cette liste`,
++   `Die Regeln dieser Liste zeigen`, `Mostrar as regras desta lista`, `Показать правила этого списка`],
++  [`Show only lines with`, `Mostrar solo las líneas con`, `Afficher seulement les lignes avec`,
++   `Nur Zeilen zeigen mit`, `Mostrar só as linhas com`, `Показывать только строки с`],
++  [`Close`, `Cerrar`, `Fermer`, `Schließen`, `Fechar`, `Закрыть`],
++  [`Loading...`, `Cargando...`, `Chargement...`, `Wird geladen...`, `Carregando...`, `Загрузка...`],
++  [`This list is not in use: there is nothing to show.`, `Esta lista no está en uso: no hay nada que mostrar.`,
++   `Cette liste n'est pas utilisée : il n'y a rien à afficher.`,
++   `Diese Liste ist nicht in Gebrauch: Es gibt nichts zu zeigen.`,
++   `Esta lista não está em uso: não há nada para mostrar.`, `Этот список не используется: показывать нечего.`],
++  [`The rules of the list`, `Las reglas de la lista`, `Les règles de la liste`, `Die Regeln der Liste`,
++   `As regras da lista`, `Правила списка`],
 +  [`Cancel`, `Cancelar`, `Annuler`, `Abbrechen`, `Cancelar`, `Отмена`],
 +  [`Add this filter list?`, `¿Añadir esta lista de filtros?`, `Ajouter cette liste de filtres ?`,
 +   `Diese Filterliste hinzufügen?`, `Adicionar esta lista de filtros?`, `Добавить этот список фильтров?`],
@@ -7913,6 +7946,10 @@ index 0000000000000000000000000000000000000000..cd1cf1c0732b5bde0f2a77fadfcb8ba0
 +  [/^Add the filter list "(.+)"\?$/, {}, [`¿Añadir la lista de filtros "$1"?`,
 +    `Ajouter la liste de filtres « $1 » ?`, `Die Filterliste "$1" hinzufügen?`,
 +    `Adicionar a lista de filtros "$1"?`, `Добавить список фильтров «$1»?`]],
++  [/^([\d,.\s]+) of ([\d,.\s]+) lines$/, {},
++   [`$1 de $2 líneas`, `$1 lignes sur $2`, `$1 von $2 Zeilen`, `$1 de $2 linhas`, `$1 из $2 строк`]],
++  [/^([\d,.\s]+) lines$/, {},
++   [`$1 líneas`, `$1 lignes`, `$1 Zeilen`, `$1 linhas`, `Строк: $1`]],
 +  [/^These lines are not filters this blocker can use: (.*)$/, {},
 +   [`Estas líneas no son filtros que este bloqueador pueda usar: $1`,
 +    `Ces lignes ne sont pas des filtres utilisables par ce bloqueur : $1`,
@@ -8342,10 +8379,10 @@ index 0000000000000000000000000000000000000000..eed875cd4da34b0f151586a64b5700ff
 +#endif  // COMPONENTS_THORON_ADBLOCK_LIST_FETCH_H_
 diff --git a/components/thoron_adblock/list_store.cc b/components/thoron_adblock/list_store.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..69277aead65da6532cc6ad50e10628435f5e13ff
+index 0000000000000000000000000000000000000000..02707c7766a97f93563a766f0e1404685083072b
 --- /dev/null
 +++ b/components/thoron_adblock/list_store.cc
-@@ -0,0 +1,927 @@
+@@ -0,0 +1,965 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -8943,6 +8980,29 @@ index 0000000000000000000000000000000000000000..69277aead65da6532cc6ad50e1062843
 +  return engine;
 +}
 +
++namespace {
++
++// The copy of `source` the engine uses, as Assemble chooses it: for a built-in
++// list an update from this version, else the shipped copy; for a list the
++// person added, its stored copy.
++std::optional<std::string> CopyInUse(const StorePaths& paths,
++                                     const base::DictValue* lists,
++                                     std::map<std::string, std::string>& bundled,
++                                     const ActiveList& source) {
++  const base::DictValue* entry = lists ? lists->FindDict(source.id) : nullptr;
++  const std::string* from = entry ? entry->FindString("source") : nullptr;
++  std::optional<std::string> text;
++  if (!source.builtin || (from && *from == "download")) {
++    text = ReadText(StoredListPath(paths, source.id), kMaxListBytes);
++  }
++  if (!text && source.builtin && bundled.contains(source.id)) {
++    text = std::move(bundled[source.id]);
++  }
++  return text;
++}
++
++}  // namespace
++
 +std::string RulesInUse(const StorePaths& paths) {
 +  const Settings settings = ReadSettings(paths);
 +  std::optional<base::DictValue> state = ReadState(paths);
@@ -8954,16 +9014,8 @@ index 0000000000000000000000000000000000000000..69277aead65da6532cc6ad50e1062843
 +  std::string combined;
 +  // the copy each list uses, as Assemble chooses it
 +  for (const ActiveList& source : ActiveLists(settings)) {
-+    const base::DictValue* entry = lists ? lists->FindDict(source.id) : nullptr;
-+    const std::string* from = entry ? entry->FindString("source") : nullptr;
-+    std::optional<std::string> text;
-+    if (!source.builtin || (from && *from == "download")) {
-+      text = ReadText(StoredListPath(paths, source.id), kMaxListBytes);
-+    }
-+    if (!text && source.builtin && bundled.contains(source.id)) {
-+      text = std::move(bundled[source.id]);
-+    }
-+    if (text) {
++    if (std::optional<std::string> text =
++            CopyInUse(paths, lists, bundled, source)) {
 +      base::StrAppend(&combined, {kMarker, source.id, "\n", *text, "\n"});
 +    }
 +  }
@@ -8973,6 +9025,29 @@ index 0000000000000000000000000000000000000000..69277aead65da6532cc6ad50e1062843
 +                    {kMarker, MyFiltersId(settings), "\n", my_filters, "\n"});
 +  }
 +  return combined;
++}
++
++std::optional<std::string> ListInUse(const StorePaths& paths,
++                                     std::string_view id) {
++  if (id == kMyFiltersId || id == kMyFiltersTrustedId) {
++    return ReadMyFilters(paths);
++  }
++  for (const ActiveList& source : ActiveLists(ReadSettings(paths))) {
++    if (source.id != id) {
++      continue;
++    }
++    std::optional<base::DictValue> state = ReadState(paths);
++    std::map<std::string, std::string> bundled;
++    if (source.builtin) {
++      if (std::optional<std::string> all = ReadText(
++              paths.bundled_dir.Append(kBundledLists), kMaxAllListsBytes)) {
++        bundled = SplitLists(*all);
++      }
++    }
++    return CopyInUse(paths, state ? state->FindDict("lists") : nullptr,
++                     bundled, source);
++  }
++  return std::nullopt;
 +}
 +
 +bool IsUpdateDue(const StorePaths& paths, base::Time now) {
@@ -9275,10 +9350,10 @@ index 0000000000000000000000000000000000000000..69277aead65da6532cc6ad50e1062843
 +}  // namespace thoron_adblock
 diff --git a/components/thoron_adblock/list_store.h b/components/thoron_adblock/list_store.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..4bb522f266285c02e20ada40299458c61147692a
+index 0000000000000000000000000000000000000000..3dcbea870f53db2e9de671d879f819b640e95d7f
 --- /dev/null
 +++ b/components/thoron_adblock/list_store.h
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,198 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -9401,6 +9476,12 @@ index 0000000000000000000000000000000000000000..4bb522f266285c02e20ada40299458c6
 +// after its marker, the person's own filters last): for the logger's "Why?".
 +// Empty when there is none to read.
 +std::string RulesInUse(const StorePaths& paths);
++
++// The text of one list as the engine uses it (the person's own filters for
++// "my-filters"), for the settings page's list viewer; nothing when no list of
++// that id is in use.
++std::optional<std::string> ListInUse(const StorePaths& paths,
++                                     std::string_view id);
 +
 +// True when the last list check is older than kUpdateInterval, or was made by
 +// another browser version.
@@ -14246,10 +14327,10 @@ index 0000000000000000000000000000000000000000..328c5a833fefe915656d4c0774e57a41
 +#endif  // COMPONENTS_THORON_ADBLOCK_RENDERER_DOCUMENT_AGENT_H_
 diff --git a/components/thoron_adblock/settings_page.html b/components/thoron_adblock/settings_page.html
 new file mode 100644
-index 0000000000000000000000000000000000000000..6ba3b8d5c4b2839bae0e1f19b4749c601f59a4f0
+index 0000000000000000000000000000000000000000..a65c457aef761e20ad50f5d87d1388b160d26b8f
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.html
-@@ -0,0 +1,337 @@
+@@ -0,0 +1,363 @@
 +<!doctype html>
 +<!-- Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +     found in the LICENSE file.
@@ -14364,6 +14445,20 @@ index 0000000000000000000000000000000000000000..6ba3b8d5c4b2839bae0e1f19b4749c60
 +  #log td.act button + button { margin-inline-start: 4px; }
 +  #log td.type { white-space: nowrap; color: var(--soft); }
 +  #log .why { margin-top: 4px; font-family: system-ui, sans-serif; color: var(--soft); }
++  /* the list viewer */
++  #viewer { inline-size: min(1000px, 94vw); max-block-size: 92vh; box-sizing: border-box; padding: 18px 20px;
++            border: 1px solid var(--line); border-radius: 12px; background: Canvas; color: CanvasText; }
++  #viewer::backdrop { background: rgb(0 0 0 / .45); }
++  #viewer h2 { overflow-wrap: anywhere; }
++  #viewer-about { font-size: 12px; overflow-wrap: anywhere; }
++  #viewer-text { block-size: 62vh; resize: none; white-space: pre; overflow: auto; margin-top: 10px; }
++  #viewer-find { flex: 1; min-inline-size: 12em; font: inherit; padding: 7px 10px; border-radius: 8px;
++                 border: 1px solid var(--line); background: transparent; color: inherit; }
++  #viewer-count { color: var(--soft); }
++  button.view { padding: 2px 12px; font-size: 12px; }
++  #catalog .entry { display: flex; gap: 10px; align-items: flex-start; }
++  #catalog .entry label { flex: 1; min-inline-size: 0; }
++  #catalog .entry button.view { margin-top: 6px; }
 +  select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: Canvas;
 +           color: inherit; max-inline-size: 100%; }
 +</style>
@@ -14582,6 +14677,18 @@ index 0000000000000000000000000000000000000000..6ba3b8d5c4b2839bae0e1f19b4749c60
 +  </section>
 +
 +  <p id="message" role="status" aria-live="polite"></p>
++  <dialog id="viewer" aria-labelledby="viewer-title">
++    <h2 id="viewer-title"></h2>
++    <p id="viewer-about" class="url"></p>
++    <div class="row">
++      <input id="viewer-find" type="search" aria-label="Show only lines with" placeholder="Show only lines with">
++      <span id="viewer-count"></span>
++      <button id="viewer-close" type="button">Close</button>
++    </div>
++    <p id="viewer-more" class="note" hidden>Only the first 200,000 of these lines are shown: the box above
++      finds the others.</p>
++    <textarea id="viewer-text" readonly wrap="off" spellcheck="false" aria-label="The rules of the list"></textarea>
++  </dialog>
 +</main>
 +<script type="module" src="i18n.js"></script>
 +<script type="module" src="adblock.js"></script>
@@ -14589,10 +14696,10 @@ index 0000000000000000000000000000000000000000..6ba3b8d5c4b2839bae0e1f19b4749c60
 +</html>
 diff --git a/components/thoron_adblock/settings_page.js b/components/thoron_adblock/settings_page.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..916901bf3159a036dfaf723701bc3b0a878a1c6b
+index 0000000000000000000000000000000000000000..017b272abc636d895a816827813307d7f78f992c
 --- /dev/null
 +++ b/components/thoron_adblock/settings_page.js
-@@ -0,0 +1,988 @@
+@@ -0,0 +1,1050 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -14766,7 +14873,13 @@ index 0000000000000000000000000000000000000000..916901bf3159a036dfaf723701bc3b0a
 +      const about = make('span');
 +      about.append(make('span', 'title', entry.title), make('span', 'url', entry.url));
 +      label.append(check, about);
-+      details.append(label);
++      // the list's content, once it is added (a button may not sit in the label)
++      const entryRow = make('div', 'entry');
++      entryRow.append(label);
++      if (added.has(entry.url)) {
++        entryRow.append(viewButton(added.get(entry.url).id, entry.title));
++      }
++      details.append(entryRow);
 +    }
 +    box.append(details);
 +  }
@@ -14800,16 +14913,72 @@ index 0000000000000000000000000000000000000000..916901bf3159a036dfaf723701bc3b0a
 +               check.checked ? `${list.title} is in use.` : `${list.title} is switched off.`);
 +      });
 +      row.append(check, about);
++      if (list.enabled) {
++        row.append(viewButton(list.id, list.title || list.url));
++      }
 +    } else {
 +      const remove = make('button', '', 'Remove');
 +      remove.type = 'button';
 +      remove.addEventListener('click', () => {
 +        change('removeList', [list.id], 'The list was removed.');
 +      });
-+      row.append(about, remove);
++      row.append(about, viewButton(list.id, list.title || list.url), remove);
 +    }
 +    box.append(row);
 +  }
++}
++
++// --- A list's content, as uBlock Origin shows a list when its name is clicked (read only) ---
++const VIEWER_MAX_LINES = 200000;
++let viewerLines = [];
++
++function showViewerLines() {
++  const find = $('viewer-find').value.trim().toLowerCase();
++  const lines = find ? viewerLines.filter((l) => l.toLowerCase().includes(find)) : viewerLines;
++  $('viewer-text').value = lines.slice(0, VIEWER_MAX_LINES).join('\n');
++  const total = viewerLines.length.toLocaleString();
++  $('viewer-count').textContent = find ? `${lines.length.toLocaleString()} of ${total} lines` : `${total} lines`;
++  $('viewer-more').hidden = lines.length <= VIEWER_MAX_LINES;
++}
++
++async function viewList(id, title) {
++  viewerLines = [];
++  $('viewer-title').textContent = title;
++  $('viewer-about').textContent = '';
++  $('viewer-find').value = '';
++  $('viewer-text').value = '';
++  $('viewer-more').hidden = true;
++  $('viewer-count').textContent = 'Loading...';
++  if (!$('viewer').open) {
++    $('viewer').showModal();
++  }
++  let text = null;
++  try {
++    text = await sendWithPromise('getListText', id);
++  } catch {
++    text = null;
++  }
++  if (typeof text !== 'string') {
++    $('viewer-count').textContent = 'This list is not in use: there is nothing to show.';
++    return;
++  }
++  viewerLines = text.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n');
++  // what the list says about itself near its top, as it says it
++  $('viewer-about').textContent = viewerLines.slice(0, 80)
++      .filter((l) => /^!\s*(Version|Last modified|Updated|Expires|Homepage|License)\s*:/i.test(l))
++      .map((l) => l.replace(/^!\s*/, '')).join('  |  ');
++  showViewerLines();
++}
++
++$('viewer-find').addEventListener('input', showViewerLines);
++$('viewer-close').addEventListener('click', () => $('viewer').close());
++
++function viewButton(id, title) {
++  const view = make('button', 'view', 'View');
++  view.type = 'button';
++  view.title = 'Show the rules of this list';
++  view.addEventListener('click', () => viewList(id, title));
++  return view;
 +}
 +
 +// --- Sites: allowed sites and the menu's switches ---

@@ -2274,10 +2274,10 @@ index 0000000000000000000000000000000000000000..2bddd94abf0be5ee5cbcb1c687fcbb5a
 +#endif  // CHROME_BROWSER_UI_WEBUI_THORON_ADBLOCK_POPUP_UI_H_
 diff --git a/chrome/browser/ui/webui/thoron_adblock_ui.cc b/chrome/browser/ui/webui/thoron_adblock_ui.cc
 new file mode 100644
-index 0000000000000000000000000000000000000000..46ced60a8caab4962b81e25c531fa616f92e0845
+index 0000000000000000000000000000000000000000..2673b5ac6acbfdc1d61ffc8cb075c51375ae7ee0
 --- /dev/null
 +++ b/chrome/browser/ui/webui/thoron_adblock_ui.cc
-@@ -0,0 +1,637 @@
+@@ -0,0 +1,665 @@
 +// Copyright 2026 KuchiSofts. Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -2414,6 +2414,7 @@ index 0000000000000000000000000000000000000000..46ced60a8caab4962b81e25c531fa616
 +    Register("setTrustMyFilters", &ThoronAdblockHandler::SetTrustMyFilters);
 +    Register("setShortcut", &ThoronAdblockHandler::SetShortcut);
 +    Register("checkFilters", &ThoronAdblockHandler::CheckFilters);
++    Register("getListText", &ThoronAdblockHandler::GetListText);
 +    Register("explainRequest", &ThoronAdblockHandler::ExplainRequest);
 +    Register("getSettings", &ThoronAdblockHandler::GetSettings);
 +    Register("allowPattern", &ThoronAdblockHandler::AllowPattern);
@@ -2830,6 +2831,33 @@ index 0000000000000000000000000000000000000000..46ced60a8caab4962b81e25c531fa616
 +        url, page.SchemeIsHTTPOrHTTPS() ? page : GURL(), std::move(type),
 +        base::BindOnce(&ThoronAdblockHandler::AnswerValue,
 +                       weak_factory_.GetWeakPtr(), *id));
++  }
++
++  // The text of one list, as uBlock Origin shows a list when its name is
++  // clicked: [id, list id] -> the text, or null when no such list is in use.
++  void GetListText(const base::ListValue& args) {
++    const std::string* id = AnswerId(args, 1);
++    if (!id || !args[1].is_string()) {
++      return;
++    }
++    const std::string& list = args[1].GetString();
++    if (list.empty() || list.size() > 64 ||
++        !std::all_of(list.begin(), list.end(), [](char c) {
++          return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-';
++        })) {
++      ResolveJavascriptCallback(base::Value(*id), base::Value());
++      return;
++    }
++    Service().ListText(list, base::BindOnce(&ThoronAdblockHandler::AnswerText,
++                                            weak_factory_.GetWeakPtr(), *id));
++  }
++
++  void AnswerText(const std::string& id, std::optional<std::string> text) {
++    // only text reaches the page
++    ResolveJavascriptCallback(base::Value(id),
++                              text && base::IsStringUTF8(*text)
++                                  ? base::Value(std::move(*text))
++                                  : base::Value());
 +  }
 +
 +  void AnswerValue(const std::string& id, base::DictValue value) {

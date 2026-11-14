@@ -1641,6 +1641,22 @@ What uBlock Origin's dashboard and logger have, and the settings page had not ye
 - **Checked** by `tools/qa/adblock_tools_check.py`: each tool on a test page, with the saved files read back,
   and the troubleshooting info checked for addresses it must not hold.
 
+### 12.42 The list viewer (P5.55, 2026-11-14)
+
+- **What.** As uBlock Origin shows a list when its name is clicked: "View" next to each list in use (also
+  the lists added under "More lists") opens its rules, read only, exactly as the engine uses them: the
+  update when there is one, else the shipped copy; for a list one added, its stored copy. Above them, what
+  the list says about itself near its top (version, last change, "Expires", homepage, license), as it says
+  it. "Show only lines with" narrows the lines to those with some words, and says how many of all. Up
+  to 200,000 lines are shown at once (all of every shipped list); for a longer list the page says so.
+- **How.** `ListInUse` (list_store.cc) picks the copy the same way the engine and the logger's "Why?" do
+  (one helper, `CopyInUse`), on the background sequence. The page asks with a list id only (lowercase
+  letters, digits and `-`, at most 64): no path or address comes from the page. A list switched off, or
+  an id of no list, gives nothing; only valid UTF-8 text reaches the page, which shows it as text.
+- **Checked** by `tools/qa/adblock_viewer_check.py`: EasyList's rules and its own "Expires" line, the
+  find box, a list added from a local server shown exactly, no "View" for a list switched off, and
+  nothing for an unknown id or a path.
+
 ## 13. Credits
 
 The procedural operators and the rest of the filter syntax are uBlock Origin's (with forms from Adblock
