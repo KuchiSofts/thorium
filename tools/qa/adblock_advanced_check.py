@@ -194,11 +194,17 @@ def run(browser: Path, work: Path) -> list[str]:
             menu = WebSocket(_open(port, MENU_URL)["webSocketDebuggerUrl"])
             urllib.request.urlopen(f"http://127.0.0.1:{port}/json/activate/{page_target['id']}", timeout=10).read()
             shown = []
-            for click in (False, True, True):
+            for click, want in ((False, True), (True, False), (True, True)):
                 if click:
                     _eval(settings, "document.querySelector('[data-setting=\"advanced\"]').click(); 1")
-                time.sleep(2)
-                shown.append(_eval(menu, "!document.getElementById('grid-box').hidden"))
+                # the open menu asks for its state every few seconds: wait for it, a while at most
+                seen = None
+                for _ in range(16):
+                    time.sleep(0.5)
+                    seen = _eval(menu, "!document.getElementById('grid-box').hidden")
+                    if seen == want:
+                        break
+                shown.append(seen)
             found = grid_problems(shown)
             print(f"{'PASS' if not found else 'FAIL'}  grid: shown {shown}")
             problems += found

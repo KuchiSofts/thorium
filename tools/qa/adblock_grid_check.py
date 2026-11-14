@@ -19,6 +19,8 @@ of another site. Steps:
     inherit   "Block" for the other host on every site, and the saved rule for this site taken out: the
               cell for this site shows the block light (from the broader rule); Revert, Save: My rules
               on disk have no rule for the other host, and its script is asked for again
+    for-now   (P5.63) a block not saved shows on chrome://adblock under "Changed in the menu for now";
+              "Save them" saves it, and the section goes
 
     py -3 -I tools/qa/adblock_grid_check.py --browser <out>\\thoron.exe --work <scratch dir>
 Exit status 0 only when every step passes.
@@ -93,6 +95,22 @@ def rows_problems(grid: dict, host: str) -> list[str]:
     if grid.get("changed"):
         out.append("rows: the grid says something is not saved before anything was changed")
     return out
+
+
+def for_now_problems(before: dict, saved: str, after: dict) -> list[str]:
+    want = f"+ {saved_rule(PAGE_HOST, OTHER_HOST, 'block')}"
+    out = []
+    if not before.get("shown") or want not in before.get("lines", "").splitlines():
+        out.append(f"for-now: the settings page shows {before}, not {want!r}")
+    if saved_rule(PAGE_HOST, OTHER_HOST, "block") not in saved.splitlines():
+        out.append(f"for-now: after 'Save them' My rules on disk are {saved!r}")
+    if after.get("shown"):
+        out.append("for-now: the section is still there after 'Save them'")
+    return out
+
+
+READ_FOR_NOW = ("JSON.stringify({shown: !document.getElementById('for-now').hidden,"
+                " lines: document.getElementById('for-now-lines').textContent})")
 
 
 def step_problems(step: str, seen: dict, host: str) -> list[str]:
@@ -275,6 +293,22 @@ def run(browser: Path, work: Path, host: str) -> list[str]:
                              lambda: r.cell(OTHER_HOST, "*", "local", 1)], OTHER_HOST, reload=False)
             step("cleared", [lambda: r.click("#grid-revert"), lambda: r.cell(OTHER_HOST, "*", "local", 1),
                              lambda: r.click("#grid-save")], OTHER_HOST, reload=True)
+
+            # a block for now, seen and saved from the settings page
+            r.cell(OTHER_HOST, "*", "local", 1)
+            time.sleep(1.5)
+            settings = WebSocket(_open(r.port, "chrome://adblock/#rules")["webSocketDebuggerUrl"])
+            try:
+                time.sleep(3)
+                before = json.loads(_eval(settings, READ_FOR_NOW) or "{}")
+                _eval(settings, "document.getElementById('save-for-now').click(); 1")
+                time.sleep(2)
+                after = json.loads(_eval(settings, READ_FOR_NOW) or "{}")
+            finally:
+                settings.close()
+            found = for_now_problems(before, r.saved(), after)
+            print(f"{'PASS' if not found else 'FAIL'}  for-now: {before} then {after}")
+            problems += found
         except (OSError, RuntimeError, ValueError, KeyError, TypeError) as e:
             problems.append(f"the run failed: {e}")
         finally:

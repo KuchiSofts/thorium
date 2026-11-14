@@ -54,23 +54,26 @@ It is **off by default** until its last correctness checks are done.
   - **Zapper:** click things to remove them until the page reloads; Esc stops. A page a cookie wall had
     locked can scroll again;
   - or right-click the thing on the page and choose **Block element...**: the picker opens on it
-    (inside a frame, **Block element in frame...** picks in that frame);
+    (inside a frame, **Block element in frame...** picks in that frame; where large media is stopped,
+    **Temporarily allow large media elements** lets it through on the site until you close the browser);
   - **Logger:** the requests of your open tabs, blocked and let through; "Block" or "Allow" on a row
     makes a rule for that host; "Why?" names the rule that blocked it or let it through, and its list.
     Show one type of request only, **Pause** to look at what is there, **Clear** to see only what
     comes next, and **Export** what is shown as a text file. "3p" marks a request to another site;
     show first or third party only. The filter takes words that must all be there, `-word` for one
-    that must not, and `/.../` for a regular expression;
+    that must not, and `/.../` for a regular expression. While it is open, the hide rules that
+    hid something on a page you load are listed too, as "hidden";
   - **Settings:** the full page, `chrome://adblock`;
   - switches for this site: pop-ups (no window the site opens, also from a click), large media (sound
-    and video over 50 KB, or the size you set), no hiding, remote fonts, JavaScript, 3rd-party scripts and 3rd-party frames
+    and video over 50 KB, or the size you set; a stopped one gets a bar: click it to load it), no hiding, remote fonts, JavaScript, 3rd-party scripts and 3rd-party frames
     (nothing of that kind from other sites). A blue switch means it is on;
   - **Rules for this page** (open it once, it stays open): uBlock Origin's grid. A row for each kind
     of request and for each domain the page used, with how many requests went there and how many
     were blocked. Each row has a cell for every site and one for this site: allow (✓), leave it to
     the lists (○) or block (✕). A strong color is a rule set there, a light one comes from a
     broader rule; click a set rule again to take it out. Changes work after **Reload** but only for
-    now: **Save** keeps them in My rules, **Revert** takes them back.
+    now: **Save** keeps them in My rules, **Revert** takes them back. On `chrome://adblock`, My rules
+    show these changes too, under "Changed in the menu for now", with "Save them" and "Revert them".
 
 - **Pop-ups:** ad windows and tabs a page tries to open are not opened at all, and count on the shield.
 - **Subscribe links:** on filter list websites, a "subscribe" link (or right-click it and choose
@@ -99,7 +102,8 @@ Open `chrome://adblock`.
   Origin's "medium mode"), which the menu's switches change for one
   site; ignoring hide rules written for every site; the size of "large media"; "Block element..." in
   the right-click menu; the grid of rules in the menu ("I am an advanced user"), in blue and orange
-  with "Color-blind friendly"; and, under the lists,
+  with "Color-blind friendly"; the theme of these pages (as the system, light or dark); and, under
+  the lists,
   whether they update on their own (otherwise only "Update now" downloads them).
 - **Language:** the settings page and the menu follow the browser's language: English, Spanish,
   French, German, Portuguese or Russian. Rules, addresses and list names stay as they are.
@@ -109,7 +113,9 @@ Open `chrome://adblock`.
 - **My rules:** uBlock Origin's dynamic filtering, one rule per line: `* * 3p-script block` blocks
   scripts from other sites everywhere, `example.com * 3p-script noop` gives them back to the lists on
   example.com, `example.com cdn.example.net * allow` lets a host through on a site (also when the menu's
-  switches block other sites' scripts or frames). The most specific rule decides. "Import and append"
+  switches block other sites' scripts or frames). The most specific rule decides. A rule can name an
+  address too, as in uBlock Origin: `example.com https://cdn.example.net/ads/ * block` blocks what
+  starts with that address on example.com, before the rules of hosts. "Import and append"
   adds the lines of a text file, "Export" saves your rules as one. uBlock Origin's switch lines work
   too (`no-scripting: example.com true`, `no-large-media: * true` and the others): when you save, they
   go to the sites' switches and the settings; Export writes them, so the file also works in uBlock Origin.

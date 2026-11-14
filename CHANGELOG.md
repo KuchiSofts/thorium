@@ -62,6 +62,12 @@ Explanations live in the design docs under `docs/design/`.
 - **Ad blocking:** the logger's filter takes uBlock Origin's expressions and marks third-party requests.
 - **Ad blocking:** My rules take uBlock Origin's switch lines, and their export writes them.
 - **Ad blocking:** the menu's JavaScript switch covers the site's subdomains too, as in uBlock Origin.
+- **Ad blocking:** a theme choice for the settings page and the menu: as the system, light or dark.
+- **Ad blocking:** My rules take uBlock Origin's address rules (dynamic URL filtering).
+- **Ad blocking:** the logger lists the hide rules that hid something on a page.
+- **Ad blocking:** a large video or sound that was stopped gets a bar: click to load it.
+- **Ad blocking:** My rules show what the menu changed for now, with Save and Revert.
+- **Ad blocking:** context menu: "Temporarily allow large media elements".
 - **Version:** Thoron has its own version, 0.1.1, on the About page, `chrome://version` and in Windows.
 - **Ad blocking:** checks worker and service worker scripts and imports, and blocks WebSockets to hosts the lists block.
 - **Ad blocking:** settings page `chrome://adblock`: lists on and off, add a list by address, your own rules.
