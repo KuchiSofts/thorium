@@ -77,7 +77,7 @@ READ_PAGE = """JSON.stringify((() => {
   const checked = {};
   for (const r of rows) { const box = r.querySelector('input'); if (box) checked[r.dataset.id] = box.checked; }
   const message = document.getElementById('message');
-  return {rows: rows.length, custom: rows.filter(r => r.querySelector('button')).length, checked,
+  return {rows: rows.length, custom: rows.filter(r => r.querySelector('button:not(.view)')).length, checked,
           titles: rows.map(r => r.querySelector('.title').textContent),
           message: message.textContent, bad: message.classList.contains('bad'),
           busy: document.body.classList.contains('busy'),
@@ -319,7 +319,8 @@ class Browser:
         self.act(f"document.querySelector('#lists .list[data-id={json.dumps(list_id)}] input').click();")
 
     def remove(self) -> None:
-        self.act("document.querySelector('#lists .list button').click();")
+        # the list's "Remove" (every list in use also has "View", P5.55)
+        self.act("document.querySelector('#lists .list button:not(.view)').click();")
 
     def probe(self) -> tuple[dict, str]:
         """Loads the test page anew and says what it saw: per host loaded or blocked, and its cookies."""
